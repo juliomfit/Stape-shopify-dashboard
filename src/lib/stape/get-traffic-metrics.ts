@@ -31,6 +31,7 @@ function emptyMetrics(): StapeTrafficMetrics {
     users: null,
     events: null,
     sources: [],
+    eventCounts: [],
   };
 }
 
@@ -147,6 +148,27 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
 
     const totalsRow = (totals[0] ?? {}) as TotalsRow;
 
+    const [eventRows] = await client.query({
+      ...queryOptions,
+      query: `
+        SELECT
+          event_name AS eventName,
+          COUNT(*) AS events,
+          COUNT(
+            DISTINCT CONCAT(
+              IFNULL(client_id, ''),
+              '|',
+              IFNULL(ga_session_id, '')
+            )
+          ) AS sessions
+        FROM ${table}
+        WHERE timestamp >= UNIX_MILLIS(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @days DAY))
+          AND event_name IS NOT NULL
+        GROUP BY event_name
+      `,
+      params: { days: OVERVIEW_DAYS },
+    });
+
     return {
       status: { state: "connected", projectId: config.projectId },
       periodLabel: overviewPeriodLabel(),
@@ -154,6 +176,13 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
       users: toNumber(totalsRow.users),
       sessions: toNumber(totalsRow.sessions),
       sources: withAllChannels(sources as SourceRow[]),
+      eventCounts: (eventRows as { eventName: string; events: number; sessions: number }[]).map(
+        (row) => ({
+          eventName: row.eventName,
+          events: toNumber(row.events),
+          sessions: toNumber(row.sessions),
+        }),
+      ),
     };
   } catch (error) {
     const message =

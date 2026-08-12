@@ -8,6 +8,12 @@ export type TrafficSource = {
   sessions: number;
 };
 
+export type StapeEventCount = {
+  eventName: string;
+  events: number;
+  sessions: number;
+};
+
 export type StapeTrafficMetrics = {
   status: StapeConnectionStatus;
   periodLabel: string;
@@ -15,4 +21,5 @@ export type StapeTrafficMetrics = {
   users: number | null;
   events: number | null;
   sources: TrafficSource[];
+  eventCounts: StapeEventCount[];
 };

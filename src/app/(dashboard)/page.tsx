@@ -4,6 +4,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TopProductsPanel } from "@/components/dashboard/TopProductsPanel";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { getConversionRate } from "@/lib/dashboard/conversion";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getStapeTrafficMetrics } from "@/lib/stape/get-traffic-metrics";
 
@@ -28,10 +29,7 @@ export default async function OverviewPage() {
       ? `Stape · ${stape.periodLabel}`
       : "Stape · no data yet";
 
-  const conversionRate =
-    shopify.orders !== null && stape.sessions && stape.sessions > 0
-      ? shopify.orders / stape.sessions
-      : null;
+  const conversionRate = getConversionRate(shopify.orders, stape.sessions);
 
   return (
     <>
