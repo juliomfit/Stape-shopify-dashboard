@@ -50,6 +50,33 @@ export default async function TrafficPage() {
             value={stape.events === null ? null : formatNumber(stape.events)}
           />
         </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <MetricCard
+            label="Google Ads"
+            source={stapeSource}
+            value={
+              stape.sessions === null
+                ? null
+                : formatNumber(
+                    stape.sources.find((item) => item.source === "Google Ads")
+                      ?.sessions ?? 0,
+                  )
+            }
+          />
+          <MetricCard
+            label="Facebook / Meta Ads"
+            source={stapeSource}
+            value={
+              stape.sessions === null
+                ? null
+                : formatNumber(
+                    stape.sources.find(
+                      (item) => item.source === "Facebook / Meta Ads",
+                    )?.sessions ?? 0,
+                  )
+            }
+          />
+        </div>
         <TrafficSourcesPanel sources={stape.sources} />
       </section>
     </>
