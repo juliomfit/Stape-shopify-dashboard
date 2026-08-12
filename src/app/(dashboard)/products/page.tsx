@@ -1,22 +1,74 @@
 import type { Metadata } from "next";
+import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
+import { MetricCard } from "@/components/dashboard/MetricCard";
+import { ProductTable } from "@/components/dashboard/ProductTable";
 import { Header } from "@/components/layout/Header";
-import { PagePlaceholder } from "@/components/layout/PagePlaceholder";
+import { formatMoney, formatNumber } from "@/lib/format";
+import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Products",
 };
 
-export default function ProductsPage() {
+export default async function ProductsPage() {
+  const shopify = await getShopifyOverviewMetrics();
+  const shopifySource =
+    shopify.status.state === "connected"
+      ? `Shopify · ${shopify.periodLabel}`
+      : "Shopify · no data yet";
+  const unitsSold = shopify.products.reduce(
+    (total, product) => total + product.quantity,
+    0,
+  );
+  const productRevenue = shopify.products.reduce(
+    (total, product) => total + product.revenue.amount,
+    0,
+  );
+
   return (
     <>
       <Header
         title="Products"
-        description="Shopify catalog and product performance."
+        description="Shopify product sales for the last 30 days."
       />
-      <PagePlaceholder
-        title="Product data is not connected yet"
-        description="Product listings and performance will appear here after Shopify is connected."
-      />
+      <section className="flex flex-1 flex-col gap-6 p-8">
+        <ConnectionStatus shopify={shopify.status} />
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MetricCard
+            label="Products sold"
+            source={shopifySource}
+            value={
+              shopify.status.state === "connected"
+                ? formatNumber(shopify.products.length)
+                : null
+            }
+          />
+          <MetricCard
+            label="Units sold"
+            source={shopifySource}
+            value={
+              shopify.status.state === "connected"
+                ? formatNumber(unitsSold)
+                : null
+            }
+          />
+          <MetricCard
+            label="Product revenue"
+            source={shopifySource}
+            value={
+              shopify.revenue
+                ? formatMoney({
+                    amount: productRevenue,
+                    currencyCode: shopify.revenue.currencyCode,
+                  })
+                : null
+            }
+          />
+        </div>
+        <ProductTable products={shopify.products} />
+      </section>
     </>
   );
 }

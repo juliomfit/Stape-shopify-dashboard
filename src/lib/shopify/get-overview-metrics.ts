@@ -5,6 +5,7 @@ import type {
   ShopifyOverviewMetrics,
   TopProduct,
 } from "@/lib/shopify/types";
+
 const ORDERS_PER_PAGE = 100;
 const MAX_PAGES = 10;
 
@@ -36,6 +37,11 @@ type OrdersPage = {
             node: {
               title: string;
               quantity: number;
+              discountedTotalSet: MoneySet;
+              product: {
+                id: string;
+                title: string;
+              } | null;
             };
           }[];
         };
@@ -71,6 +77,16 @@ const ORDERS_QUERY = `
               node {
                 title
                 quantity
+                discountedTotalSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+                product {
+                  id
+                  title
+                }
               }
             }
           }
@@ -92,6 +108,7 @@ function emptyMetrics(): ShopifyOverviewMetrics {
     periodLabel: overviewPeriodLabel(),
     revenue: null,
     orders: null,
+    products: [],
     topProducts: [],
   };
 }
@@ -111,7 +128,10 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
     let currencyCode = "USD";
     let ordersCount: number | null = null;
     let revenue = 0;
-    const productTotals = new Map<string, number>();
+    const productTotals = new Map<
+      string,
+      { title: string; quantity: number; revenue: number }
+    >();
 
     while (hasNextPage && pages < MAX_PAGES) {
       const data: OrdersPage = await shopifyGraphql<OrdersPage>(ORDERS_QUERY, {
@@ -127,11 +147,21 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
         revenue += Number(edge.node.currentTotalPriceSet.shopMoney.amount);
 
         for (const lineItem of edge.node.lineItems.edges) {
-          const title = lineItem.node.title;
-          productTotals.set(
+          const product = lineItem.node.product;
+          const title = product?.title || lineItem.node.title;
+          const id = product?.id || title;
+          const current = productTotals.get(id) ?? {
             title,
-            (productTotals.get(title) ?? 0) + lineItem.node.quantity,
+            quantity: 0,
+            revenue: 0,
+          };
+
+          current.quantity += lineItem.node.quantity;
+          current.revenue += Number(
+            lineItem.node.discountedTotalSet.shopMoney.amount,
           );
+          current.title = title;
+          productTotals.set(id, current);
         }
       }
 
@@ -140,17 +170,22 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       pages += 1;
     }
 
-    const topProducts: TopProduct[] = [...productTotals.entries()]
-      .map(([title, quantity]) => ({ title, quantity }))
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 5);
+    const products: TopProduct[] = [...productTotals.entries()]
+      .map(([id, item]) => ({
+        id,
+        title: item.title,
+        quantity: item.quantity,
+        revenue: { amount: item.revenue, currencyCode },
+      }))
+      .sort((a, b) => b.revenue.amount - a.revenue.amount || b.quantity - a.quantity);
 
     return {
       status: { state: "connected", shopName },
       periodLabel: overviewPeriodLabel(),
       revenue: { amount: revenue, currencyCode },
       orders: ordersCount,
-      topProducts,
+      products,
+      topProducts: products.slice(0, 5),
     };
   } catch (error) {
     const message =

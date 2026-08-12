@@ -9,8 +9,10 @@ export type ShopifyConnectionStatus =
   | { state: "error"; message: string };
 
 export type TopProduct = {
+  id: string;
   title: string;
   quantity: number;
+  revenue: Money;
 };
 
 export type ShopifyOverviewMetrics = {
@@ -18,5 +20,6 @@ export type ShopifyOverviewMetrics = {
   periodLabel: string;
   revenue: Money | null;
   orders: number | null;
+  products: TopProduct[];
   topProducts: TopProduct[];
 };
