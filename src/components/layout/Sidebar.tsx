@@ -16,17 +16,22 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground">
-      <div className="border-b border-white/10 px-6 py-5">
-        <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-          Analytics
-        </p>
-        <p className="mt-1 text-lg font-semibold text-sidebar-active">
-          Shopify + Stape
-        </p>
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
+      <div className="px-6 py-6">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-sm font-semibold text-white">
+            SS
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-sidebar-active">
+              Shopify + Stape
+            </p>
+            <p className="text-xs text-sidebar-foreground">Analytics</p>
+          </div>
+        </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
+      <nav className="flex flex-1 flex-col gap-1 px-3 pb-6">
         {navItems.map((item) => {
           const active = isActivePath(pathname, item.href);
 
@@ -34,7 +39,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              className={`rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 active
                   ? "bg-white/10 text-sidebar-active"
                   : "text-sidebar-foreground hover:bg-white/5 hover:text-sidebar-active"

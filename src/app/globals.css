@@ -1,15 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f6f8;
+  --background: #f3f5f8;
   --foreground: #0f172a;
   --muted: #64748b;
-  --border: #e2e8f0;
+  --border: #e6eaf0;
   --surface: #ffffff;
-  --sidebar: #0f172a;
-  --sidebar-foreground: #cbd5e1;
+  --sidebar: #0b1220;
+  --sidebar-foreground: #94a3b8;
   --sidebar-active: #ffffff;
   --accent: #2563eb;
+  --accent-soft: #eff4ff;
 }
 
 @theme inline {
@@ -22,6 +23,7 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-active: var(--sidebar-active);
   --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
