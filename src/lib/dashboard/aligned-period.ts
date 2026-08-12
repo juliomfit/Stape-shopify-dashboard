@@ -8,7 +8,12 @@ export async function getAlignedPeriod(): Promise<DashboardPeriod> {
 }
 
 export function shopifyMetricsSince(
-  orderPoints: { createdAt: string; amount: number }[],
+  orderPoints: {
+    createdAt: string;
+    amount: number;
+    isNew?: boolean | null;
+    isGuest?: boolean;
+  }[],
   startMs: number,
   endMs?: number,
 ) {
@@ -28,5 +33,15 @@ export function shopifyMetricsSince(
   return {
     orders: matched.length,
     revenue: matched.reduce((total, order) => total + order.amount, 0),
+    newCustomerOrders: matched.filter((order) => order.isNew === true).length,
+    returningCustomerOrders: matched.filter((order) => order.isNew === false)
+      .length,
+    guestOrders: matched.filter((order) => order.isGuest).length,
+    newCustomerRevenue: matched
+      .filter((order) => order.isNew === true)
+      .reduce((total, order) => total + order.amount, 0),
+    returningCustomerRevenue: matched
+      .filter((order) => order.isNew === false)
+      .reduce((total, order) => total + order.amount, 0),
   };
 }

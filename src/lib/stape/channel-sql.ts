@@ -1,4 +1,16 @@
 /** Shared BigQuery SQL for first-party channel grouping. */
+export const ATTRIBUTION_CHANNELS = [
+  "Google Ads",
+  "Facebook / Meta Ads",
+  "Google Organic",
+  "Meta Organic",
+  "Email",
+  "Direct",
+  "Other",
+] as const;
+
+export type AttributionChannel = (typeof ATTRIBUTION_CHANNELS)[number];
+
 export const CHANNEL_SQL = `
   CASE
     WHEN IFNULL(gclid, '') != ''
@@ -15,6 +27,13 @@ export const CHANNEL_SQL = `
       OR page_location LIKE '%fbclid=%'
       OR REGEXP_CONTAINS(page_location, r'[?&]utm_source=(facebook|fb|ig|instagram|meta)')
       THEN 'Facebook / Meta Ads'
+    WHEN REGEXP_CONTAINS(page_location, r'[?&]utm_medium=(email|sms)')
+      OR REGEXP_CONTAINS(page_location, r'[?&]utm_source=(klaviyo|omnisend|email|sms|postscript|attentive)')
+      THEN 'Email'
+    WHEN page_location LIKE '%web-pixels@%'
+      OR page_location LIKE '%/checkouts/%'
+      OR page_location LIKE '%/checkout%'
+      THEN 'Direct'
     WHEN page_referrer LIKE '%google.'
       OR page_referrer LIKE '%google.com%'
       THEN 'Google Organic'

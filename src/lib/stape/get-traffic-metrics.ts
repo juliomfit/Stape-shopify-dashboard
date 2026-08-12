@@ -9,6 +9,7 @@ const CHANNELS = [
   "Facebook / Meta Ads",
   "Google Organic",
   "Meta Organic",
+  "Email",
   "Direct",
   "Other",
 ] as const;

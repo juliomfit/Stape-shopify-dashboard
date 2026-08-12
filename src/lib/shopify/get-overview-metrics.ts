@@ -38,6 +38,10 @@ type OrdersPage = {
           createdAt: string;
           displayFinancialStatus: string | null;
           currentTotalPriceSet: MoneySet;
+          customer: {
+            createdAt: string;
+            numberOfOrders: string | number | null;
+          } | null;
           lineItems: {
           edges: {
             node: {
@@ -82,6 +86,10 @@ const ORDERS_QUERY = `
               currencyCode
             }
           }
+          customer {
+            createdAt
+            numberOfOrders
+          }
           lineItems(first: 50) {
             edges {
               node {
@@ -116,6 +124,11 @@ function emptyMetrics(periodLabel: string): ShopifyOverviewMetrics {
     topProducts: [],
     recentOrders: [],
     orderPoints: [],
+    newCustomerOrders: 0,
+    returningCustomerOrders: 0,
+    guestOrders: 0,
+    newCustomerRevenue: 0,
+    returningCustomerRevenue: 0,
   };
 }
 
@@ -136,8 +149,13 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
     let currencyCode = "USD";
     let ordersCount: number | null = null;
     let revenue = 0;
+    let newCustomerOrders = 0;
+    let returningCustomerOrders = 0;
+    let guestOrders = 0;
+    let newCustomerRevenue = 0;
+    let returningCustomerRevenue = 0;
     const recentOrders: ShopifyOrder[] = [];
-    const orderPoints: { createdAt: string; amount: number }[] = [];
+    const orderPoints: ShopifyOverviewMetrics["orderPoints"] = [];
     const productTotals = new Map<
       string,
       { title: string; quantity: number; revenue: number }
@@ -160,11 +178,30 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           0,
         );
 
-        revenue += Number(order.currentTotalPriceSet.shopMoney.amount);
+        const amount = Number(order.currentTotalPriceSet.shopMoney.amount);
+        const customer = order.customer;
+        const isGuest = !customer;
+        const isNew = customer
+          ? Number(customer.numberOfOrders ?? 0) <= 1
+          : null;
+
+        revenue += amount;
         orderPoints.push({
           createdAt: order.createdAt,
-          amount: Number(order.currentTotalPriceSet.shopMoney.amount),
+          amount,
+          isNew,
+          isGuest,
         });
+
+        if (isGuest) {
+          guestOrders += 1;
+        } else if (isNew) {
+          newCustomerOrders += 1;
+          newCustomerRevenue += amount;
+        } else {
+          returningCustomerOrders += 1;
+          returningCustomerRevenue += amount;
+        }
 
         if (recentOrders.length < 25) {
           recentOrders.push({
@@ -222,6 +259,11 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       topProducts: products.slice(0, 5),
       recentOrders,
       orderPoints,
+      newCustomerOrders,
+      returningCustomerOrders,
+      guestOrders,
+      newCustomerRevenue,
+      returningCustomerRevenue,
     };
   } catch (error) {
     const message =

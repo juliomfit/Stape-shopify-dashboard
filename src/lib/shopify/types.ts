@@ -35,6 +35,8 @@ export type CustomerPerformance = {
 export type OrderPoint = {
   createdAt: string;
   amount: number;
+  isNew: boolean | null;
+  isGuest: boolean;
 };
 
 export type ShopifyOverviewMetrics = {
@@ -46,6 +48,11 @@ export type ShopifyOverviewMetrics = {
   topProducts: TopProduct[];
   recentOrders: ShopifyOrder[];
   orderPoints: OrderPoint[];
+  newCustomerOrders: number;
+  returningCustomerOrders: number;
+  guestOrders: number;
+  newCustomerRevenue: number;
+  returningCustomerRevenue: number;
 };
 
 export type ShopifyCustomerMetrics = {

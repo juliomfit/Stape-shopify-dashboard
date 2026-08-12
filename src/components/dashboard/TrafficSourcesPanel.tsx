@@ -6,12 +6,14 @@ type TrafficSourcesPanelProps = {
   sources: TrafficSource[];
   periodLabel?: string;
   title?: string;
+  description?: string;
 };
 
 export function TrafficSourcesPanel({
   sources,
   periodLabel = "Last 30 days",
   title = "Traffic sources",
+  description,
 }: TrafficSourcesPanelProps) {
   if (sources.length === 0) {
     return (
@@ -27,7 +29,7 @@ export function TrafficSourcesPanel({
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <p className="text-xs text-muted">
-          First hit in each session · {periodLabel}
+          {description || `First hit in each session · ${periodLabel}`}
         </p>
       </div>
       <ul className="mt-4 divide-y divide-border">
