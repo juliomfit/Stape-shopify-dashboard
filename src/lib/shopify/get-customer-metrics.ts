@@ -1,5 +1,5 @@
-import { overviewPeriodLabel, startDateIso } from "@/lib/period";
-import { getSelectedRangeDays } from "@/lib/period-server";
+import { shopifyOrdersQuery } from "@/lib/period";
+import { getSelectedPeriod } from "@/lib/period-server";
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import type {
@@ -77,10 +77,10 @@ function customerLabel(id: string, displayName: string | null) {
   return `Customer ${shortId.slice(-6)}`;
 }
 
-function emptyMetrics(days: number): ShopifyCustomerMetrics {
+function emptyMetrics(periodLabel: string): ShopifyCustomerMetrics {
   return {
     status: { state: "not_configured" },
-    periodLabel: overviewPeriodLabel(days),
+    periodLabel,
     customers: [],
     guestOrders: 0,
   };
@@ -95,13 +95,13 @@ function friendlyCustomerError(message: string) {
 }
 
 export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetrics> {
-  const days = await getSelectedRangeDays();
+  const period = await getSelectedPeriod();
 
   if (!isShopifyConfigured()) {
-    return emptyMetrics(days);
+    return emptyMetrics(period.label);
   }
 
-  const query = `created_at:>=${startDateIso(days)}`;
+  const query = shopifyOrdersQuery(period);
 
   try {
     let cursor: string | null = null;
@@ -157,20 +157,19 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
       pages += 1;
     }
 
-    const periodStart = startDateIso(days);
     const customers: CustomerPerformance[] = [...customerTotals.entries()]
       .map(([id, item]) => ({
         id,
         name: item.name,
         orderCount: item.orderCount,
         spend: { amount: item.spend, currencyCode },
-        isNew: item.createdAt.slice(0, 10) >= periodStart,
+        isNew: new Date(item.createdAt).getTime() >= period.startMs,
       }))
       .sort((a, b) => b.spend.amount - a.spend.amount);
 
     return {
       status: { state: "connected", shopName },
-      periodLabel: overviewPeriodLabel(days),
+      periodLabel: period.label,
       customers,
       guestOrders,
     };
@@ -181,7 +180,7 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
         : "Could not load Shopify customer data.";
 
     return {
-      ...emptyMetrics(days),
+      ...emptyMetrics(period.label),
       status: { state: "error", message: friendlyCustomerError(message) },
     };
   }

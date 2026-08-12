@@ -25,7 +25,11 @@ export default async function AttributionPage() {
     getAttributionMetrics(),
     getAlignedPeriod(),
   ]);
-  const alignedShopify = shopifyMetricsSince(shopify.orderPoints, period.startMs);
+  const alignedShopify = shopifyMetricsSince(
+    shopify.orderPoints,
+    period.startMs,
+    period.endMs,
+  );
   const conversion = getConversionRate(
     shopify.status.state === "connected" ? alignedShopify.orders : null,
     stape.sessions,

@@ -32,7 +32,7 @@ export function getConversionRate(
 
   return {
     rate: orders / sessions,
-    note: "Orders ÷ sessions",
+    note: "Purchases ÷ sessions",
   };
 }
 

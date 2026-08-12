@@ -1,6 +1,4 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
-import { overviewPeriodLabel } from "@/lib/period";
-import { getSelectedRangeDays } from "@/lib/period-server";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
 import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
@@ -26,10 +24,10 @@ type SourceRow = {
   sessions: number;
 };
 
-function emptyMetrics(days: number): StapeTrafficMetrics {
+function emptyMetrics(periodLabel: string): StapeTrafficMetrics {
   return {
     status: { state: "not_configured" },
-    periodLabel: overviewPeriodLabel(days),
+    periodLabel,
     sessions: null,
     users: null,
     events: null,
@@ -52,19 +50,18 @@ function withAllChannels(rows: SourceRow[]): TrafficSource[] {
 }
 
 export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
-  const days = await getSelectedRangeDays();
+  const period = await getAlignedPeriod();
 
   try {
     if (!getBigQueryConfig()) {
-      return emptyMetrics(days);
+      return emptyMetrics(period.label);
     }
 
-    const period = await getAlignedPeriod();
     const { client, config } = getBigQueryClient();
     const table = eventsFromSql(config);
     const queryOptions = { location: config.location };
-    const timeFilter = `timestamp >= @startMs`;
-    const timeParams = { startMs: period.startMs };
+    const timeFilter = `timestamp >= @startMs AND timestamp < @endMs`;
+    const timeParams = { startMs: period.startMs, endMs: period.endMs };
 
     const [totals] = await client.query({
       ...queryOptions,
@@ -163,7 +160,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
       error instanceof Error ? error.message : "Could not load Stape data.";
 
     return {
-      ...emptyMetrics(days),
+      ...emptyMetrics(period.label),
       status: { state: "error", message },
     };
   }

@@ -1,5 +1,5 @@
 import { DateRangeToggle } from "@/components/layout/DateRangeToggle";
-import { getSelectedRangeDays } from "@/lib/period-server";
+import { getSelectedRange } from "@/lib/period-server";
 
 type HeaderProps = {
   title: string;
@@ -7,7 +7,7 @@ type HeaderProps = {
 };
 
 export async function Header({ title, description }: HeaderProps) {
-  const rangeDays = await getSelectedRangeDays();
+  const range = await getSelectedRange();
 
   return (
     <header className="border-b border-border bg-surface/90 px-8 py-6 backdrop-blur">
@@ -22,7 +22,7 @@ export async function Header({ title, description }: HeaderProps) {
             </p>
           ) : null}
         </div>
-        <DateRangeToggle value={rangeDays} />
+        <DateRangeToggle value={range} />
       </div>
     </header>
   );

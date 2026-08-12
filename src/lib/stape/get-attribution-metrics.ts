@@ -1,6 +1,4 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
-import { overviewPeriodLabel } from "@/lib/period";
-import { getSelectedRangeDays } from "@/lib/period-server";
 import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
@@ -31,10 +29,10 @@ function withAllChannels(rows: { source: string; sessions: number }[]): TrafficS
   }));
 }
 
-function emptyMetrics(days: number): AttributionMetrics {
+function emptyMetrics(periodLabel: string): AttributionMetrics {
   return {
     status: { state: "not_configured" },
-    periodLabel: overviewPeriodLabel(days),
+    periodLabel,
     firstTouch: [],
     lastTouch: [],
     tracking: [],
@@ -43,18 +41,17 @@ function emptyMetrics(days: number): AttributionMetrics {
 }
 
 export async function getAttributionMetrics(): Promise<AttributionMetrics> {
-  const days = await getSelectedRangeDays();
+  const period = await getAlignedPeriod();
 
   try {
     if (!getBigQueryConfig()) {
-      return emptyMetrics(days);
+      return emptyMetrics(period.label);
     }
 
-    const period = await getAlignedPeriod();
     const { client, config } = getBigQueryClient();
     const table = eventsFromSql(config);
     const queryOptions = { location: config.location };
-    const timeParams = { startMs: period.startMs };
+    const timeParams = { startMs: period.startMs, endMs: period.endMs };
 
     const hitsCte = `
       WITH hits AS (
@@ -69,6 +66,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
           ${CHANNEL_SQL} AS channel
         FROM ${table}
         WHERE timestamp >= @startMs
+          AND timestamp < @endMs
       )
     `;
 
@@ -133,6 +131,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
           COUNTIF(LOWER(IFNULL(event_name, '')) = 'begin_checkout') AS begin_checkout
         FROM ${table}
         WHERE timestamp >= @startMs
+          AND timestamp < @endMs
       `,
     });
 
@@ -161,7 +160,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
     const message =
       error instanceof Error ? error.message : "Could not load attribution data.";
     return {
-      ...emptyMetrics(days),
+      ...emptyMetrics(period.label),
       status: { state: "error", message },
     };
   }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
+import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TopProductsPanel } from "@/components/dashboard/TopProductsPanel";
 import { Header } from "@/components/layout/Header";
@@ -7,6 +8,7 @@ import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getConversionRate } from "@/lib/dashboard/conversion";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import { getStapeTrafficMetrics } from "@/lib/stape/get-traffic-metrics";
 
 export const dynamic = "force-dynamic";
@@ -16,24 +18,29 @@ export const metadata: Metadata = {
 };
 
 export default async function OverviewPage() {
-  const [shopify, stape, period] = await Promise.all([
+  const [shopify, stape, funnel, period] = await Promise.all([
     getShopifyOverviewMetrics(),
     getStapeTrafficMetrics(),
+    getStapeFunnelMetrics(),
     getAlignedPeriod(),
   ]);
 
-  const shopifySource =
-    shopify.status.state === "connected"
-      ? `Shopify · ${shopify.periodLabel}`
-      : "Shopify · no data yet";
-  const stapeSource =
-    stape.status.state === "connected"
-      ? `Stape · ${stape.periodLabel}`
-      : "Stape · no data yet";
-  const alignedShopify = shopifyMetricsSince(shopify.orderPoints, period.startMs);
+  const alignedShopify = shopifyMetricsSince(
+    shopify.orderPoints,
+    period.startMs,
+    period.endMs,
+  );
+  const shopifyConnected = shopify.status.state === "connected";
+  const stapeConnected = funnel.status.state === "connected";
+  const shopifySource = shopifyConnected
+    ? `Shopify · ${period.label}`
+    : "Shopify · no data yet";
+  const stapeSource = stapeConnected
+    ? `Stape · ${period.label}`
+    : "Stape · no data yet";
   const conversion = getConversionRate(
-    shopify.status.state === "connected" ? alignedShopify.orders : null,
-    stape.sessions,
+    stapeConnected ? funnel.purchases : null,
+    stapeConnected ? funnel.sessions : null,
   );
   const conversionSource =
     conversion.rate === null
@@ -44,21 +51,52 @@ export default async function OverviewPage() {
     <>
       <Header
         title="Overview"
-        description="A high-level view of Shopify and Stape performance."
+        description="Sales and funnel for the selected date range, using America/Los_Angeles calendar days."
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
-        <ConnectionStatus shopify={shopify.status} stape={stape.status} />
+        <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Total Revenue"
-            source={shopifySource}
-            value={shopify.revenue ? formatMoney(shopify.revenue) : null}
-          />
-          <MetricCard
-            label="Orders"
+            label="Shopify revenue"
             source={shopifySource}
             value={
-              shopify.orders === null ? null : formatNumber(shopify.orders)
+              shopifyConnected
+                ? formatMoney({
+                    amount: alignedShopify.revenue,
+                    currencyCode: shopify.revenue?.currencyCode || "USD",
+                  })
+                : null
+            }
+          />
+          <MetricCard
+            label="Shopify orders"
+            source={shopifySource}
+            value={shopifyConnected ? formatNumber(alignedShopify.orders) : null}
+          />
+          <MetricCard
+            label="Stape purchase revenue"
+            source={stapeSource}
+            value={
+              stapeConnected
+                ? formatMoney({
+                    amount: funnel.purchaseRevenue,
+                    currencyCode: shopify.revenue?.currencyCode || "USD",
+                  })
+                : null
+            }
+          />
+          <MetricCard
+            label="Stape purchases"
+            source={stapeSource}
+            value={stapeConnected ? formatNumber(funnel.purchases) : null}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Sessions"
+            source={stapeSource}
+            value={
+              stape.sessions === null ? null : formatNumber(stape.sessions)
             }
           />
           <MetricCard
@@ -68,14 +106,10 @@ export default async function OverviewPage() {
               conversion.rate === null ? null : formatPercent(conversion.rate)
             }
           />
-          <MetricCard
-            label="Sessions / Traffic"
-            source={stapeSource}
-            value={
-              stape.sessions === null ? null : formatNumber(stape.sessions)
-            }
-          />
         </div>
+        {funnel.steps.length > 0 ? (
+          <ConversionFunnel steps={funnel.steps} periodLabel={period.label} />
+        ) : null}
         <TopProductsPanel products={shopify.topProducts} />
       </section>
     </>
