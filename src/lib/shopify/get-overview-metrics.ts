@@ -2,7 +2,6 @@ import { OVERVIEW_DAYS, overviewPeriodLabel, startDateIso } from "@/lib/period";
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import type {
-  CustomerPerformance,
   ShopifyOrder,
   ShopifyOverviewMetrics,
   TopProduct,
@@ -38,12 +37,6 @@ type OrdersPage = {
           createdAt: string;
           displayFinancialStatus: string | null;
           currentTotalPriceSet: MoneySet;
-          customer: {
-            id: string;
-            displayName: string | null;
-            createdAt: string;
-            numberOfOrders: number;
-          } | null;
           lineItems: {
           edges: {
             node: {
@@ -82,12 +75,6 @@ const ORDERS_QUERY = `
           name
           createdAt
           displayFinancialStatus
-          customer {
-            id
-            displayName
-            createdAt
-            numberOfOrders
-          }
           currentTotalPriceSet {
             shopMoney {
               amount
@@ -118,15 +105,6 @@ const ORDERS_QUERY = `
   }
 `;
 
-function customerLabel(id: string, displayName: string | null) {
-  if (displayName?.trim()) {
-    return displayName.trim();
-  }
-
-  const shortId = id.split("/").pop() || id;
-  return `Customer ${shortId.slice(-6)}`;
-}
-
 function emptyMetrics(): ShopifyOverviewMetrics {
   return {
     status: { state: "not_configured" },
@@ -136,8 +114,6 @@ function emptyMetrics(): ShopifyOverviewMetrics {
     products: [],
     topProducts: [],
     recentOrders: [],
-    customers: [],
-    guestOrders: 0,
   };
 }
 
@@ -157,16 +133,6 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
     let ordersCount: number | null = null;
     let revenue = 0;
     const recentOrders: ShopifyOrder[] = [];
-    const customerTotals = new Map<
-      string,
-      {
-        name: string;
-        orderCount: number;
-        spend: number;
-        createdAt: string;
-      }
-    >();
-    let guestOrders = 0;
     const productTotals = new Map<
       string,
       { title: string; quantity: number; revenue: number }
@@ -190,24 +156,6 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
         );
 
         revenue += Number(order.currentTotalPriceSet.shopMoney.amount);
-
-        if (order.customer) {
-          const current = customerTotals.get(order.customer.id) ?? {
-            name: customerLabel(order.customer.id, order.customer.displayName),
-            orderCount: 0,
-            spend: 0,
-            createdAt: order.customer.createdAt,
-          };
-          current.orderCount += 1;
-          current.spend += Number(order.currentTotalPriceSet.shopMoney.amount);
-          current.name = customerLabel(
-            order.customer.id,
-            order.customer.displayName,
-          );
-          customerTotals.set(order.customer.id, current);
-        } else {
-          guestOrders += 1;
-        }
 
         if (recentOrders.length < 25) {
           recentOrders.push({
@@ -247,17 +195,6 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       pages += 1;
     }
 
-    const periodStart = startDateIso(OVERVIEW_DAYS);
-    const customers: CustomerPerformance[] = [...customerTotals.entries()]
-      .map(([id, item]) => ({
-        id,
-        name: item.name,
-        orderCount: item.orderCount,
-        spend: { amount: item.spend, currencyCode },
-        isNew: item.createdAt.slice(0, 10) >= periodStart,
-      }))
-      .sort((a, b) => b.spend.amount - a.spend.amount);
-
     const products: TopProduct[] = [...productTotals.entries()]
       .map(([id, item]) => ({
         id,
@@ -275,8 +212,6 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       products,
       topProducts: products.slice(0, 5),
       recentOrders,
-      customers,
-      guestOrders,
     };
   } catch (error) {
     const message =

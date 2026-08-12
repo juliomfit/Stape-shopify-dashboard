@@ -18,7 +18,9 @@ function ShopifyPill({ status }: { status: ShopifyConnectionStatus }) {
   if (status.state === "error") {
     return (
       <p className="max-w-xl rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-        Shopify error · {status.message}
+        Shopify error · {status.message.length > 140
+          ? `${status.message.slice(0, 140)}…`
+          : status.message}
       </p>
     );
   }

@@ -19,7 +19,7 @@ You need a Shopify Admin API connection. Shopify no longer shows a copy-paste to
 2. Create an app named `Stape Shopify Dashboard`.
 3. Create a version:
    - App URL: `https://shopify.dev/apps/default-app-home`
-   - Scopes: `read_orders`, `read_products`
+   - Scopes: `read_orders`, `read_products`, `read_customers`
    - Release the version
 4. Install the app on your store.
 5. Copy **Client ID** and **Client secret** from Settings.

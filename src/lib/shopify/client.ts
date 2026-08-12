@@ -94,7 +94,10 @@ export async function shopifyGraphql<T>(
   const payload = (await response.json()) as GraphQLResponse<T>;
 
   if (payload.errors?.length) {
-    throw new Error(payload.errors.map((error) => error.message).join(" "));
+    const uniqueMessages = [
+      ...new Set(payload.errors.map((error) => error.message)),
+    ];
+    throw new Error(uniqueMessages[0] || "Shopify returned an error.");
   }
 
   if (!payload.data) {

@@ -40,6 +40,11 @@ export type ShopifyOverviewMetrics = {
   products: TopProduct[];
   topProducts: TopProduct[];
   recentOrders: ShopifyOrder[];
+};
+
+export type ShopifyCustomerMetrics = {
+  status: ShopifyConnectionStatus;
+  periodLabel: string;
   customers: CustomerPerformance[];
   guestOrders: number;
 };
