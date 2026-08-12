@@ -13,6 +13,23 @@ export type ChannelContribution = {
   revenue: number;
 };
 
+export type AttributedOrder = {
+  transactionId: string;
+  revenue: number;
+  firstNonDirect: string;
+  lastNonDirect: string;
+  lastClick: string;
+  personKey: string;
+};
+
+export type IdentityStats = {
+  purchases: number;
+  purchasesWithPerson: number;
+  uniquePeople: number;
+  uniqueBrowsers: number;
+  crossDevicePeople: number;
+};
+
 export type AttributionMetrics = {
   status: StapeConnectionStatus;
   periodLabel: string;
@@ -25,6 +42,8 @@ export type AttributionMetrics = {
   lastNonDirect: ChannelContribution[];
   lastClick: ChannelContribution[];
   linear: ChannelContribution[];
+  orders: AttributedOrder[];
+  identity: IdentityStats;
   tracking: TrackingField[];
   hasPurchaseEvents: boolean;
   gaps: string[];

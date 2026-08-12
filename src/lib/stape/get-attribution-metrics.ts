@@ -1,7 +1,7 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { CHANNEL_SQL, ATTRIBUTION_CHANNELS } from "@/lib/stape/channel-sql";
 import { getBigQueryClient } from "@/lib/stape/client";
-import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
+import { eventsFromSql, getBigQueryConfig, identityMapSql } from "@/lib/stape/config";
 import type {
   AttributionMetrics,
   ChannelContribution,
@@ -54,6 +54,14 @@ function emptyMetrics(periodLabel: string): AttributionMetrics {
     lastNonDirect: [],
     lastClick: [],
     linear: [],
+    orders: [],
+    identity: {
+      purchases: 0,
+      purchasesWithPerson: 0,
+      uniquePeople: 0,
+      uniqueBrowsers: 0,
+      crossDevicePeople: 0,
+    },
     tracking: [],
     hasPurchaseEvents: false,
     gaps: [],
@@ -70,6 +78,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
 
     const { client, config } = getBigQueryClient();
     const table = eventsFromSql(config);
+    const identity = identityMapSql(config);
     const queryOptions = { location: config.location };
     const timeParams = {
       startMs: period.startMs,
@@ -78,21 +87,36 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
     };
 
     const eventsCte = `
-      WITH events AS (
+      WITH identity AS (
+        SELECT client_id, user_id FROM ${identity}
+      ),
+      event_rows AS (
         SELECT
-          CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) AS session_key,
-          client_id,
-          timestamp,
-          LOWER(IFNULL(event_name, '')) AS event_name,
-          LOWER(IFNULL(page_location, '')) AS page_location,
-          LOWER(IFNULL(page_referrer, '')) AS page_referrer,
-          IFNULL(gclid, '') AS gclid,
-          IFNULL(fbclid, '') AS fbclid,
-          IFNULL(fbc, '') AS fbc,
-          transaction_id,
-          value,
+          CONCAT(IFNULL(e.client_id, ''), '|', IFNULL(e.ga_session_id, '')) AS session_key,
+          e.client_id,
+          COALESCE(
+            NULLIF(identity.user_id, ''),
+            NULLIF(e.user_id, ''),
+            e.client_id
+          ) AS person_key,
+          e.timestamp,
+          LOWER(IFNULL(e.event_name, '')) AS event_name,
+          LOWER(IFNULL(e.page_location, '')) AS page_location,
+          LOWER(IFNULL(e.page_referrer, '')) AS page_referrer,
+          IFNULL(e.gclid, '') AS gclid,
+          IFNULL(e.fbclid, '') AS fbclid,
+          IFNULL(e.fbc, '') AS fbc,
+          e.transaction_id,
+          e.value
+        FROM ${table} e
+        LEFT JOIN identity
+          ON identity.client_id = e.client_id
+      ),
+      events AS (
+        SELECT
+          event_rows.*,
           ${CHANNEL_SQL} AS channel
-        FROM ${table}
+        FROM event_rows
       )
     `;
 
@@ -146,6 +170,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
         purchases AS (
           SELECT
             transaction_id,
+            ANY_VALUE(person_key) AS person_key,
             ANY_VALUE(client_id) AS client_id,
             MIN(timestamp) AS purchase_ts,
             MAX(value) AS revenue
@@ -164,8 +189,8 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
             e.channel
           FROM purchases p
           JOIN events e
-            ON e.client_id = p.client_id
-           AND IFNULL(e.client_id, '') != ''
+            ON e.person_key = p.person_key
+           AND IFNULL(e.person_key, '') != ''
            AND e.timestamp <= p.purchase_ts
            AND e.timestamp >= p.purchase_ts - @lookbackMs
         ),
@@ -228,6 +253,91 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
       `,
     });
 
+    const [orderRows] = await client.query({
+      ...queryOptions,
+      params: timeParams,
+      query: `
+        ${eventsCte},
+        purchases AS (
+          SELECT
+            transaction_id,
+            ANY_VALUE(person_key) AS person_key,
+            MIN(timestamp) AS purchase_ts,
+            MAX(value) AS revenue
+          FROM events
+          WHERE event_name = 'purchase'
+            AND IFNULL(transaction_id, '') != ''
+            AND timestamp >= @startMs
+            AND timestamp < @endMs
+          GROUP BY transaction_id
+        ),
+        paths AS (
+          SELECT
+            p.transaction_id,
+            p.person_key,
+            p.revenue,
+            e.timestamp,
+            e.channel
+          FROM purchases p
+          JOIN events e
+            ON e.person_key = p.person_key
+           AND IFNULL(e.person_key, '') != ''
+           AND e.timestamp <= p.purchase_ts
+           AND e.timestamp >= p.purchase_ts - @lookbackMs
+        )
+        SELECT
+          transaction_id AS transactionId,
+          ANY_VALUE(person_key) AS personKey,
+          ANY_VALUE(revenue) AS revenue,
+          IFNULL(
+            ARRAY_AGG(IF(channel = 'Direct', NULL, channel) IGNORE NULLS ORDER BY timestamp LIMIT 1)[SAFE_OFFSET(0)],
+            'Direct'
+          ) AS firstNonDirect,
+          IFNULL(
+            ARRAY_AGG(IF(channel = 'Direct', NULL, channel) IGNORE NULLS ORDER BY timestamp DESC LIMIT 1)[SAFE_OFFSET(0)],
+            'Direct'
+          ) AS lastNonDirect,
+          ARRAY_AGG(channel ORDER BY timestamp DESC LIMIT 1)[OFFSET(0)] AS lastClick
+        FROM paths
+        GROUP BY transaction_id
+      `,
+    });
+
+    const [identityRows] = await client.query({
+      ...queryOptions,
+      params: { startMs: period.startMs, endMs: period.endMs },
+      query: `
+        ${eventsCte}
+        SELECT
+          COUNT(DISTINCT IF(event_name = 'purchase' AND IFNULL(transaction_id, '') != '', transaction_id, NULL)) AS purchases,
+          COUNT(DISTINCT IF(
+            event_name = 'purchase' AND IFNULL(transaction_id, '') != '' AND person_key != client_id,
+            transaction_id,
+            NULL
+          )) AS purchases_with_person,
+          COUNT(DISTINCT person_key) AS unique_people,
+          COUNT(DISTINCT client_id) AS unique_browsers
+        FROM events
+        WHERE timestamp >= @startMs AND timestamp < @endMs
+      `,
+    });
+
+    const [crossDeviceRows] = await client.query({
+      ...queryOptions,
+      query: `
+        SELECT COUNT(*) AS cross_device_people
+        FROM (
+          SELECT identity.user_id
+          FROM ${identity} identity
+          JOIN ${table} e
+            ON e.client_id = identity.client_id
+          WHERE LOWER(IFNULL(e.event_name, '')) = 'page_view'
+          GROUP BY identity.user_id
+          HAVING COUNT(DISTINCT e.client_id) > 1
+        )
+      `,
+    });
+
     const [trackingRows] = await client.query({
       ...queryOptions,
       params: { startMs: period.startMs, endMs: period.endMs },
@@ -277,6 +387,15 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
       revenue: number;
     }[];
     const totals = models.find((row) => row.model === "totals");
+    const identityStats = (identityRows[0] ?? {}) as Record<string, unknown>;
+    const orders = (orderRows as Record<string, unknown>[]).map((row) => ({
+      transactionId: String(row.transactionId ?? ""),
+      revenue: toNumber(row.revenue),
+      firstNonDirect: String(row.firstNonDirect ?? "Direct"),
+      lastNonDirect: String(row.lastNonDirect ?? "Direct"),
+      lastClick: String(row.lastClick ?? "Direct"),
+      personKey: String(row.personKey ?? ""),
+    }));
     const gaps: string[] = [];
 
     if (toNumber(tracking.gclid) === 0) {
@@ -285,9 +404,6 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
     if (toNumber(tracking.fbp) === 0) {
       gaps.push("fbp / fbc cookies are not stored as columns. Facebook is detected from UTMs in page URLs.");
     }
-    gaps.push("user_id is empty, so we stitch journeys with client_id only (same browser).");
-    gaps.push("Ad spend is not in BigQuery, so MER / blended ROAS cannot be calculated yet.");
-    gaps.push("Meta and Google Ads Manager numbers are not connected, so this page does not show platform-claimed conversions.");
 
     return {
       status: { state: "connected", projectId: config.projectId },
@@ -305,6 +421,17 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
       ),
       lastClick: withContribution(models.filter((row) => row.model === "last_click")),
       linear: withContribution(models.filter((row) => row.model === "linear")),
+      orders,
+      identity: {
+        purchases: toNumber(identityStats.purchases),
+        purchasesWithPerson: toNumber(identityStats.purchases_with_person),
+        uniquePeople: toNumber(identityStats.unique_people),
+        uniqueBrowsers: toNumber(identityStats.unique_browsers),
+        crossDevicePeople: toNumber(
+          (crossDeviceRows[0] as { cross_device_people?: number } | undefined)
+            ?.cross_device_people,
+        ),
+      },
       tracking: fields,
       hasPurchaseEvents: toNumber(tracking.purchase) > 0,
       gaps,

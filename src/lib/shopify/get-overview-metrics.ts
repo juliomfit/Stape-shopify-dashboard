@@ -39,9 +39,11 @@ type OrdersPage = {
           displayFinancialStatus: string | null;
           currentTotalPriceSet: MoneySet;
           customer: {
+            id: string;
             createdAt: string;
             numberOfOrders: string | number | null;
           } | null;
+          legacyResourceId: string | null;
           lineItems: {
           edges: {
             node: {
@@ -79,6 +81,7 @@ const ORDERS_QUERY = `
           id
           name
           createdAt
+          legacyResourceId
           displayFinancialStatus
           currentTotalPriceSet {
             shopMoney {
@@ -87,6 +90,7 @@ const ORDERS_QUERY = `
             }
           }
           customer {
+            id
             createdAt
             numberOfOrders
           }
@@ -185,12 +189,18 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           ? Number(customer.numberOfOrders ?? 0) <= 1
           : null;
 
+        const legacyId =
+          order.legacyResourceId || order.id.split("/").pop() || null;
+        const customerId = customer?.id.split("/").pop() || null;
+
         revenue += amount;
         orderPoints.push({
           createdAt: order.createdAt,
           amount,
           isNew,
           isGuest,
+          legacyId,
+          customerId,
         });
 
         if (isGuest) {

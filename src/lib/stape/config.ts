@@ -65,6 +65,7 @@ export function eventsFromSql(config: BigQueryConfig) {
         event_name,
         event_id,
         client_id,
+        user_id,
         ga_session_id,
         page_location,
         page_referrer,
@@ -86,6 +87,7 @@ export function eventsFromSql(config: BigQueryConfig) {
         event_name,
         event_id,
         client_id,
+        user_id,
         ga_session_id,
         page_location,
         page_referrer,
@@ -103,4 +105,36 @@ export function eventsFromSql(config: BigQueryConfig) {
   }
 
   return table;
+}
+
+/** Maps browser client_id → Shopify customer user_id using Data Client purchase events. */
+export function identityMapSql(config: BigQueryConfig) {
+  const full = `\`${config.projectId}.stape_data.raw_events_full\``;
+
+  return `(
+    SELECT client_id, ANY_VALUE(user_id) AS user_id
+    FROM (
+      SELECT client_id, user_id
+      FROM ${full}
+      WHERE IFNULL(user_id, '') != ''
+        AND IFNULL(client_id, '') != ''
+      UNION ALL
+      SELECT g.client_id, u.user_id
+      FROM (
+        SELECT DISTINCT transaction_id, client_id
+        FROM ${full}
+        WHERE IFNULL(transaction_id, '') != ''
+          AND IFNULL(client_id, '') != ''
+      ) g
+      JOIN (
+        SELECT transaction_id, ANY_VALUE(user_id) AS user_id
+        FROM ${full}
+        WHERE IFNULL(user_id, '') != ''
+          AND IFNULL(transaction_id, '') != ''
+        GROUP BY transaction_id
+      ) u
+      USING (transaction_id)
+    )
+    GROUP BY client_id
+  )`;
 }

@@ -37,6 +37,8 @@ export type OrderPoint = {
   amount: number;
   isNew: boolean | null;
   isGuest: boolean;
+  legacyId: string | null;
+  customerId: string | null;
 };
 
 export type ShopifyOverviewMetrics = {
