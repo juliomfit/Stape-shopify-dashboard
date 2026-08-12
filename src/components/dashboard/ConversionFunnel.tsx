@@ -8,16 +8,17 @@ type FunnelStep = {
 
 type ConversionFunnelProps = {
   steps: FunnelStep[];
+  periodLabel: string;
 };
 
-export function ConversionFunnel({ steps }: ConversionFunnelProps) {
+export function ConversionFunnel({ steps, periodLabel }: ConversionFunnelProps) {
   const max = Math.max(...steps.map((step) => step.value), 0);
 
   return (
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <h2 className="text-sm font-semibold text-foreground">Funnel</h2>
-        <p className="text-xs text-muted">Last 30 days</p>
+        <p className="text-xs text-muted">{periodLabel}</p>
       </div>
       <ul className="mt-6 space-y-4">
         {steps.map((step) => {

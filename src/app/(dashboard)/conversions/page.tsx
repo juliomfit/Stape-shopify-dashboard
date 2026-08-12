@@ -8,6 +8,7 @@ import {
   getAverageOrderValue,
   getConversionRate,
 } from "@/lib/dashboard/conversion";
+import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getStapeTrafficMetrics } from "@/lib/stape/get-traffic-metrics";
@@ -19,28 +20,34 @@ export const metadata: Metadata = {
 };
 
 export default async function ConversionsPage() {
-  const [shopify, stape] = await Promise.all([
+  const [shopify, stape, period] = await Promise.all([
     getShopifyOverviewMetrics(),
     getStapeTrafficMetrics(),
+    getAlignedPeriod(),
   ]);
+  const alignedShopify = shopifyMetricsSince(shopify.orderPoints, period.startIso);
+  const alignedLabel = period.label;
 
   const shopifySource =
     shopify.status.state === "connected"
-      ? `Shopify · ${shopify.periodLabel}`
+      ? `Shopify · ${alignedLabel}`
       : "Shopify · no data yet";
   const stapeSource =
     stape.status.state === "connected"
-      ? `Stape · ${stape.periodLabel}`
+      ? `Stape · ${alignedLabel}`
       : "Stape · no data yet";
   const bothSource =
     shopify.status.state === "connected" && stape.status.state === "connected"
-      ? `Orders ÷ sessions · ${shopify.periodLabel}`
+      ? `Orders ÷ sessions · ${alignedLabel}`
       : "Shopify + Stape · no data yet";
 
-  const conversionRate = getConversionRate(shopify.orders, stape.sessions);
+  const conversionRate = getConversionRate(
+    shopify.status.state === "connected" ? alignedShopify.orders : null,
+    stape.sessions,
+  );
   const averageOrderValue = getAverageOrderValue(
-    shopify.revenue?.amount ?? null,
-    shopify.orders,
+    shopify.status.state === "connected" ? alignedShopify.revenue : null,
+    shopify.status.state === "connected" ? alignedShopify.orders : null,
   );
   const viewItem = findEventCount(stape.eventCounts, ["view_item"]);
   const addToCart = findEventCount(stape.eventCounts, ["add_to_cart"]);
@@ -58,7 +65,7 @@ export default async function ConversionsPage() {
     <>
       <Header
         title="Conversions"
-        description="Shopify purchases compared with first-party Stape funnel events."
+        description="Shopify purchases compared with first-party Stape funnel events, using the same date range."
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} stape={stape.status} />
@@ -74,7 +81,9 @@ export default async function ConversionsPage() {
             label="Orders"
             source={shopifySource}
             value={
-              shopify.orders === null ? null : formatNumber(shopify.orders)
+              shopify.status.state === "connected"
+                ? formatNumber(alignedShopify.orders)
+                : null
             }
           />
           <MetricCard
@@ -120,6 +129,7 @@ export default async function ConversionsPage() {
           />
         </div>
         <ConversionFunnel
+          periodLabel={alignedLabel}
           steps={[
             {
               label: "Sessions",

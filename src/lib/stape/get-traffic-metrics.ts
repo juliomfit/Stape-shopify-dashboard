@@ -1,4 +1,5 @@
-import { OVERVIEW_DAYS, overviewPeriodLabel } from "@/lib/period";
+import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
+import { overviewPeriodLabel } from "@/lib/period";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { getBigQueryConfig, tableId } from "@/lib/stape/config";
 import type { StapeTrafficMetrics, TrafficSource } from "@/lib/stape/types";
@@ -54,9 +55,12 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
       return emptyMetrics();
     }
 
+    const period = await getAlignedPeriod();
     const { client, config } = getBigQueryClient();
     const table = tableId(config);
     const queryOptions = { location: config.location };
+    const timeFilter = `timestamp >= @startMs`;
+    const timeParams = { startMs: period.startMs };
 
     const [totals] = await client.query({
       ...queryOptions,
@@ -72,9 +76,9 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
             )
           ) AS sessions
         FROM ${table}
-        WHERE timestamp >= UNIX_MILLIS(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @days DAY))
+        WHERE ${timeFilter}
       `,
-      params: { days: OVERVIEW_DAYS },
+      params: timeParams,
     });
 
     const [sources] = await client.query({
@@ -92,7 +96,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
             LOWER(IFNULL(source, '')) AS utm_source,
             LOWER(IFNULL(medium, '')) AS utm_medium
           FROM ${table}
-          WHERE timestamp >= UNIX_MILLIS(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @days DAY))
+          WHERE ${timeFilter}
         ),
         first_hit AS (
           SELECT * EXCEPT (rn)
@@ -143,7 +147,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
         GROUP BY 1
         ORDER BY sessions DESC
       `,
-      params: { days: OVERVIEW_DAYS },
+      params: timeParams,
     });
 
     const totalsRow = (totals[0] ?? {}) as TotalsRow;
@@ -162,16 +166,16 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
             )
           ) AS sessions
         FROM ${table}
-        WHERE timestamp >= UNIX_MILLIS(TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @days DAY))
+        WHERE ${timeFilter}
           AND event_name IS NOT NULL
         GROUP BY event_name
       `,
-      params: { days: OVERVIEW_DAYS },
+      params: timeParams,
     });
 
     return {
       status: { state: "connected", projectId: config.projectId },
-      periodLabel: overviewPeriodLabel(),
+      periodLabel: period.label,
       events: toNumber(totalsRow.events),
       users: toNumber(totalsRow.users),
       sessions: toNumber(totalsRow.sessions),

@@ -114,6 +114,7 @@ function emptyMetrics(): ShopifyOverviewMetrics {
     products: [],
     topProducts: [],
     recentOrders: [],
+    orderPoints: [],
   };
 }
 
@@ -133,6 +134,7 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
     let ordersCount: number | null = null;
     let revenue = 0;
     const recentOrders: ShopifyOrder[] = [];
+    const orderPoints: { createdAt: string; amount: number }[] = [];
     const productTotals = new Map<
       string,
       { title: string; quantity: number; revenue: number }
@@ -156,6 +158,10 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
         );
 
         revenue += Number(order.currentTotalPriceSet.shopMoney.amount);
+        orderPoints.push({
+          createdAt: order.createdAt,
+          amount: Number(order.currentTotalPriceSet.shopMoney.amount),
+        });
 
         if (recentOrders.length < 25) {
           recentOrders.push({
@@ -212,6 +218,7 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       products,
       topProducts: products.slice(0, 5),
       recentOrders,
+      orderPoints,
     };
   } catch (error) {
     const message =

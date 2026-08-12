@@ -4,9 +4,13 @@ import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 
 type TrafficSourcesPanelProps = {
   sources: TrafficSource[];
+  periodLabel?: string;
 };
 
-export function TrafficSourcesPanel({ sources }: TrafficSourcesPanelProps) {
+export function TrafficSourcesPanel({
+  sources,
+  periodLabel = "Last 30 days",
+}: TrafficSourcesPanelProps) {
   if (sources.length === 0) {
     return (
       <EmptyPanel
@@ -21,7 +25,7 @@ export function TrafficSourcesPanel({ sources }: TrafficSourcesPanelProps) {
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <h2 className="text-sm font-semibold text-foreground">Traffic sources</h2>
         <p className="text-xs text-muted">
-          First hit in each session · last 30 days
+          First hit in each session · {periodLabel}
         </p>
       </div>
       <ul className="mt-4 divide-y divide-border">

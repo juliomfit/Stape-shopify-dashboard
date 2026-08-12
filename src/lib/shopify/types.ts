@@ -32,6 +32,11 @@ export type CustomerPerformance = {
   isNew: boolean;
 };
 
+export type OrderPoint = {
+  createdAt: string;
+  amount: number;
+};
+
 export type ShopifyOverviewMetrics = {
   status: ShopifyConnectionStatus;
   periodLabel: string;
@@ -40,6 +45,7 @@ export type ShopifyOverviewMetrics = {
   products: TopProduct[];
   topProducts: TopProduct[];
   recentOrders: ShopifyOrder[];
+  orderPoints: OrderPoint[];
 };
 
 export type ShopifyCustomerMetrics = {

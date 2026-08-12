@@ -4,6 +4,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TopProductsPanel } from "@/components/dashboard/TopProductsPanel";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getConversionRate } from "@/lib/dashboard/conversion";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getStapeTrafficMetrics } from "@/lib/stape/get-traffic-metrics";
@@ -15,9 +16,10 @@ export const metadata: Metadata = {
 };
 
 export default async function OverviewPage() {
-  const [shopify, stape] = await Promise.all([
+  const [shopify, stape, period] = await Promise.all([
     getShopifyOverviewMetrics(),
     getStapeTrafficMetrics(),
+    getAlignedPeriod(),
   ]);
 
   const shopifySource =
@@ -28,8 +30,15 @@ export default async function OverviewPage() {
     stape.status.state === "connected"
       ? `Stape · ${stape.periodLabel}`
       : "Stape · no data yet";
-
-  const conversionRate = getConversionRate(shopify.orders, stape.sessions);
+  const alignedShopify = shopifyMetricsSince(shopify.orderPoints, period.startIso);
+  const conversionRate = getConversionRate(
+    shopify.status.state === "connected" ? alignedShopify.orders : null,
+    stape.sessions,
+  );
+  const conversionSource =
+    conversionRate === null
+      ? "Shopify + Stape · no data yet"
+      : `Orders ÷ sessions · ${period.label}`;
 
   return (
     <>
@@ -54,11 +63,7 @@ export default async function OverviewPage() {
           />
           <MetricCard
             label="Conversion Rate"
-            source={
-              conversionRate === null
-                ? "Shopify + Stape · no data yet"
-                : `Orders ÷ sessions · ${shopify.periodLabel}`
-            }
+            source={conversionSource}
             value={
               conversionRate === null ? null : formatPercent(conversionRate)
             }

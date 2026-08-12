@@ -77,7 +77,10 @@ export default async function TrafficPage() {
             }
           />
         </div>
-        <TrafficSourcesPanel sources={stape.sources} />
+        <TrafficSourcesPanel
+          sources={stape.sources}
+          periodLabel={stape.periodLabel}
+        />
       </section>
     </>
   );
