@@ -24,6 +24,14 @@ export type ShopifyOrder = {
   total: Money;
 };
 
+export type CustomerPerformance = {
+  id: string;
+  name: string;
+  orderCount: number;
+  spend: Money;
+  isNew: boolean;
+};
+
 export type ShopifyOverviewMetrics = {
   status: ShopifyConnectionStatus;
   periodLabel: string;
@@ -32,4 +40,6 @@ export type ShopifyOverviewMetrics = {
   products: TopProduct[];
   topProducts: TopProduct[];
   recentOrders: ShopifyOrder[];
+  customers: CustomerPerformance[];
+  guestOrders: number;
 };
