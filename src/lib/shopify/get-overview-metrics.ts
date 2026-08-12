@@ -1,11 +1,10 @@
+import { OVERVIEW_DAYS, overviewPeriodLabel } from "@/lib/period";
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import type {
   ShopifyOverviewMetrics,
   TopProduct,
 } from "@/lib/shopify/types";
-
-const OVERVIEW_DAYS = 30;
 const ORDERS_PER_PAGE = 100;
 const MAX_PAGES = 10;
 
@@ -90,7 +89,7 @@ function startDateIso(days: number) {
 function emptyMetrics(): ShopifyOverviewMetrics {
   return {
     status: { state: "not_configured" },
-    periodLabel: `Last ${OVERVIEW_DAYS} days`,
+    periodLabel: overviewPeriodLabel(),
     revenue: null,
     orders: null,
     topProducts: [],
@@ -148,7 +147,7 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
 
     return {
       status: { state: "connected", shopName },
-      periodLabel: `Last ${OVERVIEW_DAYS} days`,
+      periodLabel: overviewPeriodLabel(),
       revenue: { amount: revenue, currencyCode },
       orders: ordersCount,
       topProducts,

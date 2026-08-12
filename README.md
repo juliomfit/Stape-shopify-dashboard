@@ -23,7 +23,7 @@ You need a Shopify Admin API connection. Shopify no longer shows a copy-paste to
    - Release the version
 4. Install the app on your store.
 5. Copy **Client ID** and **Client secret** from Settings.
-6. Create `.env.local` in the project root:
+6. Add these to `.env.local`:
 
 ```bash
 SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
@@ -33,13 +33,55 @@ SHOPIFY_CLIENT_SECRET=your-client-secret
 
 7. Restart `npm run dev`.
 
-The Overview and Sales pages will then show last-30-day revenue, orders, and top products. Conversion Rate and Traffic stay empty until Stape is connected.
+## Connect Stape (via BigQuery)
 
-Never commit `.env.local`. It contains secrets.
+This dashboard reads first-party Stape events from a **new** BigQuery table, so Facebook and Google traffic stay clean and separate from older tables.
+
+### 1. Create the table
+
+In Google Cloud Console → BigQuery, run `bigquery/create_stape_events.sql`.
+
+That creates dataset `stape_shopify_dashboard` and table `stape_events`.
+
+### 2. Create a service account key
+
+1. Google Cloud Console → IAM & Admin → Service accounts
+2. Create a service account (or reuse one Stape already uses)
+3. Give it **BigQuery Data Viewer** and **BigQuery Job User**
+4. Create a JSON key
+5. Save it as `secrets/gcp-service-account.json` in this project (do not commit it)
+
+### 3. Add BigQuery settings to `.env.local`
+
+```bash
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
+BIGQUERY_DATASET=stape_shopify_dashboard
+BIGQUERY_TABLE=stape_events
+BIGQUERY_LOCATION=US
+GOOGLE_APPLICATION_CREDENTIALS=secrets/gcp-service-account.json
+```
+
+### 4. Send Stape events into that table
+
+In Stape / server GTM:
+
+1. Enable the **Google Service Account** power-up and upload a key that can write to BigQuery (**BigQuery Data Editor**)
+2. Add the **Write to BigQuery** tag
+3. Point it at project / `stape_shopify_dashboard` / `stape_events`
+4. Use **Custom Data** (or All Event Data if names already match) for:
+   `timestamp`, `event_name`, `event_id`, `client_id`, `ga_session_id`, `page_location`, `page_referrer`, `gclid`, `fbclid`, `fbp`, `fbc`
+5. Enable **Add Event Timestamp**
+6. Trigger on all events (or at least `page_view` and `purchase`)
+7. Publish the container
+
+Restart `npm run dev`. Overview and Traffic will show sessions once rows appear in the table.
+
+Never commit `.env.local` or `secrets/`.
 
 ## Project structure
 
 - `src/app/(dashboard)` — dashboard pages
 - `src/components/layout` — sidebar, header, and shared layout pieces
 - `src/lib/shopify` — Shopify connection and metrics
-- `src/lib/stape` — Stape types and client (not connected yet)
+- `src/lib/stape` — Stape / BigQuery connection and traffic metrics
+- `bigquery/` — SQL to create the new events table

@@ -25,7 +25,7 @@ export default async function SalesPage() {
         description="Shopify orders, revenue, and related sales metrics."
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
-        <ConnectionStatus status={metrics.status} />
+        <ConnectionStatus shopify={metrics.status} />
         <div className="grid gap-4 sm:grid-cols-2">
           <MetricCard
             label="Total Revenue"

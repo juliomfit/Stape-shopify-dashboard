@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Google Cloud keys
+/secrets/
+
 # vercel
 .vercel
 

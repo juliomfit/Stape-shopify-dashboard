@@ -1,8 +1,22 @@
-/**
- * Stape / server-side tracking client.
- * Connect container credentials and fetch events and traffic data here.
- */
+import { BigQuery } from "@google-cloud/bigquery";
+import { getBigQueryConfig } from "@/lib/stape/config";
 
-export async function getStapeClient() {
-  throw new Error("Stape is not connected yet.");
+let client: BigQuery | null = null;
+
+export function getBigQueryClient() {
+  const config = getBigQueryConfig();
+
+  if (!config) {
+    throw new Error("BigQuery is not configured.");
+  }
+
+  if (!client) {
+    client = new BigQuery({
+      projectId: config.projectId,
+      credentials: config.credentials,
+      location: config.location,
+    });
+  }
+
+  return { client, config };
 }
