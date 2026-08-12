@@ -15,6 +15,15 @@ export type TopProduct = {
   revenue: Money;
 };
 
+export type ShopifyOrder = {
+  id: string;
+  name: string;
+  createdAt: string;
+  financialStatus: string;
+  itemCount: number;
+  total: Money;
+};
+
 export type ShopifyOverviewMetrics = {
   status: ShopifyConnectionStatus;
   periodLabel: string;
@@ -22,4 +31,5 @@ export type ShopifyOverviewMetrics = {
   orders: number | null;
   products: TopProduct[];
   topProducts: TopProduct[];
+  recentOrders: ShopifyOrder[];
 };

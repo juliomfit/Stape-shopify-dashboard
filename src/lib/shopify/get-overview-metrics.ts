@@ -2,6 +2,7 @@ import { OVERVIEW_DAYS, overviewPeriodLabel } from "@/lib/period";
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import type {
+  ShopifyOrder,
   ShopifyOverviewMetrics,
   TopProduct,
 } from "@/lib/shopify/types";
@@ -30,9 +31,13 @@ type OrdersPage = {
       endCursor: string | null;
     };
     edges: {
-      node: {
-        currentTotalPriceSet: MoneySet;
-        lineItems: {
+        node: {
+          id: string;
+          name: string;
+          createdAt: string;
+          displayFinancialStatus: string | null;
+          currentTotalPriceSet: MoneySet;
+          lineItems: {
           edges: {
             node: {
               title: string;
@@ -66,6 +71,10 @@ const ORDERS_QUERY = `
       }
       edges {
         node {
+          id
+          name
+          createdAt
+          displayFinancialStatus
           currentTotalPriceSet {
             shopMoney {
               amount
@@ -110,6 +119,7 @@ function emptyMetrics(): ShopifyOverviewMetrics {
     orders: null,
     products: [],
     topProducts: [],
+    recentOrders: [],
   };
 }
 
@@ -128,6 +138,7 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
     let currencyCode = "USD";
     let ordersCount: number | null = null;
     let revenue = 0;
+    const recentOrders: ShopifyOrder[] = [];
     const productTotals = new Map<
       string,
       { title: string; quantity: number; revenue: number }
@@ -144,9 +155,29 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       ordersCount = data.ordersCount?.count ?? ordersCount;
 
       for (const edge of data.orders.edges) {
-        revenue += Number(edge.node.currentTotalPriceSet.shopMoney.amount);
+        const order = edge.node;
+        const itemCount = order.lineItems.edges.reduce(
+          (total, item) => total + item.node.quantity,
+          0,
+        );
 
-        for (const lineItem of edge.node.lineItems.edges) {
+        revenue += Number(order.currentTotalPriceSet.shopMoney.amount);
+
+        if (recentOrders.length < 25) {
+          recentOrders.push({
+            id: order.id,
+            name: order.name,
+            createdAt: order.createdAt,
+            financialStatus: order.displayFinancialStatus || "UNKNOWN",
+            itemCount,
+            total: {
+              amount: Number(order.currentTotalPriceSet.shopMoney.amount),
+              currencyCode: order.currentTotalPriceSet.shopMoney.currencyCode,
+            },
+          });
+        }
+
+        for (const lineItem of order.lineItems.edges) {
           const product = lineItem.node.product;
           const title = product?.title || lineItem.node.title;
           const id = product?.id || title;
@@ -186,6 +217,7 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       orders: ordersCount,
       products,
       topProducts: products.slice(0, 5),
+      recentOrders,
     };
   } catch (error) {
     const message =
