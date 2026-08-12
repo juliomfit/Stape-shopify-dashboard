@@ -2,6 +2,7 @@ import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { overviewPeriodLabel } from "@/lib/period";
 import { getSelectedRangeDays } from "@/lib/period-server";
 import { getBigQueryClient } from "@/lib/stape/client";
+import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
 import { getBigQueryConfig, tableId } from "@/lib/stape/config";
 import type { StapeTrafficMetrics, TrafficSource } from "@/lib/stape/types";
 
@@ -95,9 +96,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
             LOWER(IFNULL(page_referrer, '')) AS page_referrer,
             IFNULL(gclid, '') AS gclid,
             IFNULL(fbclid, '') AS fbclid,
-            IFNULL(fbc, '') AS fbc,
-            LOWER(IFNULL(source, '')) AS utm_source,
-            LOWER(IFNULL(medium, '')) AS utm_medium
+            IFNULL(fbc, '') AS fbc
           FROM ${table}
           WHERE ${timeFilter}
         ),
@@ -112,39 +111,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
           WHERE rn = 1
         )
         SELECT
-          CASE
-            WHEN gclid != ''
-              OR page_location LIKE '%gclid=%'
-              OR page_location LIKE '%wbraid=%'
-              OR page_location LIKE '%gbraid=%'
-              OR (
-                utm_source LIKE '%google%'
-                AND utm_medium IN ('cpc', 'ppc', 'paid', 'paidsearch')
-              )
-              THEN 'Google Ads'
-            WHEN fbclid != ''
-              OR fbc != ''
-              OR page_location LIKE '%fbclid=%'
-              OR (
-                utm_source IN ('facebook', 'fb', 'ig', 'instagram', 'meta')
-                AND utm_medium IN ('cpc', 'ppc', 'paid', 'paidsocial', 'social')
-              )
-              THEN 'Facebook / Meta Ads'
-            WHEN page_referrer LIKE '%google.'
-              OR page_referrer LIKE '%google.com%'
-              THEN 'Google Organic'
-            WHEN page_referrer LIKE '%facebook%'
-              OR page_referrer LIKE '%instagram%'
-              OR page_referrer LIKE '%l.facebook%'
-              THEN 'Meta Organic'
-            WHEN page_referrer = ''
-              OR (
-                page_location != ''
-                AND STRPOS(page_referrer, NET.HOST(page_location)) > 0
-              )
-              THEN 'Direct'
-            ELSE 'Other'
-          END AS source,
+          ${CHANNEL_SQL} AS source,
           COUNT(*) AS sessions
         FROM first_hit
         GROUP BY 1

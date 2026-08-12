@@ -69,10 +69,12 @@ In Stape / server GTM:
 2. Add the **Write to BigQuery** tag
 3. Point it at project / `stape_shopify_dashboard` / `stape_events`
 4. Use **Custom Data** (or All Event Data if names already match) for:
-   `timestamp`, `event_name`, `event_id`, `client_id`, `ga_session_id`, `page_location`, `page_referrer`, `gclid`, `fbclid`, `fbp`, `fbc`
+   `timestamp`, `event_name`, `event_id`, `client_id`, `ga_session_id`, `page_location`, `page_referrer`, `gclid`, `fbclid`, `fbp`, `fbc`, `transaction_id`, `value`, `currency`
 5. Enable **Add Event Timestamp**
-6. Trigger on all events (or at least `page_view` and `purchase`)
+6. Trigger on all events, including `page_view`, `view_item`, `add_to_cart`, `begin_checkout`, and `purchase`
 7. Publish the container
+
+Optional: run `bigquery/attribution_views.sql` to add helper views.
 
 Restart `npm run dev`. Overview and Traffic will show sessions once rows appear in the table.
 
@@ -83,5 +85,5 @@ Never commit `.env.local` or `secrets/`.
 - `src/app/(dashboard)` — dashboard pages
 - `src/components/layout` — sidebar, header, and shared layout pieces
 - `src/lib/shopify` — Shopify connection and metrics
-- `src/lib/stape` — Stape / BigQuery connection and traffic metrics
-- `bigquery/` — SQL to create the new events table
+- `src/lib/stape` — Stape / BigQuery connection, traffic, and attribution
+- `bigquery/` — SQL to create the events table and optional attribution views

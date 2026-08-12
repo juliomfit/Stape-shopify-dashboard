@@ -1,12 +1,39 @@
+export type ConversionResult = {
+  rate: number | null;
+  note: string;
+};
+
+const MIN_SESSIONS = 10;
+
 export function getConversionRate(
   orders: number | null,
   sessions: number | null,
-) {
+): ConversionResult {
   if (orders === null || sessions === null || sessions <= 0) {
-    return null;
+    return {
+      rate: null,
+      note: "Shopify + Stape · no data yet",
+    };
   }
 
-  return orders / sessions;
+  if (sessions < MIN_SESSIONS) {
+    return {
+      rate: null,
+      note: `Need at least ${MIN_SESSIONS} Stape sessions before conversion rate is reliable`,
+    };
+  }
+
+  if (orders > sessions) {
+    return {
+      rate: null,
+      note: "Not comparable yet · Shopify orders still outnumber Stape sessions",
+    };
+  }
+
+  return {
+    rate: orders / sessions,
+    note: "Orders ÷ sessions",
+  };
 }
 
 export function getAverageOrderValue(

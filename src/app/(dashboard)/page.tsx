@@ -30,15 +30,15 @@ export default async function OverviewPage() {
     stape.status.state === "connected"
       ? `Stape · ${stape.periodLabel}`
       : "Stape · no data yet";
-  const alignedShopify = shopifyMetricsSince(shopify.orderPoints, period.startIso);
-  const conversionRate = getConversionRate(
+  const alignedShopify = shopifyMetricsSince(shopify.orderPoints, period.startMs);
+  const conversion = getConversionRate(
     shopify.status.state === "connected" ? alignedShopify.orders : null,
     stape.sessions,
   );
   const conversionSource =
-    conversionRate === null
-      ? "Shopify + Stape · no data yet"
-      : `Orders ÷ sessions · ${period.label}`;
+    conversion.rate === null
+      ? conversion.note
+      : `${conversion.note} · ${period.label}`;
 
   return (
     <>
@@ -65,7 +65,7 @@ export default async function OverviewPage() {
             label="Conversion Rate"
             source={conversionSource}
             value={
-              conversionRate === null ? null : formatPercent(conversionRate)
+              conversion.rate === null ? null : formatPercent(conversion.rate)
             }
           />
           <MetricCard

@@ -83,10 +83,10 @@ export async function getAlignedPeriod(): Promise<AlignedPeriod> {
 
 export function shopifyMetricsSince(
   orderPoints: { createdAt: string; amount: number }[],
-  startIso: string,
+  startMs: number,
 ) {
   const matched = orderPoints.filter(
-    (order) => order.createdAt.slice(0, 10) >= startIso,
+    (order) => new Date(order.createdAt).getTime() >= startMs,
   );
 
   return {
