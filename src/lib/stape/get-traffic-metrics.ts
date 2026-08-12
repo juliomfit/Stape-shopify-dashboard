@@ -3,7 +3,7 @@ import { overviewPeriodLabel } from "@/lib/period";
 import { getSelectedRangeDays } from "@/lib/period-server";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
-import { getBigQueryConfig, tableId } from "@/lib/stape/config";
+import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
 import type { StapeTrafficMetrics, TrafficSource } from "@/lib/stape/types";
 
 const CHANNELS = [
@@ -61,7 +61,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
 
     const period = await getAlignedPeriod();
     const { client, config } = getBigQueryClient();
-    const table = tableId(config);
+    const table = eventsFromSql(config);
     const queryOptions = { location: config.location };
     const timeFilter = `timestamp >= @startMs`;
     const timeParams = { startMs: period.startMs };

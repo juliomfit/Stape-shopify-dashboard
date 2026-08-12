@@ -3,7 +3,7 @@ import { overviewPeriodLabel } from "@/lib/period";
 import { getSelectedRangeDays } from "@/lib/period-server";
 import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
 import { getBigQueryClient } from "@/lib/stape/client";
-import { getBigQueryConfig, tableId } from "@/lib/stape/config";
+import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
 import type {
   AttributionMetrics,
   TrackingField,
@@ -52,7 +52,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
 
     const period = await getAlignedPeriod();
     const { client, config } = getBigQueryClient();
-    const table = tableId(config);
+    const table = eventsFromSql(config);
     const queryOptions = { location: config.location };
     const timeParams = { startMs: period.startMs };
 

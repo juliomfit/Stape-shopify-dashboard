@@ -48,3 +48,59 @@ export function isStapeConfigured() {
 export function tableId(config: BigQueryConfig) {
   return `\`${config.projectId}.${config.dataset}.${config.table}\``;
 }
+
+/**
+ * Queryable events subquery. The live Stape pipeline writes to
+ * stape_data.raw_events_full / dashboard_events (includes purchase +
+ * begin_checkout). stape_shopify_dashboard.stape_events is a newer
+ * test table and does not have those events yet.
+ */
+export function eventsFromSql(config: BigQueryConfig) {
+  const table = tableId(config);
+
+  if (config.table === "dashboard_events") {
+    return `(
+      SELECT
+        UNIX_MILLIS(event_time) AS timestamp,
+        event_name,
+        event_id,
+        client_id,
+        ga_session_id,
+        page_location,
+        page_referrer,
+        gclid,
+        CAST(NULL AS STRING) AS fbclid,
+        CAST(NULL AS STRING) AS fbc,
+        CAST(NULL AS STRING) AS fbp,
+        transaction_id,
+        value,
+        currency
+      FROM ${table}
+    )`;
+  }
+
+  if (config.table === "raw_events_full") {
+    return `(
+      SELECT
+        timestamp,
+        event_name,
+        event_id,
+        client_id,
+        ga_session_id,
+        page_location,
+        page_referrer,
+        gclid,
+        CAST(NULL AS STRING) AS fbclid,
+        CAST(NULL AS STRING) AS fbc,
+        CAST(NULL AS STRING) AS fbp,
+        transaction_id,
+        value,
+        currency
+      FROM ${table}
+      WHERE IFNULL(source_client, 'GA4') = 'GA4'
+        AND event_name IS NOT NULL
+    )`;
+  }
+
+  return table;
+}

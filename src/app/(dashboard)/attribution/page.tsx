@@ -103,7 +103,7 @@ export default async function AttributionPage() {
         {attribution.hasPurchaseEvents ? null : (
           <EmptyPanel
             title="Purchase events are not in BigQuery yet"
-            description="Send purchase (with transaction_id and value) and begin_checkout from server GTM to BigQuery. Then we can match Shopify revenue to first-touch and last-touch channels."
+            description="No purchase rows in the connected BigQuery events yet. The live Stape table is stape_data.dashboard_events — check that BIGQUERY_DATASET and BIGQUERY_TABLE point there."
           />
         )}
         <TrackingHealth fields={attribution.tracking} />

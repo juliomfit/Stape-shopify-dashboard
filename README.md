@@ -35,15 +35,19 @@ SHOPIFY_CLIENT_SECRET=your-client-secret
 
 ## Connect Stape (via BigQuery)
 
-This dashboard reads first-party Stape events from a **new** BigQuery table, so Facebook and Google traffic stay clean and separate from older tables.
+This dashboard reads the **existing** Stape pipeline in BigQuery, not a new empty table.
 
-### 1. Create the table
+Live data lives in project `stape-analytics-487802`:
 
-In Google Cloud Console → BigQuery, run `bigquery/create_stape_events.sql`.
+| Dataset / table | What it is |
+|---|---|
+| `stape_data.raw_events` | High volume, but only `event_name`, `client_id`, `transaction_id`, `value`, `currency` (no dates or URLs) |
+| `stape_data.raw_events_full` | Full events including `page_location`, `purchase`, `begin_checkout` |
+| `stape_data.dashboard_events` | Clean view over `raw_events_full` (dedupes GA4 vs Data Client). **This is what the dashboard uses.** |
+| `stape_data.daily_funnel` | Daily funnel totals |
+| `stape_shopify_dashboard.stape_events` | Newer test table. Schema is fine, but it only has recent `page_view` / `view_item` / `add_to_cart` test hits |
 
-That creates dataset `stape_shopify_dashboard` and table `stape_events`.
-
-### 2. Create a service account key
+### 1. Service account key
 
 1. Google Cloud Console → IAM & Admin → Service accounts
 2. Create a service account (or reuse one Stape already uses)
@@ -51,32 +55,19 @@ That creates dataset `stape_shopify_dashboard` and table `stape_events`.
 4. Create a JSON key
 5. Save it as `secrets/gcp-service-account.json` in this project (do not commit it)
 
-### 3. Add BigQuery settings to `.env.local`
+### 2. Add BigQuery settings to `.env.local`
 
 ```bash
-GOOGLE_CLOUD_PROJECT=your-gcp-project-id
-BIGQUERY_DATASET=stape_shopify_dashboard
-BIGQUERY_TABLE=stape_events
+GOOGLE_CLOUD_PROJECT=stape-analytics-487802
+BIGQUERY_DATASET=stape_data
+BIGQUERY_TABLE=dashboard_events
 BIGQUERY_LOCATION=US
 GOOGLE_APPLICATION_CREDENTIALS=secrets/gcp-service-account.json
 ```
 
-### 4. Send Stape events into that table
+Restart `npm run dev`. Overview, Traffic, Conversions, and Attribution read `dashboard_events`.
 
-In Stape / server GTM:
-
-1. Enable the **Google Service Account** power-up and upload a key that can write to BigQuery (**BigQuery Data Editor**)
-2. Add the **Write to BigQuery** tag
-3. Point it at project / `stape_shopify_dashboard` / `stape_events`
-4. Use **Custom Data** (or All Event Data if names already match) for:
-   `timestamp`, `event_name`, `event_id`, `client_id`, `ga_session_id`, `page_location`, `page_referrer`, `gclid`, `fbclid`, `fbp`, `fbc`, `transaction_id`, `value`, `currency`
-5. Enable **Add Event Timestamp**
-6. Trigger on all events, including `page_view`, `view_item`, `add_to_cart`, `begin_checkout`, and `purchase`
-7. Publish the container
-
-Optional: run `bigquery/attribution_views.sql` to add helper views.
-
-Restart `npm run dev`. Overview and Traffic will show sessions once rows appear in the table.
+Optional: `bigquery/create_stape_events.sql` and `bigquery/attribution_views.sql` are only for the separate test dataset.
 
 Never commit `.env.local` or `secrets/`.
 

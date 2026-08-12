@@ -5,7 +5,7 @@ import {
 } from "@/lib/period";
 import { getSelectedRangeDays } from "@/lib/period-server";
 import { getBigQueryClient } from "@/lib/stape/client";
-import { getBigQueryConfig, tableId } from "@/lib/stape/config";
+import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
 
 export type AlignedPeriod = {
   startMs: number;
@@ -63,7 +63,7 @@ export async function getAlignedPeriod(): Promise<AlignedPeriod> {
     const [rows] = await client.query({
       query: `
         SELECT MIN(timestamp) AS firstEvent
-        FROM ${tableId(config)}
+        FROM ${eventsFromSql(config)}
         WHERE timestamp IS NOT NULL
       `,
       location: config.location,
