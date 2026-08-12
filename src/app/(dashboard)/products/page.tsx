@@ -31,7 +31,7 @@ export default async function ProductsPage() {
     <>
       <Header
         title="Products"
-        description="Shopify product sales for the last 30 days."
+        description="Shopify product sales for the selected date range."
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} />
@@ -67,7 +67,10 @@ export default async function ProductsPage() {
             }
           />
         </div>
-        <ProductTable products={shopify.products} />
+        <ProductTable
+          products={shopify.products}
+          periodLabel={shopify.periodLabel}
+        />
       </section>
     </>
   );

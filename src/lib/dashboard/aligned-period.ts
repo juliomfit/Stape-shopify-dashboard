@@ -1,5 +1,9 @@
 import { formatDate } from "@/lib/format";
-import { OVERVIEW_DAYS, overviewPeriodLabel } from "@/lib/period";
+import {
+  overviewPeriodLabel,
+  type RangeDays,
+} from "@/lib/period";
+import { getSelectedRangeDays } from "@/lib/period-server";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { getBigQueryConfig, tableId } from "@/lib/stape/config";
 
@@ -7,39 +11,51 @@ export type AlignedPeriod = {
   startMs: number;
   startIso: string;
   label: string;
+  days: RangeDays;
 };
 
 const CACHE_MS = 30_000;
-let cachedPeriod: { value: AlignedPeriod; expiresAt: number } | null = null;
+let cachedPeriod: {
+  days: RangeDays;
+  value: AlignedPeriod;
+  expiresAt: number;
+} | null = null;
 
-function thirtyDaysAgoMs() {
-  return Date.now() - OVERVIEW_DAYS * 24 * 60 * 60 * 1000;
+function rangeStartMs(days: RangeDays) {
+  return Date.now() - days * 24 * 60 * 60 * 1000;
 }
 
-function periodFromStartMs(startMs: number): AlignedPeriod {
+function periodFromStartMs(startMs: number, days: RangeDays): AlignedPeriod {
   const startIso = new Date(startMs).toISOString().slice(0, 10);
-  const thirtyDayStart = new Date(thirtyDaysAgoMs()).toISOString().slice(0, 10);
+  const rangeStartIso = new Date(rangeStartMs(days)).toISOString().slice(0, 10);
 
   return {
     startMs,
     startIso,
+    days,
     label:
-      startIso <= thirtyDayStart
-        ? overviewPeriodLabel()
+      startIso <= rangeStartIso
+        ? overviewPeriodLabel(days)
         : `Since ${formatDate(`${startIso}T12:00:00.000Z`)}`,
   };
 }
 
 export async function getAlignedPeriod(): Promise<AlignedPeriod> {
-  if (cachedPeriod && Date.now() < cachedPeriod.expiresAt) {
+  const days = await getSelectedRangeDays();
+
+  if (
+    cachedPeriod &&
+    cachedPeriod.days === days &&
+    Date.now() < cachedPeriod.expiresAt
+  ) {
     return cachedPeriod.value;
   }
 
-  const fallback = periodFromStartMs(thirtyDaysAgoMs());
+  const fallback = periodFromStartMs(rangeStartMs(days), days);
 
   try {
     if (!getBigQueryConfig()) {
-      cachedPeriod = { value: fallback, expiresAt: Date.now() + CACHE_MS };
+      cachedPeriod = { days, value: fallback, expiresAt: Date.now() + CACHE_MS };
       return fallback;
     }
 
@@ -55,12 +71,12 @@ export async function getAlignedPeriod(): Promise<AlignedPeriod> {
 
     const firstEvent = Number(rows[0]?.firstEvent ?? 0);
     const startMs =
-      firstEvent > 0 ? Math.max(firstEvent, thirtyDaysAgoMs()) : thirtyDaysAgoMs();
-    const value = periodFromStartMs(startMs);
-    cachedPeriod = { value, expiresAt: Date.now() + CACHE_MS };
+      firstEvent > 0 ? Math.max(firstEvent, rangeStartMs(days)) : rangeStartMs(days);
+    const value = periodFromStartMs(startMs, days);
+    cachedPeriod = { days, value, expiresAt: Date.now() + CACHE_MS };
     return value;
   } catch {
-    cachedPeriod = { value: fallback, expiresAt: Date.now() + CACHE_MS };
+    cachedPeriod = { days, value: fallback, expiresAt: Date.now() + CACHE_MS };
     return fallback;
   }
 }

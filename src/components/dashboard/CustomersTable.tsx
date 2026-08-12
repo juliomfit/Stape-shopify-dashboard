@@ -4,9 +4,10 @@ import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 
 type CustomersTableProps = {
   customers: CustomerPerformance[];
+  periodLabel: string;
 };
 
-export function CustomersTable({ customers }: CustomersTableProps) {
+export function CustomersTable({ customers, periodLabel }: CustomersTableProps) {
   if (customers.length === 0) {
     return (
       <EmptyPanel
@@ -23,7 +24,7 @@ export function CustomersTable({ customers }: CustomersTableProps) {
           Customers by spend
         </h2>
         <p className="mt-1 text-xs text-muted">
-          Last 30 days · names only, no emails
+          {periodLabel} · names only, no emails
         </p>
       </div>
       <div className="overflow-x-auto">

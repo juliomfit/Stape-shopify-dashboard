@@ -1,5 +1,6 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { overviewPeriodLabel } from "@/lib/period";
+import { getSelectedRangeDays } from "@/lib/period-server";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { getBigQueryConfig, tableId } from "@/lib/stape/config";
 import type { StapeTrafficMetrics, TrafficSource } from "@/lib/stape/types";
@@ -24,10 +25,10 @@ type SourceRow = {
   sessions: number;
 };
 
-function emptyMetrics(): StapeTrafficMetrics {
+function emptyMetrics(days: number): StapeTrafficMetrics {
   return {
     status: { state: "not_configured" },
-    periodLabel: overviewPeriodLabel(),
+    periodLabel: overviewPeriodLabel(days),
     sessions: null,
     users: null,
     events: null,
@@ -50,9 +51,11 @@ function withAllChannels(rows: SourceRow[]): TrafficSource[] {
 }
 
 export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
+  const days = await getSelectedRangeDays();
+
   try {
     if (!getBigQueryConfig()) {
-      return emptyMetrics();
+      return emptyMetrics(days);
     }
 
     const period = await getAlignedPeriod();
@@ -193,7 +196,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
       error instanceof Error ? error.message : "Could not load Stape data.";
 
     return {
-      ...emptyMetrics(),
+      ...emptyMetrics(days),
       status: { state: "error", message },
     };
   }

@@ -71,7 +71,10 @@ export default async function SalesPage() {
             }
           />
         </div>
-        <OrdersTable orders={shopify.recentOrders} />
+        <OrdersTable
+          orders={shopify.recentOrders}
+          periodLabel={shopify.periodLabel}
+        />
       </section>
     </>
   );

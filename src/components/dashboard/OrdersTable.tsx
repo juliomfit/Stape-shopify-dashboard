@@ -4,6 +4,7 @@ import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 
 type OrdersTableProps = {
   orders: ShopifyOrder[];
+  periodLabel: string;
 };
 
 function formatStatus(status: string) {
@@ -14,7 +15,7 @@ function formatStatus(status: string) {
     .join(" ");
 }
 
-export function OrdersTable({ orders }: OrdersTableProps) {
+export function OrdersTable({ orders, periodLabel }: OrdersTableProps) {
   if (orders.length === 0) {
     return (
       <EmptyPanel
@@ -29,7 +30,7 @@ export function OrdersTable({ orders }: OrdersTableProps) {
       <div className="border-b border-border px-6 py-4">
         <h2 className="text-sm font-semibold text-foreground">Recent orders</h2>
         <p className="mt-1 text-xs text-muted">
-          Last 25 orders · last 30 days
+          Last 25 orders · {periodLabel}
         </p>
       </div>
       <div className="overflow-x-auto">

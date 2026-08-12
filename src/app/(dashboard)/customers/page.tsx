@@ -30,7 +30,7 @@ export default async function CustomersPage() {
     <>
       <Header
         title="Customers"
-        description="Shopify customers who ordered in the last 30 days."
+        description="Shopify customers who ordered in the selected date range."
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} />
@@ -86,7 +86,10 @@ export default async function CustomersPage() {
                 }
               />
             </div>
-            <CustomersTable customers={shopify.customers} />
+            <CustomersTable
+              customers={shopify.customers}
+              periodLabel={shopify.periodLabel}
+            />
           </>
         )}
       </section>

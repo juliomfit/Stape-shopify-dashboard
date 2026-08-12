@@ -1,4 +1,5 @@
-import { OVERVIEW_DAYS, overviewPeriodLabel, startDateIso } from "@/lib/period";
+import { overviewPeriodLabel, startDateIso } from "@/lib/period";
+import { getSelectedRangeDays } from "@/lib/period-server";
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import type {
@@ -105,10 +106,10 @@ const ORDERS_QUERY = `
   }
 `;
 
-function emptyMetrics(): ShopifyOverviewMetrics {
+function emptyMetrics(days: number): ShopifyOverviewMetrics {
   return {
     status: { state: "not_configured" },
-    periodLabel: overviewPeriodLabel(),
+    periodLabel: overviewPeriodLabel(days),
     revenue: null,
     orders: null,
     products: [],
@@ -119,11 +120,13 @@ function emptyMetrics(): ShopifyOverviewMetrics {
 }
 
 export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetrics> {
+  const days = await getSelectedRangeDays();
+
   if (!isShopifyConfigured()) {
-    return emptyMetrics();
+    return emptyMetrics(days);
   }
 
-  const query = `created_at:>=${startDateIso(OVERVIEW_DAYS)}`;
+  const query = `created_at:>=${startDateIso(days)}`;
 
   try {
     let cursor: string | null = null;
@@ -212,7 +215,7 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
 
     return {
       status: { state: "connected", shopName },
-      periodLabel: overviewPeriodLabel(),
+      periodLabel: overviewPeriodLabel(days),
       revenue: { amount: revenue, currencyCode },
       orders: ordersCount,
       products,
@@ -227,7 +230,7 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
         : "Could not load Shopify data.";
 
     return {
-      ...emptyMetrics(),
+      ...emptyMetrics(days),
       status: { state: "error", message },
     };
   }

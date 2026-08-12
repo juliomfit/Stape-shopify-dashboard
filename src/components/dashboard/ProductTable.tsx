@@ -4,9 +4,10 @@ import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 
 type ProductTableProps = {
   products: TopProduct[];
+  periodLabel: string;
 };
 
-export function ProductTable({ products }: ProductTableProps) {
+export function ProductTable({ products, periodLabel }: ProductTableProps) {
   if (products.length === 0) {
     return (
       <EmptyPanel
@@ -22,7 +23,9 @@ export function ProductTable({ products }: ProductTableProps) {
         <h2 className="text-sm font-semibold text-foreground">
           Product sales
         </h2>
-        <p className="mt-1 text-xs text-muted">Last 30 days · sorted by revenue</p>
+        <p className="mt-1 text-xs text-muted">
+          {periodLabel} · sorted by revenue
+        </p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[32rem] text-left text-sm">
