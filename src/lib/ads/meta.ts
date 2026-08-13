@@ -1,4 +1,5 @@
 import { getMetaCredentials } from "@/lib/ads/meta-credentials";
+import { getMetaPaste, pasteToClaim } from "@/lib/ads/spend-paste";
 import type { PlatformClaim } from "@/lib/ads/types";
 import type { DashboardPeriod } from "@/lib/period";
 
@@ -123,17 +124,30 @@ export async function fetchMetaInsights(
   };
 }
 
+async function pastedForPeriod(period: DashboardPeriod): Promise<PlatformClaim | null> {
+  const filePaste = await getMetaPaste(period);
+  if (filePaste) {
+    return pasteToClaim(
+      filePaste,
+      `Pasted from Ads Manager · ${period.label} (${period.startDate}–${period.endDate})`,
+    );
+  }
+
+  return pastedMetaClaim();
+}
+
 export async function getMetaClaimed(
   period: DashboardPeriod,
 ): Promise<PlatformClaim> {
   const { credentials } = await getMetaCredentials();
+  const pasted = await pastedForPeriod(period);
 
   if (!credentials) {
     return (
-      pastedMetaClaim() ||
+      pasted ||
       empty(
         "not_configured",
-        "Use Sync Meta on True Performance, or paste META_SPEND for this date range",
+        "Paste Ads Manager totals on True Performance for this date range",
       )
     );
   }
@@ -146,7 +160,7 @@ export async function getMetaClaimed(
     );
   } catch (error) {
     return (
-      pastedMetaClaim() ||
+      pasted ||
       empty(
         "error",
         error instanceof Error ? error.message : "Meta API request failed",

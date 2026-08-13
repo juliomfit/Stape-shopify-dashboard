@@ -44,6 +44,7 @@ export default async function AttributionPage() {
     shopifyFirstTouch,
     shopifyCampaigns,
     metaConnection,
+    metaPaste,
   } = data;
   const conversion = getConversionRate(
     shopify.status.state === "connected" ? alignedShopify.orders : null,
@@ -56,7 +57,7 @@ export default async function AttributionPage() {
       : "Shopify · no data yet";
   const spendNote =
     totalSpend === null
-      ? "Press Sync Meta or paste Google spend — we will not guess"
+      ? "Paste Meta spend for this date range — we will not guess"
       : `${period.label} · Shopify revenue ÷ spend`;
 
   return (
@@ -75,6 +76,9 @@ export default async function AttributionPage() {
         <MetaSyncPanel
           connection={metaConnection}
           periodLabel={period.label}
+          startDate={period.startDate}
+          endDate={period.endDate}
+          paste={metaPaste}
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
@@ -251,7 +255,7 @@ export default async function AttributionPage() {
             "Trust Shopify gn_* first-touch for which channel gets the order.",
             "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
             "ROAS = gn_* channel revenue ÷ that channel’s spend. New-customer ROAS uses only first-time Shopify customers.",
-            "Press Sync Meta after you save a system-user token. Google spend is still pasted in .env.local for the same date range.",
+            "Paste Meta Amount spent for the same dates as the header toggle. A developer app is optional.",
             alignedShopify.guestOrders
               ? `${formatNumber(alignedShopify.guestOrders)} Shopify orders in this range have no customer record (guest checkout).`
               : "New vs returning uses Shopify number of orders on the customer (1 = new).",

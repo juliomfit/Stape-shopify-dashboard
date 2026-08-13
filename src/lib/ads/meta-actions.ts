@@ -7,6 +7,11 @@ import {
   saveMetaCredentials,
 } from "@/lib/ads/meta-credentials";
 import { fetchMetaInsights } from "@/lib/ads/meta";
+import {
+  clearMetaPaste,
+  parseSpendPaste,
+  saveMetaPaste,
+} from "@/lib/ads/spend-paste";
 import { getSelectedPeriod } from "@/lib/period-server";
 
 export type MetaSyncState = {
@@ -98,5 +103,45 @@ export async function disconnectMeta(): Promise<MetaSyncState> {
   return {
     ok: true,
     message: "Removed the saved Meta token from this machine.",
+  };
+}
+
+export async function saveMetaPasteAction(
+  _prev: MetaSyncState,
+  formData: FormData,
+): Promise<MetaSyncState> {
+  const paste = parseSpendPaste({
+    spend: formData.get("spend"),
+    purchases: formData.get("purchases"),
+    revenue: formData.get("revenue"),
+  });
+
+  if (!paste) {
+    return {
+      ok: false,
+      message: "Enter at least spend. Purchases and revenue are optional.",
+    };
+  }
+
+  if (paste.spend !== null && paste.spend < 0) {
+    return { ok: false, message: "Spend cannot be negative." };
+  }
+
+  const period = await getSelectedPeriod();
+  await saveMetaPaste(period, paste);
+  refreshDashboard();
+  return {
+    ok: true,
+    message: `Saved Meta totals for ${period.label} (${period.startDate}–${period.endDate}).`,
+  };
+}
+
+export async function clearMetaPasteAction(): Promise<MetaSyncState> {
+  const period = await getSelectedPeriod();
+  await clearMetaPaste(period);
+  refreshDashboard();
+  return {
+    ok: true,
+    message: `Cleared pasted Meta totals for ${period.label}.`,
   };
 }
