@@ -17,7 +17,21 @@ function parseServiceAccountJson(json: string) {
   return credentials;
 }
 
+/**
+ * @google-cloud/bigquery always reads GOOGLE_APPLICATION_CREDENTIALS when
+ * that env var is set. On Vercel the local path does not exist, so drop it
+ * and use GOOGLE_SERVICE_ACCOUNT_JSON instead.
+ */
+export function ignoreMissingCredentialFile() {
+  const filePath = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+  if (filePath && !existsSync(filePath)) {
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  }
+}
+
 function loadServiceAccount(): object | undefined {
+  ignoreMissingCredentialFile();
+
   const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
   if (json) {
     try {

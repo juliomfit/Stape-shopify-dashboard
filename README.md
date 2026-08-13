@@ -125,6 +125,8 @@ META_OAUTH_REDIRECT_URI
 
 `GOOGLE_SERVICE_ACCOUNT_JSON` is the full GCP key as **one line**. Do not upload the JSON file to the repo. The service account should stay BigQuery Data Viewer + Job User.
 
+**Do not set `GOOGLE_APPLICATION_CREDENTIALS` on Vercel.** That value is a laptop file path (`secrets/gcp-service-account.json`). The file is not in git, so production will show Sessions/Users/Pageviews as empty with `ENOENT /var/task/secrets`. If you already copied it from `.env.local`, delete that env var in Vercel and redeploy.
+
 4. Redeploy after saving env vars.
 5. On Vercel, spend paste is stored in an httpOnly cookie (not git). Localhost still uses `secrets/ads-paste.json`.
 
