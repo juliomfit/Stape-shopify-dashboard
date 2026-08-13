@@ -73,7 +73,7 @@ True Performance uses Shopify `gn_*` cart attributes as first-touch. Stape is sh
 
 ### Meta spend
 
-Facebook will not let this localhost dashboard log in the way Triple Whale does, and they will not let you create an app. Use Ads Manager numbers instead.
+Facebook will not let this localhost dashboard log in the way Triple Whale does until your app appeal is approved. Until then, paste Ads Manager Amount spent or upload a Campaigns CSV. After the app is live, add `META_APP_ID` and `META_APP_SECRET` and use **Log in with Facebook**.
 
 1. True Performance → set Today / Yesterday / 7d / 30d.
 2. Ads Manager → Campaigns → same dates (Pacific time).

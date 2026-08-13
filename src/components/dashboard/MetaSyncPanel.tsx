@@ -7,6 +7,7 @@ import {
   disconnectMeta,
   saveMetaCsvAction,
   saveMetaPasteAction,
+  selectMetaAdAccount,
   syncMetaSpend,
   type MetaSyncState,
 } from "@/lib/ads/meta-actions";
@@ -75,14 +76,23 @@ export function MetaSyncPanel({
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <h2 className="text-sm font-semibold text-foreground">Meta spend</h2>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Facebook will not give this dashboard a login without a Meta app, and
-        they will not let you create one. Copy totals from Ads Manager instead.
-        No developer account. Match{" "}
+        Waiting on the Facebook app appeal is fine. Until it is approved, paste
+        Ads Manager totals for{" "}
         <span className="font-medium text-foreground">
           {periodLabel} · {startDate} to {endDate}
         </span>{" "}
-        in Pacific time.
+        (Pacific time). After the app is live, put App ID and App Secret in
+        .env.local and this page will show Log in with Facebook.
       </p>
+
+      {connection.oauthReady && !connection.configured ? (
+        <a
+          href="/api/meta/connect"
+          className="mt-4 inline-flex w-fit rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background"
+        >
+          Log in with Facebook
+        </a>
+      ) : null}
 
       <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm leading-6 text-muted">
         <li>
@@ -205,6 +215,34 @@ export function MetaSyncPanel({
         </p>
       ) : null}
 
+      {connection.pendingAccounts.length > 0 ? (
+        <div className="mt-4 rounded-xl border border-border bg-background p-4">
+          <p className="text-sm text-foreground">Choose an ad account</p>
+          <div className="mt-3 flex flex-col gap-2">
+            {connection.pendingAccounts.map((account) => (
+              <button
+                key={account.id}
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  void (async () => {
+                    setBusy(true);
+                    const result = await selectMetaAdAccount(account.id);
+                    setSyncOk(result.ok);
+                    setSyncMessage(result.message);
+                    setBusy(false);
+                    router.refresh();
+                  })();
+                }}
+                className="rounded-lg border border-border px-3 py-2 text-left text-sm text-foreground"
+              >
+                {account.name} · {account.id}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {connection.configured ? (
         <div className="mt-4 rounded-xl border border-border bg-background p-4">
           <p className="text-sm text-foreground">
@@ -222,6 +260,14 @@ export function MetaSyncPanel({
             >
               {busy ? "Syncing…" : `Sync Meta · ${periodLabel}`}
             </button>
+            {connection.oauthReady ? (
+              <a
+                href="/api/meta/connect"
+                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted"
+              >
+                Reconnect
+              </a>
+            ) : null}
             {connection.canDisconnect ? (
               <button
                 type="button"
