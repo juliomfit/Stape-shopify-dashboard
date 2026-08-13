@@ -456,9 +456,9 @@ export async function getWarehouseMetrics(options: {
 
     const gaps: string[] = [
       "Warehouse models are observed click/session paths in BigQuery. They are not Shopify gn_* first-touch and not Ads Manager view-through.",
-      "stape_user_id, gn_uid, and hashed_email are not columns on raw_events_full yet. Append them in sGTM (bigquery/analytics/GTM_CHANGES.md).",
-      "gclid/gbraid/wbraid columns are 0% filled. Meta is mostly utm_source=facebook plus fbclid in the URL.",
-      "GA4 purchase rows have no user_id; Data Client purchase rows do. Canonical orders prefer Data Client.",
+      "gn_uid and stape_user_id now come from raw_events_full (Data Client). GA4 collect hits may still lack gn_uid until that tag also sends it.",
+      "hashed_email and shopify_customer_id usually fill on purchase, not page_view.",
+      "gclid/gbraid/wbraid columns are often empty; Meta is mostly URL UTMs plus fbclid when present.",
       "raw_events_full partitions expire after 60 days, so 90-day lookbacks will under-count until retention is extended.",
     ];
     if (platform.facebook.state !== "connected" && platform.google.state !== "connected") {
