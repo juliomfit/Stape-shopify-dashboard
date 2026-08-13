@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import { AttributionSourceTable } from "@/components/dashboard/AttributionSourceTable";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
-import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { OrdersTable } from "@/components/dashboard/OrdersTable";
@@ -33,7 +33,9 @@ export default async function SalesPage() {
     mismatch,
     ads,
     byChannel,
+    bySourceMedium,
     byCampaign,
+    sourceMediumNote,
     inRange,
     totalSpend,
     cpa,
@@ -251,31 +253,24 @@ export default async function SalesPage() {
           <ExportCsvButton
             label="Export first-touch CSV"
             filename={`sales-first-touch-${period.startDate}-${period.endDate}.csv`}
-            headers={["Channel", "Orders", "Revenue", "New-customer orders"]}
+            headers={["Source", "Medium", "Orders", "Revenue", "New-customer orders"]}
             rows={byChannel.map((row) => [
-              row.label,
+              row.source,
+              row.medium,
               row.orders,
               row.revenue,
               row.newCustomerOrders,
             ])}
           />
         </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <FirstTouchRollupTable
-            title="Revenue by first-touch channel"
-            description="From gn_* on the order. Unknown means the stitching script did not run (for example Shop Pay). Per-channel ROAS is hidden unless that channel has real spend."
-            rows={byChannel}
-            currencyCode={currency}
-            showRoas={false}
-          />
-          <FirstTouchRollupTable
-            title="Revenue by UTM campaign"
-            description="gn_utm_campaign on the order. Date is order created."
-            rows={byCampaign}
-            currencyCode={currency}
-            showRoas={false}
-          />
-        </div>
+        <AttributionSourceTable
+          currencyCode={currency}
+          periodLabel={period.label}
+          byChannel={byChannel}
+          bySourceMedium={bySourceMedium}
+          byCampaign={byCampaign}
+          sourceMediumSpendNote={sourceMediumNote}
+        />
         <OrdersTable
           orders={tableOrders}
           periodLabel={period.label}

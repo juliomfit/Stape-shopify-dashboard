@@ -15,7 +15,11 @@ import {
 } from "@/lib/dashboard/kpis";
 import { getAverageOrderValue, getConversionRate } from "@/lib/dashboard/conversion";
 import { pacificDaysInRange, pacificYmd, previousDashboardPeriod } from "@/lib/period";
-import { rollupFirstTouch } from "@/lib/shopify/first-touch";
+import { getMetaPaste, getGooglePaste } from "@/lib/ads/spend-paste";
+import {
+  buildAttributionRollups,
+  sourceMediumSpendNote,
+} from "@/lib/shopify/first-touch";
 import {
   getShopifyOverviewForPeriod,
   getShopifyOverviewMetrics,
@@ -28,13 +32,15 @@ import {
 export async function getCoreDashboard() {
   const period = await getAlignedPeriod();
   const previous = previousDashboardPeriod(period);
-  const [shopify, previousShopify, funnel, previousFunnel, ads] =
+  const [shopify, previousShopify, funnel, previousFunnel, ads, metaPaste, googlePaste] =
     await Promise.all([
       getShopifyOverviewMetrics(),
       getShopifyOverviewForPeriod(previous),
       getStapeFunnelMetrics(),
       getStapeFunnelMetricsForPeriod(previous),
       getPlatformReported(period),
+      getMetaPaste(period),
+      getGooglePaste(period),
     ]);
 
   const alignedShopify = shopifyMetricsSince(
@@ -108,8 +114,24 @@ export async function getCoreDashboard() {
   const blendedRoas = ratio(alignedShopify.revenue, totalSpend);
   const cpa = blendedCpa(totalSpend, alignedShopify.paidOrders);
   const ncRoas = ratio(alignedShopify.newCustomerRevenue, totalSpend);
-  const byChannel = rollupFirstTouch(inRange, "channel");
-  const byCampaign = rollupFirstTouch(inRange, "campaign");
+  const spendByLabel = {
+    "Facebook / Meta Ads": ads.facebook.spend,
+    "Google Ads": ads.google.spend,
+  };
+  const campaignSpend: Record<string, number | null> = {};
+  for (const row of [...(metaPaste?.campaigns || []), ...(googlePaste?.campaigns || [])]) {
+    campaignSpend[row.campaign] = row.spend;
+  }
+  const { byChannel, bySourceMedium, byCampaign } = buildAttributionRollups(
+    inRange,
+    spendByLabel,
+    campaignSpend,
+  );
+  const sourceMediumNote = sourceMediumSpendNote(
+    bySourceMedium,
+    ads.facebook.spend,
+    ads.google.spend,
+  );
   const deltaLabel = `vs ${previous.displayRange}`;
 
   return {
@@ -145,7 +167,9 @@ export async function getCoreDashboard() {
     cpa,
     ncRoas,
     byChannel,
+    bySourceMedium,
     byCampaign,
+    sourceMediumNote,
     deltas: {
       sessions: percentChange(
         stapeConnected ? funnel.sessions : null,

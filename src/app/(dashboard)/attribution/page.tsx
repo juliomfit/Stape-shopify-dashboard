@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
+import { AttributionSourceTable } from "@/components/dashboard/AttributionSourceTable";
 import { CampaignSpendTable } from "@/components/dashboard/CampaignSpendTable";
 import { ChannelContributionTable } from "@/components/dashboard/ChannelContributionTable";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
-import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTable";
 import { InfoPanel } from "@/components/dashboard/InfoPanel";
 import { MetaSyncPanel } from "@/components/dashboard/MetaSyncPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -50,7 +50,9 @@ export default async function AttributionPage() {
     googleNewCustomerRoas,
     compare,
     shopifyFirstTouch,
+    shopifySourceMedium,
     shopifyCampaigns,
+    sourceMediumSpendNote,
     metaConnection,
     metaPaste,
     googlePaste,
@@ -271,26 +273,20 @@ export default async function AttributionPage() {
             }
           />
         </div>
+        <AttributionSourceTable
+          currencyCode={currency}
+          periodLabel={period.label}
+          byChannel={shopifyFirstTouch}
+          bySourceMedium={shopifySourceMedium}
+          byCampaign={shopifyCampaigns}
+          sourceMediumSpendNote={sourceMediumSpendNote}
+        />
         <PlatformCompareTable
           rows={compare}
           currencyCode={currency}
           facebookNote={platform.facebook.message}
           googleNote={platform.google.message}
         />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <FirstTouchRollupTable
-            title="First-touch channel (gn_*)"
-            description="Source of truth. Written once on the cart. Unknown means the script did not run. ROAS fills in when that channel has spend."
-            rows={shopifyFirstTouch}
-            currencyCode={currency}
-          />
-          <FirstTouchRollupTable
-            title="First-touch campaign (gn_utm_campaign)"
-            description="Same orders, grouped by campaign on the order."
-            rows={shopifyCampaigns}
-            currencyCode={currency}
-          />
-        </div>
         <section className="rounded-2xl border border-dashed border-border bg-surface/60 p-6">
           <h2 className="text-sm font-semibold text-foreground">
             Stape comparison (not the source of truth)
@@ -329,11 +325,12 @@ export default async function AttributionPage() {
         <InfoPanel
           title="How to read this"
           items={[
-            "Trust Shopify gn_* first-touch for which channel gets the order.",
+            "Trust Shopify gn_* first-touch. Source / medium is gn_utm_source and gn_utm_medium (click ids if UTM is empty).",
+            "Unknown means the stitch did not write gn_*. Direct means gn_* ran with no source. They are not the same.",
             "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
             "ROAS = total revenue ÷ blended ad spend. MER is the inverse: blended ad spend ÷ total revenue (currentTotalPriceSet). They are not the same number.",
-            "Channel ROAS = gn_* channel revenue ÷ that channel’s spend. New-customer ROAS uses only first-time Shopify customers.",
-            "Paste Meta Amount spent or upload an Ads Manager CSV for the same dates as the header toggle. Facebook will not connect without an app they control.",
+            "Row ROAS / CPA only when that row has real Meta or Google spend for these dates. Account spend is not split across multiple source/medium rows.",
+            "Paste Meta Amount spent or upload an Ads Manager CSV for the same dates as the header toggle. Campaign ROAS needs campaign rows in the CSV.",
             alignedShopify.guestOrders
               ? `${formatNumber(alignedShopify.guestOrders)} Shopify orders in this range have no customer record (guest checkout).`
               : "No guest checkouts in this range.",

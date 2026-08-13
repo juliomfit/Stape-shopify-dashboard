@@ -16,8 +16,9 @@ import { blendedCpa, merRatio, ratio } from "@/lib/dashboard/kpis";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import {
+  buildAttributionRollups,
   findRollup,
-  rollupFirstTouch,
+  sourceMediumSpendNote,
   type FirstTouchRollup,
 } from "@/lib/shopify/first-touch";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
@@ -58,7 +59,9 @@ export type TruePerformance = {
   googleNewCustomerRoas: number | null;
   compare: PlatformCompareRow[];
   shopifyFirstTouch: FirstTouchRollup[];
+  shopifySourceMedium: FirstTouchRollup[];
   shopifyCampaigns: FirstTouchRollup[];
+  sourceMediumSpendNote: string | null;
   campaignSpendCompare: CampaignSpendCompare[] | null;
   spendCoverage: SpendCoverageRow[];
   metaConnection: MetaConnectionPublic;
@@ -134,8 +137,19 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     ...campaignSpendByLabel(googlePaste),
     ...campaignSpendByLabel(metaPaste),
   };
-  const shopifyFirstTouch = rollupFirstTouch(inRange, "channel", spendByLabel);
-  const shopifyCampaigns = rollupFirstTouch(inRange, "campaign", campaignSpend);
+  const { byChannel, bySourceMedium, byCampaign } = buildAttributionRollups(
+    inRange,
+    spendByLabel,
+    campaignSpend,
+  );
+  const shopifyFirstTouch = byChannel;
+  const shopifySourceMedium = bySourceMedium;
+  const shopifyCampaigns = byCampaign;
+  const sourceMediumSpendNoteText = sourceMediumSpendNote(
+    shopifySourceMedium,
+    platform.facebook.spend,
+    platform.google.spend,
+  );
   const facebook = findRollup(shopifyFirstTouch, "Facebook / Meta Ads");
   const google = findRollup(shopifyFirstTouch, "Google Ads");
   const totalSpend = platform.totalSpend;
@@ -190,7 +204,9 @@ export async function getTruePerformance(): Promise<TruePerformance> {
       ),
     ],
     shopifyFirstTouch,
+    shopifySourceMedium,
     shopifyCampaigns,
+    sourceMediumSpendNote: sourceMediumSpendNoteText,
     campaignSpendCompare,
     spendCoverage,
     metaConnection,
