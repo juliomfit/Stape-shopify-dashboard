@@ -66,6 +66,114 @@ export function parseSpendPaste(input: {
   return { spend, purchases, revenue };
 }
 
+function splitCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = "";
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === '"') {
+      if (quoted && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+    if (char === "," && !quoted) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  cells.push(current.trim());
+  return cells;
+}
+
+function normalizeHeader(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\(.*?\)/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function headerIndex(headers: string[], needles: string[]) {
+  return headers.findIndex((header) =>
+    needles.some((needle) => header === needle || header.includes(needle)),
+  );
+}
+
+/** Totals from an Ads Manager CSV export for the selected date range. */
+export function parseAdsManagerCsv(text: string): SpendPaste | null {
+  const lines = text
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let headerAt = -1;
+  for (let i = 0; i < Math.min(lines.length, 20); i += 1) {
+    const normalized = splitCsvLine(lines[i]).map(normalizeHeader);
+    if (headerIndex(normalized, ["amount spent", "spend"]) >= 0) {
+      headerAt = i;
+      break;
+    }
+  }
+
+  if (headerAt < 0) {
+    return null;
+  }
+
+  const headers = splitCsvLine(lines[headerAt]).map(normalizeHeader);
+  const spendCol = headerIndex(headers, ["amount spent", "spend"]);
+  const purchaseCol = headerIndex(headers, [
+    "website purchases",
+    "purchases",
+  ]);
+  const resultCol =
+    purchaseCol >= 0 ? -1 : headerIndex(headers, ["results"]);
+  const revenueCol = headerIndex(headers, [
+    "website purchase conversion value",
+    "purchases conversion value",
+    "purchase conversion value",
+    "conversion value",
+  ]);
+  const buyCol = purchaseCol >= 0 ? purchaseCol : resultCol;
+
+  const dataRows = lines.slice(headerAt + 1).map(splitCsvLine).filter((cells) =>
+    cells.some((cell) => cell !== ""),
+  );
+  const totalRow = dataRows.find(
+    (cells) => (cells[0] || "").toLowerCase() === "total",
+  );
+  const rows = totalRow ? [totalRow] : dataRows;
+
+  let spend = 0;
+  let purchases = 0;
+  let revenue = 0;
+
+  for (const cells of rows) {
+    spend += parseAmount(spendCol >= 0 ? cells[spendCol] : null) ?? 0;
+    purchases += parseAmount(buyCol >= 0 ? cells[buyCol] : null) ?? 0;
+    revenue += parseAmount(revenueCol >= 0 ? cells[revenueCol] : null) ?? 0;
+  }
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return {
+    spend: spendCol >= 0 ? spend : null,
+    purchases: buyCol >= 0 ? purchases : null,
+    revenue: revenueCol >= 0 ? revenue : null,
+  };
+}
+
 export async function getMetaPaste(
   period: DashboardPeriod,
 ): Promise<PeriodSpendPaste | null> {

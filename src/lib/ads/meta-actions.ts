@@ -10,6 +10,7 @@ import { fetchMetaInsights } from "@/lib/ads/meta";
 import { clearPendingOAuth, getPendingOAuth } from "@/lib/ads/meta-oauth";
 import {
   clearMetaPaste,
+  parseAdsManagerCsv,
   parseSpendPaste,
   saveMetaPaste,
 } from "@/lib/ads/spend-paste";
@@ -155,6 +156,33 @@ export async function saveMetaPasteAction(
   return {
     ok: true,
     message: `Saved Meta totals for ${period.label} (${period.startDate}–${period.endDate}).`,
+  };
+}
+
+export async function saveMetaCsvAction(
+  _prev: MetaSyncState,
+  formData: FormData,
+): Promise<MetaSyncState> {
+  const file = formData.get("csv");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: "Choose an Ads Manager CSV export first." };
+  }
+
+  const paste = parseAdsManagerCsv(await file.text());
+  if (!paste || paste.spend === null) {
+    return {
+      ok: false,
+      message:
+        "Could not find Amount spent in that file. Export Campaigns as CSV from Ads Manager.",
+    };
+  }
+
+  const period = await getSelectedPeriod();
+  await saveMetaPaste(period, paste);
+  refreshDashboard();
+  return {
+    ok: true,
+    message: `Imported ${period.label}: spend ${paste.spend}, purchases ${paste.purchases ?? 0}.`,
   };
 }
 

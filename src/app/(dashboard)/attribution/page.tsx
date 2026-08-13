@@ -23,12 +23,7 @@ function roasLabel(value: number | null) {
   return value === null ? null : `${value.toFixed(2)}x`;
 }
 
-export default async function AttributionPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ meta?: string; reason?: string }>;
-}) {
-  const params = await searchParams;
+export default async function AttributionPage() {
   const data = await getTruePerformance();
   const {
     shopify,
@@ -84,8 +79,6 @@ export default async function AttributionPage({
           startDate={period.startDate}
           endDate={period.endDate}
           paste={metaPaste}
-          oauthStatus={params.meta}
-          oauthReason={params.reason}
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
@@ -262,7 +255,7 @@ export default async function AttributionPage({
             "Trust Shopify gn_* first-touch for which channel gets the order.",
             "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
             "ROAS = gn_* channel revenue ÷ that channel’s spend. New-customer ROAS uses only first-time Shopify customers.",
-            "Paste Meta Amount spent for the same dates as the header toggle. A developer app is optional.",
+            "Paste Meta Amount spent or upload an Ads Manager CSV for the same dates as the header toggle. Facebook will not connect without an app they control.",
             alignedShopify.guestOrders
               ? `${formatNumber(alignedShopify.guestOrders)} Shopify orders in this range have no customer record (guest checkout).`
               : "New vs returning uses Shopify number of orders on the customer (1 = new).",

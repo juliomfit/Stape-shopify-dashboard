@@ -73,21 +73,14 @@ True Performance uses Shopify `gn_*` cart attributes as first-touch. Stape is sh
 
 ### Meta spend
 
-Competitor apps already registered a Meta app, so you only log in. This dashboard can do the same after a one-time App ID (like Shopify). That is **not** a Business Manager account.
+Facebook will not let this localhost dashboard log in the way Triple Whale does, and they will not let you create an app. Use Ads Manager numbers instead.
 
-1. [developers.facebook.com/apps](https://developers.facebook.com/apps/) → Create app → **Other** (not Business) → add Facebook Login.
-2. Facebook Login → Settings → Valid OAuth Redirect URI: `http://localhost:3000/api/meta/callback`
-3. Settings → Basic → put App ID and App Secret in `.env.local`:
+1. True Performance → set Today / Yesterday / 7d / 30d.
+2. Ads Manager → Campaigns → same dates (Pacific time).
+3. Type Amount spent, or Export CSV and upload it.
+4. Press **Save Meta totals** or **Import CSV**.
 
-```bash
-META_APP_ID=
-META_APP_SECRET=
-META_OAUTH_REDIRECT_URI=http://localhost:3000/api/meta/callback
-```
-
-4. Restart `npm run dev`. True Performance shows **Log in with Facebook**. Spend then fills for the selected date range.
-
-If you cannot create any app, paste Ads Manager Amount spent for the same dates (Pacific time).
+Each date range is stored separately. Do not invent numbers.
 
 Google spend is still pasted for the same date range:
 
@@ -97,7 +90,7 @@ GOOGLE_ADS_PURCHASES=
 GOOGLE_ADS_REVENUE=
 ```
 
-ROAS stays **—** until spend is present. Do not invent numbers.
+ROAS stays **—** until spend is present.
 
 Keep this on localhost until the product is in final form.
 
