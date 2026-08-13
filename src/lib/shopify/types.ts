@@ -17,6 +17,12 @@ export type TopProduct = {
   revenue: Money;
 };
 
+export type ProductChannelMix = {
+  channel: string;
+  quantity: number;
+  revenue: number;
+};
+
 export type ShopifyOrder = {
   id: string;
   name: string;
@@ -39,6 +45,8 @@ export type CustomerPerformance = {
   orderCount: number;
   spend: Money;
   isNew: boolean;
+  lastOrderAt: string | null;
+  lifetimeOrders: number;
 };
 
 export type OrderPoint = {
@@ -76,6 +84,7 @@ export type ShopifyOverviewMetrics = {
   guestOrders: number;
   newCustomerRevenue: number;
   returningCustomerRevenue: number;
+  productChannelMix: ProductChannelMix[];
 };
 
 export type ShopifyCustomerMetrics = {

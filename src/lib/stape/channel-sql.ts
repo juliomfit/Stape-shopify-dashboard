@@ -13,6 +13,21 @@ export const ATTRIBUTION_CHANNELS = [
 
 export type AttributionChannel = (typeof ATTRIBUTION_CHANNELS)[number];
 
+export const PAID_CHANNELS: readonly AttributionChannel[] = [
+  "Google Ads",
+  "Facebook / Meta Ads",
+  "TikTok",
+  "Microsoft Ads",
+];
+
+export const ORGANIC_CHANNELS: readonly AttributionChannel[] = [
+  "Google Organic",
+  "Meta Organic",
+  "Email",
+  "Direct",
+  "Other",
+];
+
 export const CHANNEL_SQL = `
   CASE
     WHEN IFNULL(gclid, '') != ''

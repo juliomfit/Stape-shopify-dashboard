@@ -1,6 +1,11 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { getBigQueryClient } from "@/lib/stape/client";
-import { ATTRIBUTION_CHANNELS, CHANNEL_SQL } from "@/lib/stape/channel-sql";
+import {
+  ATTRIBUTION_CHANNELS,
+  CHANNEL_SQL,
+  ORGANIC_CHANNELS,
+  PAID_CHANNELS,
+} from "@/lib/stape/channel-sql";
 import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
 import type { StapeTrafficMetrics, TrafficSource } from "@/lib/stape/types";
 
@@ -8,6 +13,7 @@ type TotalsRow = {
   events: number;
   users: number;
   sessions: number;
+  pageviews: number;
 };
 
 type SourceRow = {
@@ -22,7 +28,10 @@ function emptyMetrics(periodLabel: string): StapeTrafficMetrics {
     sessions: null,
     users: null,
     events: null,
+    pageviews: null,
     sources: [],
+    paidSources: [],
+    organicSources: [],
     eventCounts: [],
   };
 }
@@ -51,24 +60,30 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
     const { client, config } = getBigQueryClient();
     const table = eventsFromSql(config);
     const queryOptions = { location: config.location };
-    const timeFilter = `timestamp >= @startMs AND timestamp < @endMs`;
     const timeParams = { startMs: period.startMs, endMs: period.endMs };
 
     const [totals] = await client.query({
       ...queryOptions,
       query: `
+        WITH events AS (
+          SELECT
+            CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) AS session_key,
+            client_id,
+            LOWER(IFNULL(event_name, '')) AS event_name
+          FROM ${table}
+          WHERE timestamp >= @startMs AND timestamp < @endMs
+        )
         SELECT
           COUNT(*) AS events,
-          COUNT(DISTINCT client_id) AS users,
-          COUNT(
-            DISTINCT IF(
-              CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) != '|',
-              CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')),
-              NULL
-            )
-          ) AS sessions
-        FROM ${table}
-        WHERE ${timeFilter}
+          COUNT(DISTINCT IF(session_key != '|', client_id, NULL)) AS users,
+          (SELECT COUNT(*) FROM (
+            SELECT session_key
+            FROM events
+            WHERE session_key != '|'
+            GROUP BY session_key
+          )) AS sessions,
+          COUNTIF(event_name = 'page_view') AS pageviews
+        FROM events
       `,
       params: timeParams,
     });
@@ -91,7 +106,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
             IFNULL(ttclid, '') AS ttclid,
             IFNULL(msclkid, '') AS msclkid
           FROM ${table}
-          WHERE ${timeFilter}
+          WHERE timestamp >= @startMs AND timestamp < @endMs
         ),
         first_hit AS (
           SELECT * EXCEPT (rn)
@@ -115,6 +130,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
     });
 
     const totalsRow = (totals[0] ?? {}) as TotalsRow;
+    const allSources = withAllChannels(sources as SourceRow[]);
 
     const [eventRows] = await client.query({
       ...queryOptions,
@@ -123,14 +139,14 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
           event_name AS eventName,
           COUNT(*) AS events,
           COUNT(
-            DISTINCT CONCAT(
-              IFNULL(client_id, ''),
-              '|',
-              IFNULL(ga_session_id, '')
+            DISTINCT IF(
+              CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) != '|',
+              CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')),
+              NULL
             )
           ) AS sessions
         FROM ${table}
-        WHERE ${timeFilter}
+        WHERE timestamp >= @startMs AND timestamp < @endMs
           AND event_name IS NOT NULL
         GROUP BY event_name
       `,
@@ -143,14 +159,21 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
       events: toNumber(totalsRow.events),
       users: toNumber(totalsRow.users),
       sessions: toNumber(totalsRow.sessions),
-      sources: withAllChannels(sources as SourceRow[]),
-      eventCounts: (eventRows as { eventName: string; events: number; sessions: number }[]).map(
-        (row) => ({
-          eventName: row.eventName,
-          events: toNumber(row.events),
-          sessions: toNumber(row.sessions),
-        }),
+      pageviews: toNumber(totalsRow.pageviews),
+      sources: allSources,
+      paidSources: allSources.filter((row) =>
+        (PAID_CHANNELS as readonly string[]).includes(row.source),
       ),
+      organicSources: allSources.filter((row) =>
+        (ORGANIC_CHANNELS as readonly string[]).includes(row.source),
+      ),
+      eventCounts: (
+        eventRows as { eventName: string; events: number; sessions: number }[]
+      ).map((row) => ({
+        eventName: row.eventName,
+        events: toNumber(row.events),
+        sessions: toNumber(row.sessions),
+      })),
     };
   } catch (error) {
     const message =

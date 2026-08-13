@@ -1,5 +1,5 @@
 import type { CustomerPerformance } from "@/lib/shopify/types";
-import { formatMoney, formatNumber } from "@/lib/format";
+import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 
 type CustomersTableProps = {
@@ -43,8 +43,10 @@ export function CustomersTable({
             <tr>
               <th className="px-6 py-3 font-medium">Customer</th>
               <th className="px-6 py-3 font-medium">Type</th>
-              <th className="px-6 py-3 text-right font-medium">Orders</th>
-              <th className="px-6 py-3 text-right font-medium">Spend</th>
+                <th className="px-6 py-3 font-medium">Last order in range</th>
+                <th className="px-6 py-3 text-right font-medium">Orders</th>
+                <th className="px-6 py-3 text-right font-medium">Lifetime orders</th>
+                <th className="px-6 py-3 text-right font-medium">Spend</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -54,8 +56,14 @@ export function CustomersTable({
                 <td className="px-6 py-3 text-muted">
                   {customer.isNew ? "New" : "Returning"}
                 </td>
+                <td className="px-6 py-3 text-muted">
+                  {customer.lastOrderAt ? formatDate(customer.lastOrderAt) : "—"}
+                </td>
                 <td className="px-6 py-3 text-right text-muted">
                   {formatNumber(customer.orderCount)}
+                </td>
+                <td className="px-6 py-3 text-right text-muted">
+                  {formatNumber(customer.lifetimeOrders)}
                 </td>
                 <td className="px-6 py-3 text-right text-foreground">
                   {formatMoney(customer.spend)}

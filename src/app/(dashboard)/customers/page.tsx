@@ -5,7 +5,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ScopeHelp } from "@/components/dashboard/ScopeHelp";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatPercent } from "@/lib/format";
 import { getShopifyCustomerMetrics } from "@/lib/shopify/get-customer-metrics";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,8 @@ export default async function CustomersPage() {
   const newCustomers = shopify.customers.filter((customer) => customer.isNew)
     .length;
   const returningCustomers = shopify.customers.length - newCustomers;
+  const identified = shopify.customers.length;
+  const repeatRate = identified > 0 ? returningCustomers / identified : null;
 
   return (
     <>
@@ -91,7 +93,22 @@ export default async function CustomersPage() {
                     : null
                 }
               />
+              <MetricCard
+                label="Repeat rate"
+                source={`${shopifySource} · unique people with 2+ lifetime orders ÷ identified customers`}
+                value={
+                  shopify.status.state === "connected" && repeatRate !== null
+                    ? formatPercent(repeatRate)
+                    : null
+                }
+              />
             </div>
+            <p className="text-xs leading-5 text-muted">
+              New vs returning here is unique people (lifetime numberOfOrders).
+              True Performance new-customer orders is order grain and will not
+              match. Last order date is the latest order in this header range,
+              not a guessed lifetime recency.
+            </p>
             <CustomersTable
               customers={shopify.customers}
               periodLabel={shopify.periodLabel}

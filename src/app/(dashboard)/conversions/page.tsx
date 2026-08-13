@@ -2,13 +2,11 @@ import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
-import { getAverageOrderValue, getConversionRate } from "@/lib/dashboard/conversion";
-import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
+import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
-import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
-import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -17,36 +15,37 @@ export const metadata: Metadata = {
 };
 
 export default async function ConversionsPage() {
-  const [shopify, funnel, period] = await Promise.all([
-    getShopifyOverviewMetrics(),
-    getStapeFunnelMetrics(),
-    getAlignedPeriod(),
-  ]);
-  const alignedShopify = shopifyMetricsSince(
-    shopify.orderPoints,
-    period.startMs,
-    period.endMs,
-  );
-  const shopifyConnected = shopify.status.state === "connected";
-  const stapeConnected = funnel.status.state === "connected";
+  const data = await getCoreDashboard();
+  const {
+    period,
+    deltaLabel,
+    shopify,
+    funnel,
+    alignedShopify,
+    shopifyConnected,
+    stapeConnected,
+    currency,
+    conversion,
+    aov,
+    mismatch,
+    deltas,
+    cpa,
+    totalSpend,
+  } = data;
   const shopifySource = shopifyConnected
     ? `Shopify · ${period.label}`
     : "Shopify · no data yet";
   const stapeSource = stapeConnected
     ? `Stape · ${period.label}`
     : "Stape · no data yet";
-  const conversion = getConversionRate(
-    shopifyConnected ? alignedShopify.orders : null,
-    stapeConnected ? funnel.sessions : null,
-  );
   const bothSource =
     conversion.rate === null
       ? conversion.note
       : `${conversion.note} · ${period.label}`;
-  const averageOrderValue = getAverageOrderValue(
-    shopifyConnected ? alignedShopify.revenue : null,
-    shopifyConnected ? alignedShopify.orders : null,
-  );
+  const spendSource =
+    totalSpend === null
+      ? "No ad spend saved for these dates"
+      : `Meta + Google · ${period.label}`;
 
   return (
     <>
@@ -61,6 +60,7 @@ export default async function ConversionsPage() {
           fetched={alignedShopify.orders}
           reportedCount={shopify.reportedOrderCount}
         />
+        <MismatchBanner mismatch={mismatch} currencyCode={currency} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Conversion Rate"
@@ -68,11 +68,15 @@ export default async function ConversionsPage() {
             value={
               conversion.rate === null ? null : formatPercent(conversion.rate)
             }
+            delta={deltas.conversion}
+            deltaLabel={deltaLabel}
           />
           <MetricCard
             label="Shopify orders"
             source={shopifySource}
             value={shopifyConnected ? formatNumber(alignedShopify.orders) : null}
+            delta={deltas.orders}
+            deltaLabel={deltaLabel}
           />
           <MetricCard
             label="Stape purchases"
@@ -83,12 +87,36 @@ export default async function ConversionsPage() {
             label="Average Order Value"
             source={shopifySource}
             value={
-              averageOrderValue === null
+              aov === null
                 ? null
                 : formatMoney({
-                    amount: averageOrderValue,
-                    currencyCode: shopify.revenue?.currencyCode || "USD",
+                    amount: aov,
+                    currencyCode: currency,
                   })
+            }
+            delta={deltas.aov}
+            deltaLabel={deltaLabel}
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Sessions"
+            source={`${stapeSource} · funnel sessions`}
+            value={stapeConnected ? formatNumber(funnel.sessions) : null}
+            delta={deltas.sessions}
+            deltaLabel={deltaLabel}
+          />
+          <MetricCard
+            label="Blended CPA"
+            source={
+              cpa === null
+                ? spendSource
+                : `${period.label} · spend ÷ orders with total > $0`
+            }
+            value={
+              cpa === null
+                ? null
+                : formatMoney({ amount: cpa, currencyCode: currency })
             }
           />
         </div>
@@ -96,6 +124,7 @@ export default async function ConversionsPage() {
           periodLabel={period.label}
           steps={funnel.steps}
           showTable
+          shopifyOrders={shopifyConnected ? alignedShopify.orders : null}
         />
       </section>
     </>

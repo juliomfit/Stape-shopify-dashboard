@@ -370,6 +370,60 @@ export function getDashboardPeriod(
   };
 }
 
+/** Civil date in America/Los_Angeles for an instant. */
+export function pacificYmd(value: string | number | Date) {
+  const parts = zonedParts(new Date(value), DASHBOARD_TZ);
+  return ymd(parts.year, parts.month, parts.day);
+}
+
+/** Inclusive Pacific calendar days from startDate through endDate. */
+export function pacificDaysInRange(startDate: string, endDate: string) {
+  const start = parseYmd(startDate);
+  const end = parseYmd(endDate);
+  if (!start || !end) {
+    return [];
+  }
+
+  const days: string[] = [];
+  let cursor = start;
+  while (compareYmd(cursor, end) <= 0) {
+    days.push(ymd(cursor.year, cursor.month, cursor.day));
+    cursor = addDays(cursor.year, cursor.month, cursor.day, 1);
+  }
+
+  return days;
+}
+
+/**
+ * Immediately previous window with the same number of Pacific days.
+ * Yesterday → the day before; last 7 days → the 7 days before that.
+ */
+export function previousDashboardPeriod(
+  period: DashboardPeriod,
+  now: Date = new Date(),
+): DashboardPeriod {
+  const start = parseYmd(period.startDate);
+  if (!start) {
+    return getDashboardPeriod("custom", now, {
+      startDate: period.startDate,
+      endDate: period.endDate,
+    });
+  }
+
+  const prevEnd = addDays(start.year, start.month, start.day, -1);
+  const prevStart = addDays(
+    prevEnd.year,
+    prevEnd.month,
+    prevEnd.day,
+    -(Math.max(period.dayCount, 1) - 1),
+  );
+
+  return getDashboardPeriod("custom", now, {
+    startDate: ymd(prevStart.year, prevStart.month, prevStart.day),
+    endDate: ymd(prevEnd.year, prevEnd.month, prevEnd.day),
+  });
+}
+
 export function shopifyOrdersQuery(period: DashboardPeriod) {
   // GraphQL orders default to open-only; include closed paid/archived orders.
   // Cancelled orders stay out unless we opt into status:any.

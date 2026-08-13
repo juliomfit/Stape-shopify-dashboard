@@ -5,16 +5,33 @@ import type { DashboardPeriod } from "@/lib/period";
 
 const PASTE_FILE = path.join(process.cwd(), "secrets/ads-paste.json");
 
+export type CampaignSpendRow = {
+  campaign: string;
+  spend: number;
+  purchases: number | null;
+  revenue: number | null;
+};
+
 export type SpendPaste = {
   spend: number | null;
   purchases: number | null;
   revenue: number | null;
+  campaigns?: CampaignSpendRow[];
 };
 
 export type PeriodSpendPaste = SpendPaste & {
   startDate: string;
   endDate: string;
   label: string;
+};
+
+export type SpendCoverageRow = {
+  platform: "facebook" | "google";
+  startDate: string;
+  endDate: string;
+  label: string;
+  spend: number | null;
+  hasCampaignRows: boolean;
 };
 
 type PasteFile = {
@@ -122,6 +139,10 @@ function headerIndex(headers: string[], needles: string[]) {
   );
 }
 
+function isTotalLabel(value: string) {
+  return value.replace(/"/g, "").trim().toLowerCase() === "total";
+}
+
 /** Totals from an Ads Manager CSV export for the selected date range. */
 export function parseAdsManagerCsv(text: string): SpendPaste | null {
   const cleaned = text
@@ -163,35 +184,85 @@ export function parseAdsManagerCsv(text: string): SpendPaste | null {
     "conversion value",
   ]);
   const buyCol = purchaseCol >= 0 ? purchaseCol : resultCol;
+  const campaignCol = headers.findIndex(
+    (header) => header === "campaign name" || header === "campaign",
+  );
 
   const dataRows = lines
     .slice(headerAt + 1)
     .map((line) => splitCsvLine(line, delimiter))
     .filter((cells) => cells.some((cell) => cell !== ""));
-  const totalRow = dataRows.find((cells) =>
-    cells.some((cell) => cell.replace(/"/g, "").trim().toLowerCase() === "total"),
-  );
-  const rows = totalRow ? [totalRow] : dataRows;
+  const totalRow = dataRows.find((cells) => cells.some((cell) => isTotalLabel(cell)));
+  const detailRows = dataRows.filter((cells) => !cells.some((cell) => isTotalLabel(cell)));
+  const totalSource = totalRow ? [totalRow] : detailRows;
+
+  if (totalSource.length === 0) {
+    return null;
+  }
 
   let spend = 0;
   let purchases = 0;
   let revenue = 0;
 
-  for (const cells of rows) {
+  for (const cells of totalSource) {
     spend += parseAmount(spendCol >= 0 ? cells[spendCol] : null) ?? 0;
     purchases += parseAmount(buyCol >= 0 ? cells[buyCol] : null) ?? 0;
     revenue += parseAmount(revenueCol >= 0 ? cells[revenueCol] : null) ?? 0;
   }
 
-  if (rows.length === 0) {
-    return null;
+  const campaigns: CampaignSpendRow[] = [];
+  if (campaignCol >= 0) {
+    for (const cells of detailRows) {
+      const campaign = (cells[campaignCol] || "").trim();
+      if (!campaign || isTotalLabel(campaign)) {
+        continue;
+      }
+
+      const rowSpend = parseAmount(spendCol >= 0 ? cells[spendCol] : null);
+      if (rowSpend === null) {
+        continue;
+      }
+
+      campaigns.push({
+        campaign,
+        spend: rowSpend,
+        purchases: parseAmount(buyCol >= 0 ? cells[buyCol] : null),
+        revenue: parseAmount(revenueCol >= 0 ? cells[revenueCol] : null),
+      });
+    }
   }
 
   return {
     spend: spendCol >= 0 ? spend : null,
     purchases: buyCol >= 0 ? purchases : null,
     revenue: revenueCol >= 0 ? revenue : null,
+    campaigns: campaigns.length > 0 ? campaigns : undefined,
   };
+}
+
+export async function listSpendCoverage(): Promise<SpendCoverageRow[]> {
+  const data = await readPasteFile();
+  const rows: SpendCoverageRow[] = [];
+
+  for (const [platform, bucket] of [
+    ["facebook", data.facebook],
+    ["google", data.google],
+  ] as const) {
+    for (const stored of Object.values(bucket || {})) {
+      rows.push({
+        platform,
+        startDate: stored.startDate,
+        endDate: stored.endDate,
+        label: stored.label,
+        spend: stored.spend,
+        hasCampaignRows: (stored.campaigns || []).length > 0,
+      });
+    }
+  }
+
+  return rows.sort((a, b) =>
+    b.endDate.localeCompare(a.endDate) || b.startDate.localeCompare(a.startDate),
+  );
 }
 
 export async function getMetaPaste(

@@ -5,6 +5,7 @@ type ConversionFunnelProps = {
   steps: FunnelStep[];
   periodLabel: string;
   showTable?: boolean;
+  shopifyOrders?: number | null;
 };
 
 function ratio(count: number, base: number) {
@@ -15,10 +16,19 @@ function ratio(count: number, base: number) {
   return count / base;
 }
 
+function dropOff(count: number, previous: number) {
+  if (previous <= 0) {
+    return null;
+  }
+
+  return 1 - count / previous;
+}
+
 export function ConversionFunnel({
   steps,
   periodLabel,
   showTable = false,
+  shopifyOrders = null,
 }: ConversionFunnelProps) {
   if (steps.length === 0) {
     return (
@@ -46,6 +56,7 @@ export function ConversionFunnel({
             max > 0 ? Math.max((step.count / max) * 100, step.count > 0 ? 4 : 0) : 0;
           const previous = index === 0 ? null : steps[index - 1];
           const fromPrevious = previous ? ratio(step.count, previous.count) : null;
+          const lost = previous ? dropOff(step.count, previous.count) : null;
 
           return (
             <li key={step.key}>
@@ -61,6 +72,7 @@ export function ConversionFunnel({
                   {fromPrevious === null ? null : (
                     <span className="ml-2 text-xs">
                       {formatPercent(fromPrevious)} of previous
+                      {lost === null ? null : ` · ${formatPercent(lost)} drop-off`}
                     </span>
                   )}
                 </span>
@@ -83,6 +95,7 @@ export function ConversionFunnel({
                 <th className="pb-2 font-medium">Step</th>
                 <th className="pb-2 font-medium">Count</th>
                 <th className="pb-2 font-medium">% of previous</th>
+                <th className="pb-2 font-medium">Drop-off</th>
                 <th className="pb-2 font-medium">% of sessions</th>
               </tr>
             </thead>
@@ -91,6 +104,9 @@ export function ConversionFunnel({
                 const previous = index === 0 ? null : steps[index - 1];
                 const fromPrevious = previous
                   ? ratio(step.count, previous.count)
+                  : null;
+                const lost = previous
+                  ? dropOff(step.count, previous.count)
                   : null;
                 const fromSessions = ratio(step.count, sessions);
 
@@ -102,6 +118,9 @@ export function ConversionFunnel({
                       {fromPrevious === null ? "—" : formatPercent(fromPrevious)}
                     </td>
                     <td className="py-2.5 text-muted">
+                      {lost === null ? "—" : formatPercent(lost)}
+                    </td>
+                    <td className="py-2.5 text-muted">
                       {fromSessions === null ? "—" : formatPercent(fromSessions)}
                     </td>
                   </tr>
@@ -110,6 +129,13 @@ export function ConversionFunnel({
             </tbody>
           </table>
         </div>
+      ) : null}
+      {shopifyOrders !== null ? (
+        <p className="mt-4 text-xs leading-5 text-muted">
+          Shopify orders in this range: {formatNumber(shopifyOrders)}. That is
+          the sales count to compare with the last Stape step — not revenue
+          estimated from sessions.
+        </p>
       ) : null}
     </article>
   );

@@ -113,6 +113,11 @@ export function RevenueBreakdown({
           currencyCode={currencyCode}
           muted
         />
+        {adSpend === null ? (
+          <p className="py-2 text-sm text-amber-800">
+            No ad spend saved for these dates.
+          </p>
+        ) : null}
         <Row
           label="Net profit"
           amount={netProfit}

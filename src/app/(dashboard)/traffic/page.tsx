@@ -4,9 +4,9 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TrafficSourcesPanel } from "@/components/dashboard/TrafficSourcesPanel";
 import { Header } from "@/components/layout/Header";
 import { formatNumber } from "@/lib/format";
-import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import { getStapeTrafficMetrics } from "@/lib/stape/get-traffic-metrics";
+import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -24,63 +24,87 @@ export default async function TrafficPage() {
   const stapeSource = stapeConnected
     ? `Stape · ${funnel.periodLabel}`
     : "Stape · no data yet";
-  const trafficSource =
-    stape.status.state === "connected"
-      ? `Stape · ${stape.periodLabel}`
-      : "Stape · no data yet";
+  const paidSessions = stape.paidSources.reduce(
+    (total, row) => total + row.sessions,
+    0,
+  );
+  const organicSessions = stape.organicSources.reduce(
+    (total, row) => total + row.sessions,
+    0,
+  );
 
   return (
     <>
       <Header
         title="Traffic"
-        description="First-party sessions and sources from Stape via BigQuery."
+        description="Stape sessions from BigQuery. Channel names match gn_* (Google Ads, Facebook / Meta Ads, and so on). This is not first-touch truth."
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Sessions"
-            source={stapeSource}
+            source={`${stapeSource} · same session definition as the funnel`}
             value={stapeConnected ? formatNumber(funnel.sessions) : null}
           />
           <MetricCard
             label="Users"
-            source={trafficSource}
-            value={stape.users === null ? null : formatNumber(stape.users)}
+            source={`${stapeSource} · distinct client_id`}
+            value={stapeConnected ? formatNumber(funnel.users) : null}
+          />
+          <MetricCard
+            label="Pageviews"
+            source={`${stapeSource} · page_view events`}
+            value={stapeConnected ? formatNumber(funnel.pageviews) : null}
           />
           <MetricCard
             label="Events"
-            source={trafficSource}
+            source={
+              stape.status.state === "connected"
+                ? `Stape · ${stape.periodLabel}`
+                : "Stape · no data yet"
+            }
             value={stape.events === null ? null : formatNumber(stape.events)}
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <MetricCard
-            label="Google Ads"
-            source={trafficSource}
+            label="Paid sessions"
+            source="Stape · Google Ads, Facebook / Meta Ads, TikTok, Microsoft Ads"
             value={
-              stape.sessions === null
-                ? null
-                : formatNumber(
-                    stape.sources.find((item) => item.source === "Google Ads")
-                      ?.sessions ?? 0,
-                  )
+              stape.status.state === "connected"
+                ? formatNumber(paidSessions)
+                : null
             }
           />
           <MetricCard
-            label="Facebook / Meta Ads"
-            source={stapeSource}
+            label="Organic / other sessions"
+            source="Stape · Google Organic, Meta Organic, Email, Direct, Other"
             value={
-              stapeConnected
-                ? formatNumber(funnel.facebookSessions)
+              stape.status.state === "connected"
+                ? formatNumber(organicSessions)
                 : null
             }
           />
         </div>
-        <TrafficSourcesPanel
-          sources={stape.sources}
-          periodLabel={stape.periodLabel}
-        />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <TrafficSourcesPanel
+            title="Paid (Stape)"
+            sources={stape.paidSources}
+            periodLabel={stape.periodLabel}
+            description={`Stape reconstructed path · ${stape.periodLabel} · not gn_*`}
+          />
+          <TrafficSourcesPanel
+            title="Organic / other (Stape)"
+            sources={stape.organicSources}
+            periodLabel={stape.periodLabel}
+            description={`Stape reconstructed path · ${stape.periodLabel} · not gn_*`}
+          />
+        </div>
+        <p className="text-xs leading-5 text-muted">
+          Device, country, and landing-page tables are omitted: those columns
+          are not in stape_data.dashboard_events.
+        </p>
       </section>
     </>
   );

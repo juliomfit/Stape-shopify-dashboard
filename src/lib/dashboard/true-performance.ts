@@ -3,9 +3,16 @@ import {
   getMetaConnectionPublic,
   type MetaConnectionPublic,
 } from "@/lib/ads/meta-credentials";
-import { getMetaPaste, getGooglePaste, type PeriodSpendPaste } from "@/lib/ads/spend-paste";
+import {
+  getMetaPaste,
+  getGooglePaste,
+  listSpendCoverage,
+  type PeriodSpendPaste,
+  type SpendCoverageRow,
+} from "@/lib/ads/spend-paste";
 import type { PlatformReported } from "@/lib/ads/types";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
+import { blendedCpa, merRatio, ratio } from "@/lib/dashboard/kpis";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import {
@@ -25,6 +32,14 @@ export type PlatformCompareRow = {
   purchaseGap: number | null;
 };
 
+export type CampaignSpendCompare = {
+  campaign: string;
+  spend: number;
+  shopifyRevenue: number;
+  shopifyOrders: number;
+  roas: number | null;
+};
+
 export type TruePerformance = {
   shopify: Awaited<ReturnType<typeof getShopifyOverviewMetrics>>;
   funnel: Awaited<ReturnType<typeof getStapeFunnelMetrics>>;
@@ -34,6 +49,7 @@ export type TruePerformance = {
   platform: PlatformReported;
   totalSpend: number | null;
   mer: number | null;
+  blendedCpa: number | null;
   newCustomerRoas: number | null;
   blendedRoas: number | null;
   facebookRoas: number | null;
@@ -43,36 +59,12 @@ export type TruePerformance = {
   compare: PlatformCompareRow[];
   shopifyFirstTouch: FirstTouchRollup[];
   shopifyCampaigns: FirstTouchRollup[];
+  campaignSpendCompare: CampaignSpendCompare[] | null;
+  spendCoverage: SpendCoverageRow[];
   metaConnection: MetaConnectionPublic;
   metaPaste: PeriodSpendPaste | null;
   googlePaste: PeriodSpendPaste | null;
 };
-
-function marketingSpendFallback() {
-  const raw = process.env.MARKETING_SPEND_USD?.trim();
-  if (!raw) {
-    return null;
-  }
-
-  const amount = Number(raw);
-  return Number.isFinite(amount) && amount > 0 ? amount : null;
-}
-
-function ratio(numerator: number, spend: number | null) {
-  if (spend === null || spend <= 0) {
-    return null;
-  }
-
-  return numerator / spend;
-}
-
-function merRatio(spend: number | null, orderRevenue: number) {
-  if (spend === null || spend <= 0 || orderRevenue <= 0) {
-    return null;
-  }
-
-  return spend / orderRevenue;
-}
 
 function compareRow(
   channel: string,
@@ -95,18 +87,35 @@ function compareRow(
   };
 }
 
+function campaignSpendByLabel(paste: PeriodSpendPaste | null) {
+  const map: Record<string, number | null> = {};
+  for (const row of paste?.campaigns || []) {
+    map[row.campaign] = row.spend;
+  }
+  return map;
+}
+
 export async function getTruePerformance(): Promise<TruePerformance> {
   const period = await getAlignedPeriod();
-  const [shopify, funnel, attribution, platform, metaConnection, metaPaste, googlePaste] =
-    await Promise.all([
-      getShopifyOverviewMetrics(),
-      getStapeFunnelMetrics(),
-      getAttributionMetrics(),
-      getPlatformReported(period),
-      getMetaConnectionPublic(),
-      getMetaPaste(period),
-      getGooglePaste(period),
-    ]);
+  const [
+    shopify,
+    funnel,
+    attribution,
+    platform,
+    metaConnection,
+    metaPaste,
+    googlePaste,
+    spendCoverage,
+  ] = await Promise.all([
+    getShopifyOverviewMetrics(),
+    getStapeFunnelMetrics(),
+    getAttributionMetrics(),
+    getPlatformReported(period),
+    getMetaConnectionPublic(),
+    getMetaPaste(period),
+    getGooglePaste(period),
+    listSpendCoverage(),
+  ]);
 
   const alignedShopify = shopifyMetricsSince(
     shopify.orderPoints,
@@ -121,11 +130,32 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     "Facebook / Meta Ads": platform.facebook.spend,
     "Google Ads": platform.google.spend,
   };
+  const campaignSpend = {
+    ...campaignSpendByLabel(googlePaste),
+    ...campaignSpendByLabel(metaPaste),
+  };
   const shopifyFirstTouch = rollupFirstTouch(inRange, "channel", spendByLabel);
-  const shopifyCampaigns = rollupFirstTouch(inRange, "campaign");
+  const shopifyCampaigns = rollupFirstTouch(inRange, "campaign", campaignSpend);
   const facebook = findRollup(shopifyFirstTouch, "Facebook / Meta Ads");
   const google = findRollup(shopifyFirstTouch, "Google Ads");
-  const totalSpend = platform.totalSpend ?? marketingSpendFallback();
+  const totalSpend = platform.totalSpend;
+  const campaignRows = [...(metaPaste?.campaigns || [])];
+  const campaignSpendCompare: CampaignSpendCompare[] | null =
+    campaignRows.length > 0
+      ? campaignRows.map((row) => {
+          const match = shopifyCampaigns.find(
+            (item) => item.label.toLowerCase() === row.campaign.toLowerCase(),
+          );
+          const shopifyRevenue = match?.revenue ?? 0;
+          return {
+            campaign: row.campaign,
+            spend: row.spend,
+            shopifyRevenue,
+            shopifyOrders: match?.orders ?? 0,
+            roas: row.spend > 0 ? shopifyRevenue / row.spend : null,
+          };
+        })
+      : null;
 
   return {
     shopify,
@@ -136,6 +166,7 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     platform,
     totalSpend,
     mer: merRatio(totalSpend, alignedShopify.revenue),
+    blendedCpa: blendedCpa(totalSpend, alignedShopify.paidOrders),
     newCustomerRoas: ratio(alignedShopify.newCustomerRevenue, totalSpend),
     blendedRoas: ratio(alignedShopify.revenue, totalSpend),
     facebookRoas: facebook?.roas ?? null,
@@ -160,6 +191,8 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     ],
     shopifyFirstTouch,
     shopifyCampaigns,
+    campaignSpendCompare,
+    spendCoverage,
     metaConnection,
     metaPaste,
     googlePaste,

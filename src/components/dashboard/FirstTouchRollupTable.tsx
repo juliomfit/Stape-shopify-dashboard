@@ -16,6 +16,9 @@ export function FirstTouchRollupTable({
   currencyCode,
   showRoas = true,
 }: FirstTouchRollupTableProps) {
+  const hasChannelSpend = rows.some((row) => row.spend !== null && row.spend > 0);
+  const showRoasColumns = showRoas && hasChannelSpend;
+
   return (
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
@@ -31,7 +34,7 @@ export function FirstTouchRollupTable({
                 <th className="pb-2 font-medium">Orders</th>
                 <th className="pb-2 font-medium">Revenue</th>
                 <th className="pb-2 font-medium">New-customer orders</th>
-                {showRoas ? (
+                {showRoasColumns ? (
                   <>
                     <th className="pb-2 font-medium">ROAS</th>
                     <th className="pb-2 font-medium">NC ROAS</th>
@@ -50,7 +53,7 @@ export function FirstTouchRollupTable({
                   <td className="py-2.5 text-muted">
                     {formatNumber(row.newCustomerOrders)}
                   </td>
-                  {showRoas ? (
+                  {showRoasColumns ? (
                     <>
                       <td className="py-2.5 text-muted">
                         {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}

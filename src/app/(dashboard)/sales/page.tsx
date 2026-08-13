@@ -1,18 +1,16 @@
 import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
+import { ExportCsvButton } from "@/components/dashboard/ExportCsvButton";
 import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { OrdersTable } from "@/components/dashboard/OrdersTable";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
 import { Header } from "@/components/layout/Header";
-import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
-import { getPlatformReported } from "@/lib/ads/get-platform-reported";
-import { getAverageOrderValue } from "@/lib/dashboard/conversion";
-import { formatMoney, formatNumber } from "@/lib/format";
-import { rollupFirstTouch } from "@/lib/shopify/first-touch";
-import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
-import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
+import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { clickIdLabel } from "@/lib/shopify/first-touch";
 
 export const dynamic = "force-dynamic";
 
@@ -21,44 +19,43 @@ export const metadata: Metadata = {
 };
 
 export default async function SalesPage() {
-  const [shopify, funnel, period] = await Promise.all([
-    getShopifyOverviewMetrics(),
-    getStapeFunnelMetrics(),
-    getAlignedPeriod(),
-  ]);
-  const ads = await getPlatformReported(period);
-  const alignedShopify = shopifyMetricsSince(
-    shopify.orderPoints,
-    period.startMs,
-    period.endMs,
-  );
-  const shopifyConnected = shopify.status.state === "connected";
-  const stapeConnected = funnel.status.state === "connected";
+  const data = await getCoreDashboard();
+  const {
+    period,
+    shopify,
+    funnel,
+    alignedShopify,
+    shopifyConnected,
+    stapeConnected,
+    currency,
+    aov,
+    unknown,
+    mismatch,
+    ads,
+    byChannel,
+    byCampaign,
+    inRange,
+    totalSpend,
+    cpa,
+  } = data;
   const shopifySource = shopifyConnected
     ? `Shopify · ${period.label}`
     : "Shopify · no data yet";
   const stapeSource = stapeConnected
     ? `Stape · ${period.label}`
     : "Stape · no data yet";
-  const averageOrderValue = getAverageOrderValue(
-    shopifyConnected ? alignedShopify.revenue : null,
-    shopifyConnected ? alignedShopify.orders : null,
-  );
   const unitsSold = shopify.products.reduce(
     (total, product) => total + product.quantity,
     0,
   );
-  const currency = shopify.revenue?.currencyCode || "USD";
-  const inRange = shopify.orderPoints.filter((order) => {
-    const created = new Date(order.createdAt).getTime();
-    return created >= period.startMs && created < period.endMs;
-  });
   const inRangeIds = new Set(inRange.map((order) => order.legacyId));
   const tableOrders = shopify.recentOrders.filter((order) =>
     inRangeIds.has(order.legacyId),
   );
-  const byChannel = rollupFirstTouch(inRange, "channel");
-  const byCampaign = rollupFirstTouch(inRange, "campaign");
+  const spendSource =
+    totalSpend === null
+      ? "No ad spend saved for these dates"
+      : `Meta + Google · ${period.label}`;
 
   return (
     <>
@@ -73,6 +70,7 @@ export default async function SalesPage() {
           fetched={alignedShopify.orders}
           reportedCount={shopify.reportedOrderCount}
         />
+        <MismatchBanner mismatch={mismatch} currencyCode={currency} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Gross revenue"
@@ -154,16 +152,29 @@ export default async function SalesPage() {
             source={stapeSource}
             value={stapeConnected ? formatNumber(funnel.purchases) : null}
           />
+          <MetricCard
+            label="Blended CPA"
+            source={
+              cpa === null
+                ? spendSource
+                : `${period.label} · spend ÷ orders with total > $0`
+            }
+            value={
+              cpa === null
+                ? null
+                : formatMoney({ amount: cpa, currencyCode: currency })
+            }
+          />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Average Order Value"
             source={shopifySource}
             value={
-              averageOrderValue === null
+              aov === null
                 ? null
                 : formatMoney({
-                    amount: averageOrderValue,
+                    amount: aov,
                     currencyCode: currency,
                   })
             }
@@ -173,7 +184,29 @@ export default async function SalesPage() {
             source={shopifySource}
             value={shopifyConnected ? formatNumber(unitsSold) : null}
           />
+          <MetricCard
+            label="Unknown first-touch orders"
+            source={`${shopifySource} · missing gn_*`}
+            value={shopifyConnected ? formatNumber(unknown.orders) : null}
+          />
+          <MetricCard
+            label="Unknown % of orders"
+            source="Often Shop Pay Express — not fake Direct"
+            value={
+              unknown.orderShare === null
+                ? null
+                : formatPercent(unknown.orderShare)
+            }
+          />
         </div>
+        {unknown.orders > 0 ? (
+          <p className="rounded-xl border border-border bg-surface px-4 py-3 text-sm leading-6 text-muted">
+            {formatNumber(unknown.orders)} orders ({unknown.orderShare === null ? "—" : formatPercent(unknown.orderShare)})
+            and{" "}
+            {formatMoney({ amount: unknown.revenue, currencyCode: currency })} are
+            Unknown first-touch because gn_* was missing on the Shopify order.
+          </p>
+        ) : null}
         {shopifyConnected ? (
           <RevenueBreakdown
             periodLabel={period.label}
@@ -190,10 +223,47 @@ export default async function SalesPage() {
             adSpend={ads.totalSpend}
           />
         ) : null}
+        <div className="flex flex-wrap gap-2">
+          <ExportCsvButton
+            label="Export orders CSV"
+            filename={`sales-orders-${period.startDate}-${period.endDate}.csv`}
+            headers={[
+              "Order",
+              "Date",
+              "First-touch",
+              "Campaign",
+              "Click ID",
+              "Gross",
+              "Total",
+              "Fees",
+            ]}
+            rows={tableOrders.map((order) => [
+              order.name,
+              order.createdAt,
+              order.firstTouchChannel,
+              order.firstTouch.utmCampaign,
+              clickIdLabel(order.firstTouch),
+              order.gross.amount,
+              order.total.amount,
+              order.processingFees?.amount ?? "",
+            ])}
+          />
+          <ExportCsvButton
+            label="Export first-touch CSV"
+            filename={`sales-first-touch-${period.startDate}-${period.endDate}.csv`}
+            headers={["Channel", "Orders", "Revenue", "New-customer orders"]}
+            rows={byChannel.map((row) => [
+              row.label,
+              row.orders,
+              row.revenue,
+              row.newCustomerOrders,
+            ])}
+          />
+        </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <FirstTouchRollupTable
             title="Revenue by first-touch channel"
-            description="From gn_* on the order. Unknown means the stitching script did not run (for example Shop Pay)."
+            description="From gn_* on the order. Unknown means the stitching script did not run (for example Shop Pay). Per-channel ROAS is hidden unless that channel has real spend."
             rows={byChannel}
             currencyCode={currency}
             showRoas={false}

@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
+import { CampaignSpendTable } from "@/components/dashboard/CampaignSpendTable";
 import { ChannelContributionTable } from "@/components/dashboard/ChannelContributionTable";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTable";
 import { InfoPanel } from "@/components/dashboard/InfoPanel";
 import { MetaSyncPanel } from "@/components/dashboard/MetaSyncPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { PlatformCompareTable } from "@/components/dashboard/PlatformCompareTable";
+import { SpendCoveragePanel } from "@/components/dashboard/SpendCoveragePanel";
 import { TrackingHealth } from "@/components/dashboard/TrackingHealth";
 import { TrafficSourcesPanel } from "@/components/dashboard/TrafficSourcesPanel";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { getTruePerformance } from "@/lib/dashboard/true-performance";
 import { getConversionRate } from "@/lib/dashboard/conversion";
+import { shopifyStapeMismatch, unknownFirstTouch } from "@/lib/dashboard/kpis";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +41,9 @@ export default async function AttributionPage() {
     mer,
     newCustomerRoas,
     blendedRoas,
+    blendedCpa,
+    campaignSpendCompare,
+    spendCoverage,
     facebookRoas,
     googleRoas,
     facebookNewCustomerRoas,
@@ -65,6 +72,20 @@ export default async function AttributionPage() {
     spendMissing ?? `${period.label} · total revenue ÷ blended ad spend`;
   const merNote =
     spendMissing ?? `${period.label} · blended ad spend ÷ total revenue`;
+  const unknown = unknownFirstTouch(
+    shopify.orderPoints.filter((order) => {
+      const created = new Date(order.createdAt).getTime();
+      return created >= period.startMs && created < period.endMs;
+    }),
+  );
+  const mismatch = shopifyStapeMismatch({
+    shopifyConnected: shopify.status.state === "connected",
+    stapeConnected: funnel.status.state === "connected",
+    shopifyOrders: alignedShopify.orders,
+    shopifyRevenue: alignedShopify.revenue,
+    stapePurchases: funnel.purchases,
+    stapeRevenue: funnel.purchaseRevenue,
+  });
 
   return (
     <>
@@ -84,6 +105,7 @@ export default async function AttributionPage() {
           fetched={alignedShopify.orders}
           reportedCount={shopify.reportedOrderCount}
         />
+        <MismatchBanner mismatch={mismatch} currencyCode={currency} />
         <MetaSyncPanel
           connection={metaConnection}
           periodLabel={period.label}
@@ -150,6 +172,19 @@ export default async function AttributionPage() {
             value={mer === null ? null : formatPercent(mer)}
           />
           <MetricCard
+            label="Blended CPA"
+            source={
+              blendedCpa === null
+                ? spendMissing ?? "Needs spend and paid Shopify orders"
+                : `${period.label} · spend ÷ orders with total > $0`
+            }
+            value={
+              blendedCpa === null
+                ? null
+                : formatMoney({ amount: blendedCpa, currencyCode: currency })
+            }
+          />
+          <MetricCard
             label="Meta ROAS"
             source={
               facebookRoas === null
@@ -208,6 +243,31 @@ export default async function AttributionPage() {
               shopify.status.state === "connected"
                 ? formatNumber(alignedShopify.returningCustomerOrders)
                 : null
+            }
+          />
+          <MetricCard
+            label="Unknown first-touch orders"
+            source={`${shopifySource} · missing gn_*`}
+            value={
+              shopify.status.state === "connected"
+                ? formatNumber(unknown.orders)
+                : null
+            }
+          />
+          <MetricCard
+            label="Unknown first-touch revenue"
+            source="Not counted as Direct"
+            value={
+              shopify.status.state === "connected"
+                ? formatMoney({ amount: unknown.revenue, currencyCode: currency })
+                : null
+            }
+          />
+          <MetricCard
+            label="Unknown % of orders"
+            source="Missing gn_* ÷ Shopify orders"
+            value={
+              unknown.orderShare === null ? null : formatPercent(unknown.orderShare)
             }
           />
         </div>
@@ -283,6 +343,23 @@ export default async function AttributionPage() {
         {attribution.gaps.length > 0 ? (
           <InfoPanel title="Stape data notes" items={attribution.gaps} />
         ) : null}
+        {campaignSpendCompare ? (
+          <CampaignSpendTable
+            rows={campaignSpendCompare}
+            currencyCode={currency}
+            periodLabel={period.label}
+          />
+        ) : (
+          <p className="text-xs leading-5 text-muted">
+            Campaign spend vs gn_utm_campaign appears when an Ads Manager CSV
+            includes campaign rows. Account-total paste stays blended only.
+          </p>
+        )}
+        <SpendCoveragePanel
+          rows={spendCoverage}
+          currentStart={period.startDate}
+          currentEnd={period.endDate}
+        />
         <TrackingHealth fields={attribution.tracking} />
       </section>
     </>

@@ -20,6 +20,9 @@ export type StapeTrafficMetrics = {
   sessions: number | null;
   users: number | null;
   events: number | null;
+  pageviews: number | null;
   sources: TrafficSource[];
+  paidSources: TrafficSource[];
+  organicSources: TrafficSource[];
   eventCounts: StapeEventCount[];
 };

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { ProductChannelMixTable } from "@/components/dashboard/ProductChannelMixTable";
 import { ProductTable } from "@/components/dashboard/ProductTable";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
@@ -77,6 +78,11 @@ export default async function ProductsPage() {
           products={shopify.products}
           periodLabel={shopify.periodLabel}
           connected={shopify.status.state === "connected"}
+        />
+        <ProductChannelMixTable
+          rows={shopify.productChannelMix}
+          currencyCode={shopify.revenue?.currencyCode || "USD"}
+          periodLabel={shopify.periodLabel}
         />
       </section>
     </>

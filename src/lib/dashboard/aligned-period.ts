@@ -78,5 +78,6 @@ export function shopifyMetricsSince(
     returningCustomerRevenue: matched
       .filter((order) => order.isNew === false)
       .reduce((total, order) => total + order.amount, 0),
+    paidOrders: matched.filter((order) => order.amount > 0).length,
   };
 }

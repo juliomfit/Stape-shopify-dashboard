@@ -11,4 +11,5 @@ export const navItems: NavItem[] = [
   { href: "/attribution", label: "True Performance" },
   { href: "/products", label: "Products" },
   { href: "/customers", label: "Customers" },
+  { href: "/data-quality", label: "Data quality" },
 ];

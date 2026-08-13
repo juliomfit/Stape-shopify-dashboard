@@ -29,7 +29,7 @@ export function TrafficSourcesPanel({
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <p className="text-xs text-muted">
-          {description || `First hit in each session · ${periodLabel}`}
+          {description || `Stape first hit in each session · ${periodLabel} · not gn_* first-touch`}
         </p>
       </div>
       <ul className="mt-4 divide-y divide-border">

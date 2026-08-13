@@ -23,8 +23,7 @@ export type MetaSyncState = {
 };
 
 function refreshDashboard() {
-  revalidatePath("/attribution");
-  revalidatePath("/");
+  revalidatePath("/", "layout");
 }
 
 export async function saveAndSyncMeta(
@@ -183,7 +182,11 @@ export async function saveMetaCsvAction(
     refreshDashboard();
     return {
       ok: true,
-      message: `Imported ${period.label}: spend ${paste.spend}, purchases ${paste.purchases ?? 0}.`,
+      message: `Imported ${period.label}: spend ${paste.spend}, purchases ${paste.purchases ?? 0}${
+        paste.campaigns?.length
+          ? `, ${paste.campaigns.length} campaign rows`
+          : ""
+      }.`,
     };
   } catch (error) {
     return {

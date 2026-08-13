@@ -139,16 +139,17 @@ async function pastedForPeriod(period: DashboardPeriod): Promise<PlatformClaim |
 export async function getMetaClaimed(
   period: DashboardPeriod,
 ): Promise<PlatformClaim> {
-  const { credentials } = await getMetaCredentials();
   const pasted = await pastedForPeriod(period);
+  // CSV / paste for this header range wins over a dead or empty Meta token.
+  if (pasted) {
+    return pasted;
+  }
 
+  const { credentials } = await getMetaCredentials();
   if (!credentials) {
-    return (
-      pasted ||
-      empty(
-        "not_configured",
-        "Paste Ads Manager totals on True Performance for this date range",
-      )
+    return empty(
+      "not_configured",
+      "Paste Ads Manager totals on True Performance for this date range",
     );
   }
 
@@ -159,12 +160,9 @@ export async function getMetaClaimed(
       credentials.adAccountId,
     );
   } catch (error) {
-    return (
-      pasted ||
-      empty(
-        "error",
-        error instanceof Error ? error.message : "Meta API request failed",
-      )
+    return empty(
+      "error",
+      error instanceof Error ? error.message : "Meta API request failed",
     );
   }
 }

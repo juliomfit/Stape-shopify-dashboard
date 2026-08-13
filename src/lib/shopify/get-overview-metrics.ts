@@ -1,4 +1,5 @@
-import { shopifyOrdersQuery } from "@/lib/period";
+import { cache } from "react";
+import { shopifyOrdersQuery, type DashboardPeriod } from "@/lib/period";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
@@ -12,6 +13,7 @@ import {
   type OrderTransactionNode,
 } from "@/lib/shopify/money";
 import type {
+  ProductChannelMix,
   ShopifyOrder,
   ShopifyOverviewMetrics,
   TopProduct,
@@ -168,12 +170,31 @@ function emptyMetrics(periodLabel: string): ShopifyOverviewMetrics {
     guestOrders: 0,
     newCustomerRevenue: 0,
     returningCustomerRevenue: 0,
+    productChannelMix: [],
   };
 }
 
 export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetrics> {
-  const period = await getSelectedPeriod();
+  return getShopifyOverviewForPeriod(await getSelectedPeriod());
+}
 
+const loadOverviewCached = cache(async (key: string, serialized: string) => {
+  void key;
+  return loadShopifyOverview(JSON.parse(serialized) as DashboardPeriod);
+});
+
+export async function getShopifyOverviewForPeriod(
+  period: DashboardPeriod,
+): Promise<ShopifyOverviewMetrics> {
+  return loadOverviewCached(
+    `${period.startMs}:${period.endMs}`,
+    JSON.stringify(period),
+  );
+}
+
+async function loadShopifyOverview(
+  period: DashboardPeriod,
+): Promise<ShopifyOverviewMetrics> {
   if (!isShopifyConfigured()) {
     return emptyMetrics(period.label);
   }
@@ -198,6 +219,10 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
     const productTotals = new Map<
       string,
       { title: string; quantity: number; revenue: number }
+    >();
+    const channelMix = new Map<
+      string,
+      { quantity: number; revenue: number }
     >();
 
     while (hasNextPage && pages < MAX_PAGES) {
@@ -324,6 +349,11 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           );
           current.title = title;
           productTotals.set(id, current);
+
+          const mix = channelMix.get(channel) ?? { quantity: 0, revenue: 0 };
+          mix.quantity += lineItem.node.quantity;
+          mix.revenue += shopMoneyAmount(lineItem.node.discountedTotalSet);
+          channelMix.set(channel, mix);
         }
       }
 
@@ -341,6 +371,14 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       }))
       .sort((a, b) => b.revenue.amount - a.revenue.amount || b.quantity - a.quantity);
 
+    const productChannelMix: ProductChannelMix[] = [...channelMix.entries()]
+      .map(([channel, item]) => ({
+        channel,
+        quantity: item.quantity,
+        revenue: item.revenue,
+      }))
+      .sort((a, b) => b.revenue - a.revenue || b.quantity - a.quantity);
+
     return {
       status: { state: "connected", shopName },
       periodLabel: period.label,
@@ -357,6 +395,7 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       guestOrders,
       newCustomerRevenue,
       returningCustomerRevenue,
+      productChannelMix,
     };
   } catch (error) {
     const message =
