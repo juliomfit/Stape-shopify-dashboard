@@ -169,6 +169,8 @@ export default async function OverviewPage() {
             tax={alignedShopify.tax}
             refunded={alignedShopify.refunded}
             total={alignedShopify.revenue}
+            processingFees={alignedShopify.processingFees}
+            refundFees={alignedShopify.refundFees}
           />
         ) : null}
         <ConversionFunnel steps={funnel.steps} periodLabel={period.label} />

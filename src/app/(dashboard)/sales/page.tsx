@@ -183,6 +183,8 @@ export default async function SalesPage() {
             tax={alignedShopify.tax}
             refunded={alignedShopify.refunded}
             total={alignedShopify.revenue}
+            processingFees={alignedShopify.processingFees}
+            refundFees={alignedShopify.refundFees}
           />
         ) : null}
         <div className="grid gap-4 lg:grid-cols-2">

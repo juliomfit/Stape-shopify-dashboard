@@ -9,6 +9,8 @@ type RevenueBreakdownProps = {
   tax: number;
   refunded: number;
   total: number;
+  processingFees: number | null;
+  refundFees: number | null;
   periodLabel: string;
 };
 
@@ -19,7 +21,7 @@ function Row({
   muted = false,
 }: {
   label: string;
-  amount: number;
+  amount: number | null;
   currencyCode: string;
   muted?: boolean;
 }) {
@@ -29,7 +31,7 @@ function Row({
         {label}
       </span>
       <span className={muted ? "text-sm text-muted" : "text-sm text-foreground"}>
-        {formatMoney({ amount, currencyCode })}
+        {amount === null ? "—" : formatMoney({ amount, currencyCode })}
       </span>
     </div>
   );
@@ -44,8 +46,13 @@ export function RevenueBreakdown({
   tax,
   refunded,
   total,
+  processingFees,
+  refundFees,
   periodLabel,
 }: RevenueBreakdownProps) {
+  const netAfterFees =
+    processingFees === null ? null : total - processingFees;
+
   return (
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <h2 className="text-sm font-semibold text-foreground">
@@ -53,8 +60,8 @@ export function RevenueBreakdown({
       </h2>
       <p className="mt-1 text-xs leading-5 text-muted">
         Same orders as the header range · {periodLabel}. Gross is line items
-        before discounts. Total is currentTotalPriceSet after discounts,
-        shipping, tax, and refunds.
+        before discounts. Total is what the customer paid. Fees are Shopify
+        Payments only — they are not inside total revenue.
       </p>
       <div className="mt-4 divide-y divide-border">
         <Row label="Gross sales" amount={gross} currencyCode={currencyCode} />
@@ -78,6 +85,23 @@ export function RevenueBreakdown({
           muted
         />
         <Row label="Total revenue" amount={total} currencyCode={currencyCode} />
+        <Row
+          label="Processing fees"
+          amount={processingFees}
+          currencyCode={currencyCode}
+          muted
+        />
+        <Row
+          label="Refund fees"
+          amount={refundFees}
+          currencyCode={currencyCode}
+          muted
+        />
+        <Row
+          label="Net after processing fees"
+          amount={netAfterFees}
+          currencyCode={currencyCode}
+        />
       </div>
     </article>
   );
