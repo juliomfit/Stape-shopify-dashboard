@@ -67,7 +67,20 @@ export function parseSpendPaste(input: {
   return { spend, purchases, revenue };
 }
 
-function splitCsvLine(line: string) {
+function detectDelimiter(line: string) {
+  const comma = (line.match(/,/g) || []).length;
+  const tab = (line.match(/\t/g) || []).length;
+  const semi = (line.match(/;/g) || []).length;
+  if (tab > comma && tab >= semi) {
+    return "\t";
+  }
+  if (semi > comma && semi > tab) {
+    return ";";
+  }
+  return ",";
+}
+
+function splitCsvLine(line: string, delimiter = ",") {
   const cells: string[] = [];
   let current = "";
   let quoted = false;
@@ -83,7 +96,7 @@ function splitCsvLine(line: string) {
       }
       continue;
     }
-    if (char === "," && !quoted) {
+    if (char === delimiter && !quoted) {
       cells.push(current.trim());
       current = "";
       continue;
@@ -111,17 +124,22 @@ function headerIndex(headers: string[], needles: string[]) {
 
 /** Totals from an Ads Manager CSV export for the selected date range. */
 export function parseAdsManagerCsv(text: string): SpendPaste | null {
-  const lines = text
+  const cleaned = text
     .replace(/^\uFEFF/, "")
+    .replace(/\u0000/g, "");
+  const lines = cleaned
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
   let headerAt = -1;
-  for (let i = 0; i < Math.min(lines.length, 20); i += 1) {
-    const normalized = splitCsvLine(lines[i]).map(normalizeHeader);
-    if (headerIndex(normalized, ["amount spent", "spend"]) >= 0) {
+  let delimiter = ",";
+  for (let i = 0; i < Math.min(lines.length, 40); i += 1) {
+    const guessed = detectDelimiter(lines[i]);
+    const normalized = splitCsvLine(lines[i], guessed).map(normalizeHeader);
+    if (headerIndex(normalized, ["amount spent", "amount spend", "spend"]) >= 0) {
       headerAt = i;
+      delimiter = guessed;
       break;
     }
   }
@@ -130,8 +148,8 @@ export function parseAdsManagerCsv(text: string): SpendPaste | null {
     return null;
   }
 
-  const headers = splitCsvLine(lines[headerAt]).map(normalizeHeader);
-  const spendCol = headerIndex(headers, ["amount spent", "spend"]);
+  const headers = splitCsvLine(lines[headerAt], delimiter).map(normalizeHeader);
+  const spendCol = headerIndex(headers, ["amount spent", "amount spend", "spend"]);
   const purchaseCol = headerIndex(headers, [
     "website purchases",
     "purchases",
@@ -146,11 +164,12 @@ export function parseAdsManagerCsv(text: string): SpendPaste | null {
   ]);
   const buyCol = purchaseCol >= 0 ? purchaseCol : resultCol;
 
-  const dataRows = lines.slice(headerAt + 1).map(splitCsvLine).filter((cells) =>
-    cells.some((cell) => cell !== ""),
-  );
-  const totalRow = dataRows.find(
-    (cells) => (cells[0] || "").toLowerCase() === "total",
+  const dataRows = lines
+    .slice(headerAt + 1)
+    .map((line) => splitCsvLine(line, delimiter))
+    .filter((cells) => cells.some((cell) => cell !== ""));
+  const totalRow = dataRows.find((cells) =>
+    cells.some((cell) => cell.replace(/"/g, "").trim().toLowerCase() === "total"),
   );
   const rows = totalRow ? [totalRow] : dataRows;
 

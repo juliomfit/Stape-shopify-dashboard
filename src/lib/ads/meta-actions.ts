@@ -161,30 +161,39 @@ export async function saveMetaPasteAction(
 }
 
 export async function saveMetaCsvAction(
-  _prev: MetaSyncState,
-  formData: FormData,
+  csvText: string,
 ): Promise<MetaSyncState> {
-  const file = formData.get("csv");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, message: "Choose an Ads Manager CSV export first." };
-  }
+  try {
+    const text = csvText.trim();
+    if (!text) {
+      return { ok: false, message: "That CSV file was empty." };
+    }
 
-  const paste = parseAdsManagerCsv(await file.text());
-  if (!paste || paste.spend === null) {
+    const paste = parseAdsManagerCsv(text);
+    if (!paste || paste.spend === null) {
+      return {
+        ok: false,
+        message:
+          "Could not find Amount spent in that file. In Ads Manager use Campaigns → Export → CSV (same dates as the header).",
+      };
+    }
+
+    const period = await getSelectedPeriod();
+    await saveMetaPaste(period, paste);
+    refreshDashboard();
+    return {
+      ok: true,
+      message: `Imported ${period.label}: spend ${paste.spend}, purchases ${paste.purchases ?? 0}.`,
+    };
+  } catch (error) {
     return {
       ok: false,
       message:
-        "Could not find Amount spent in that file. Export Campaigns as CSV from Ads Manager.",
+        error instanceof Error
+          ? error.message
+          : "CSV import failed. Try pasting Amount spent instead.",
     };
   }
-
-  const period = await getSelectedPeriod();
-  await saveMetaPaste(period, paste);
-  refreshDashboard();
-  return {
-    ok: true,
-    message: `Imported ${period.label}: spend ${paste.spend}, purchases ${paste.purchases ?? 0}.`,
-  };
 }
 
 export async function saveGooglePasteAction(

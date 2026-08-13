@@ -43,7 +43,8 @@ export function MetaSyncPanel({
     saveMetaPasteAction,
     idle,
   );
-  const [csvState, csvAction, importing] = useActionState(saveMetaCsvAction, idle);
+  const [csvState, setCsvState] = useState<MetaSyncState>(idle);
+  const [importing, setImporting] = useState(false);
   const [googleState, googleAction, savingGoogle] = useActionState(
     saveGooglePasteAction,
     idle,
@@ -76,6 +77,50 @@ export function MetaSyncPanel({
     setSyncOk(result.ok);
     setSyncMessage(result.message);
     setBusy(false);
+    router.refresh();
+  }
+
+  async function runCsvImport(formData: FormData) {
+    const file = formData.get("csv");
+    if (!(file instanceof File) || file.size === 0) {
+      setCsvState({
+        ok: false,
+        message: "Choose an Ads Manager CSV export first.",
+      });
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setCsvState({
+        ok: false,
+        message: "That file is too large. Export Campaigns (not a huge breakdown).",
+      });
+      return;
+    }
+
+    setImporting(true);
+    setCsvState(idle);
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      const utf16le = bytes[0] === 0xff && bytes[1] === 0xfe;
+      const utf16be = bytes[0] === 0xfe && bytes[1] === 0xff;
+      const text = new TextDecoder(
+        utf16le ? "utf-16le" : utf16be ? "utf-16be" : "utf-8",
+      ).decode(bytes);
+      const result = await saveMetaCsvAction(text);
+      setCsvState(result);
+    } catch (error) {
+      setCsvState({
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "CSV import failed. Paste Amount spent instead.",
+      });
+    } finally {
+      setImporting(false);
+    }
     router.refresh();
   }
 
@@ -181,7 +226,10 @@ export function MetaSyncPanel({
         </div>
       </form>
 
-      <form action={csvAction} className="mt-4 flex flex-wrap items-end gap-2">
+      <form
+        action={runCsvImport}
+        className="mt-4 flex flex-wrap items-end gap-2"
+      >
         <label className="grid gap-1 text-sm">
           <span className="text-muted">Or upload Ads Manager CSV</span>
           <input
