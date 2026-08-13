@@ -20,9 +20,9 @@ export function PlatformCompareTable({
         Platform-reported vs real
       </h2>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Ads Manager numbers vs last non-direct Stape purchases. A positive gap
-        means the platform is claiming more sales than first-party data can
-        support.
+        Real = Shopify first-touch from gn_* cart attributes. Platform = what
+        Ads Manager claims. A positive gap means the platform is claiming more
+        sales than first-touch can support.
       </p>
       <div className="mt-4 overflow-x-auto">
         <table className="w-full min-w-[40rem] text-left text-sm">

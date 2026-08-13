@@ -29,6 +29,8 @@ export function FirstTouchRollupTable({
                 <th className="pb-2 font-medium">Orders</th>
                 <th className="pb-2 font-medium">Revenue</th>
                 <th className="pb-2 font-medium">New customers</th>
+                <th className="pb-2 font-medium">ROAS</th>
+                <th className="pb-2 font-medium">NC ROAS</th>
               </tr>
             </thead>
             <tbody>
@@ -41,6 +43,14 @@ export function FirstTouchRollupTable({
                   </td>
                   <td className="py-2.5 text-muted">
                     {formatNumber(row.newCustomerOrders)}
+                  </td>
+                  <td className="py-2.5 text-muted">
+                    {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
+                  </td>
+                  <td className="py-2.5 text-muted">
+                    {row.newCustomerRoas === null
+                      ? "—"
+                      : `${row.newCustomerRoas.toFixed(2)}x`}
                   </td>
                 </tr>
               ))}

@@ -1,12 +1,14 @@
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import type { PlatformReported } from "@/lib/ads/types";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
-import { ATTRIBUTION_CHANNELS } from "@/lib/stape/channel-sql";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
-import { rollupFirstTouch, type FirstTouchRollup } from "@/lib/shopify/first-touch";
+import {
+  findRollup,
+  rollupFirstTouch,
+  type FirstTouchRollup,
+} from "@/lib/shopify/first-touch";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
-import type { ChannelContribution } from "@/lib/stape/attribution-types";
 
 export type PlatformCompareRow = {
   channel: string;
@@ -25,14 +27,17 @@ export type TruePerformance = {
   period: Awaited<ReturnType<typeof getAlignedPeriod>>;
   alignedShopify: ReturnType<typeof shopifyMetricsSince>;
   platform: PlatformReported;
-  newCustomerByChannel: ChannelContribution[];
   totalSpend: number | null;
   mer: number | null;
   newCustomerRoas: number | null;
   blendedRoas: number | null;
+  facebookRoas: number | null;
+  googleRoas: number | null;
+  facebookNewCustomerRoas: number | null;
+  googleNewCustomerRoas: number | null;
   compare: PlatformCompareRow[];
-  matchedOrders: number;
   shopifyFirstTouch: FirstTouchRollup[];
+  shopifyCampaigns: FirstTouchRollup[];
 };
 
 function marketingSpendFallback() {
@@ -53,6 +58,27 @@ function ratio(numerator: number, spend: number | null) {
   return numerator / spend;
 }
 
+function compareRow(
+  channel: string,
+  real: FirstTouchRollup | null,
+  purchases: number | null,
+  revenue: number | null,
+  spend: number | null,
+): PlatformCompareRow {
+  const realPurchases = real?.orders ?? 0;
+  const realRevenue = real?.revenue ?? 0;
+
+  return {
+    channel,
+    platformPurchases: purchases,
+    platformRevenue: revenue,
+    platformSpend: spend,
+    realPurchases,
+    realRevenue,
+    purchaseGap: purchases === null ? null : purchases - realPurchases,
+  };
+}
+
 export async function getTruePerformance(): Promise<TruePerformance> {
   const period = await getAlignedPeriod();
   const [shopify, funnel, attribution, platform] = await Promise.all([
@@ -67,78 +93,19 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     period.startMs,
     period.endMs,
   );
-
-  const shopifyById = new Map(
-    shopify.orderPoints
-      .filter((order) => order.legacyId)
-      .map((order) => [order.legacyId as string, order]),
-  );
-
-  let matchedOrders = 0;
-  const ncByChannel = new Map<string, { orders: number; revenue: number }>();
-
-  for (const attributed of attribution.orders) {
-    const shopifyOrder = shopifyById.get(attributed.transactionId);
-    if (!shopifyOrder) {
-      continue;
-    }
-
-    matchedOrders += 1;
-    if (shopifyOrder.isNew !== true) {
-      continue;
-    }
-
-    const current = ncByChannel.get(attributed.firstNonDirect) ?? {
-      orders: 0,
-      revenue: 0,
-    };
-    current.orders += 1;
-    current.revenue += shopifyOrder.amount;
-    ncByChannel.set(attributed.firstNonDirect, current);
-  }
-
-  const newCustomerByChannel: ChannelContribution[] = ATTRIBUTION_CHANNELS.map(
-    (source) => ({
-      source,
-      orders: ncByChannel.get(source)?.orders ?? 0,
-      revenue: ncByChannel.get(source)?.revenue ?? 0,
-    }),
-  );
-
+  const inRange = shopify.orderPoints.filter((order) => {
+    const created = new Date(order.createdAt).getTime();
+    return created >= period.startMs && created < period.endMs;
+  });
+  const spendByLabel = {
+    "Facebook / Meta Ads": platform.facebook.spend,
+    "Google Ads": platform.google.spend,
+  };
+  const shopifyFirstTouch = rollupFirstTouch(inRange, "channel", spendByLabel);
+  const shopifyCampaigns = rollupFirstTouch(inRange, "campaign");
+  const facebook = findRollup(shopifyFirstTouch, "Facebook / Meta Ads");
+  const google = findRollup(shopifyFirstTouch, "Google Ads");
   const totalSpend = platform.totalSpend ?? marketingSpendFallback();
-  const facebookReal = attribution.lastNonDirect.find(
-    (row) => row.source === "Facebook / Meta Ads",
-  );
-  const googleReal = attribution.lastNonDirect.find(
-    (row) => row.source === "Google Ads",
-  );
-
-  const compare: PlatformCompareRow[] = [
-    {
-      channel: "Facebook / Meta Ads",
-      platformPurchases: platform.facebook.purchases,
-      platformRevenue: platform.facebook.revenue,
-      platformSpend: platform.facebook.spend,
-      realPurchases: facebookReal?.orders ?? 0,
-      realRevenue: facebookReal?.revenue ?? 0,
-      purchaseGap:
-        platform.facebook.purchases === null
-          ? null
-          : platform.facebook.purchases - (facebookReal?.orders ?? 0),
-    },
-    {
-      channel: "Google Ads",
-      platformPurchases: platform.google.purchases,
-      platformRevenue: platform.google.revenue,
-      platformSpend: platform.google.spend,
-      realPurchases: googleReal?.orders ?? 0,
-      realRevenue: googleReal?.revenue ?? 0,
-      purchaseGap:
-        platform.google.purchases === null
-          ? null
-          : platform.google.purchases - (googleReal?.orders ?? 0),
-    },
-  ];
 
   return {
     shopify,
@@ -147,19 +114,31 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     period,
     alignedShopify,
     platform,
-    newCustomerByChannel,
     totalSpend,
     mer: ratio(alignedShopify.revenue, totalSpend),
     newCustomerRoas: ratio(alignedShopify.newCustomerRevenue, totalSpend),
-    blendedRoas: ratio(attribution.attributedRevenue, totalSpend),
-    compare,
-    matchedOrders,
-    shopifyFirstTouch: rollupFirstTouch(
-      shopify.orderPoints.filter((order) => {
-        const created = new Date(order.createdAt).getTime();
-        return created >= period.startMs && created < period.endMs;
-      }),
-      "channel",
-    ),
+    blendedRoas: ratio(alignedShopify.revenue, totalSpend),
+    facebookRoas: facebook?.roas ?? null,
+    googleRoas: google?.roas ?? null,
+    facebookNewCustomerRoas: facebook?.newCustomerRoas ?? null,
+    googleNewCustomerRoas: google?.newCustomerRoas ?? null,
+    compare: [
+      compareRow(
+        "Facebook / Meta Ads",
+        facebook,
+        platform.facebook.purchases,
+        platform.facebook.revenue,
+        platform.facebook.spend,
+      ),
+      compareRow(
+        "Google Ads",
+        google,
+        platform.google.purchases,
+        platform.google.revenue,
+        platform.google.spend,
+      ),
+    ],
+    shopifyFirstTouch,
+    shopifyCampaigns,
   };
 }

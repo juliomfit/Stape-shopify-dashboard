@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { ChannelContributionTable } from "@/components/dashboard/ChannelContributionTable";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
-import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTable";
 import { InfoPanel } from "@/components/dashboard/InfoPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -32,38 +31,37 @@ export default async function AttributionPage() {
     period,
     alignedShopify,
     platform,
-    newCustomerByChannel,
     totalSpend,
     mer,
     newCustomerRoas,
     blendedRoas,
+    facebookRoas,
+    googleRoas,
+    facebookNewCustomerRoas,
+    googleNewCustomerRoas,
     compare,
-    matchedOrders,
     shopifyFirstTouch,
+    shopifyCampaigns,
   } = data;
   const conversion = getConversionRate(
-    attribution.hasPurchaseEvents ? attribution.attributedOrders : null,
+    shopify.status.state === "connected" ? alignedShopify.orders : null,
     funnel.status.state === "connected" ? funnel.sessions : null,
   );
   const currency = shopify.revenue?.currencyCode || "USD";
   const shopifySource =
     shopify.status.state === "connected"
-      ? `Shopify · ${period.label}`
+      ? `Shopify gn_* · ${period.label}`
       : "Shopify · no data yet";
-  const stapeSource =
-    attribution.status.state === "connected"
-      ? `Stape · ${period.label}`
-      : "Stape · no data yet";
   const spendNote =
     totalSpend === null
-      ? "Connect Meta or add spend in .env.local — we will not guess"
-      : `${period.label} · first-party revenue ÷ spend`;
+      ? "Paste META_SPEND / GOOGLE_ADS_SPEND or connect Meta — we will not guess"
+      : `${period.label} · Shopify revenue ÷ spend`;
 
   return (
     <>
       <Header
         title="True Performance"
-        description="First-party attribution from Stape + Shopify, compared with what ads platforms claim."
+        description="First-touch is the gn_* cart attribute written on the Shopify order. Stape is a comparison only."
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus
@@ -95,28 +93,6 @@ export default async function AttributionPage() {
             }
           />
           <MetricCard
-            label="Attributed Stape purchases"
-            source={`${stapeSource} · unique order IDs`}
-            value={
-              attribution.status.state === "connected"
-                ? formatNumber(attribution.attributedOrders)
-                : null
-            }
-          />
-          <MetricCard
-            label="True conversion rate"
-            source={
-              conversion.rate === null
-                ? conversion.note
-                : `${conversion.note} · ${period.label}`
-            }
-            value={
-              conversion.rate === null ? null : formatPercent(conversion.rate)
-            }
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
             label="New customer revenue"
             source={shopifySource}
             value={
@@ -129,30 +105,66 @@ export default async function AttributionPage() {
             }
           />
           <MetricCard
+            label="True conversion rate"
+            source={
+              conversion.rate === null
+                ? conversion.note
+                : `Shopify orders ÷ Stape sessions · ${period.label}`
+            }
+            value={
+              conversion.rate === null ? null : formatPercent(conversion.rate)
+            }
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
             label="New customer ROAS"
             source={spendNote}
             value={roasLabel(newCustomerRoas)}
           />
           <MetricCard
-            label="Blended ROAS"
-            source={
-              totalSpend === null
-                ? spendNote
-                : `Stape attributed revenue ÷ spend · ${period.label}`
-            }
-            value={roasLabel(blendedRoas)}
+            label="Blended ROAS / MER"
+            source={spendNote}
+            value={roasLabel(blendedRoas ?? mer)}
           />
           <MetricCard
-            label="MER"
+            label="Meta ROAS"
             source={
-              totalSpend === null
-                ? spendNote
-                : `Shopify revenue ÷ spend · ${period.label}`
+              facebookRoas === null
+                ? "Needs Meta spend + gn_* Facebook first-touch"
+                : "gn_* Facebook revenue ÷ Meta spend"
             }
-            value={roasLabel(mer)}
+            value={roasLabel(facebookRoas)}
+          />
+          <MetricCard
+            label="Google ROAS"
+            source={
+              googleRoas === null
+                ? "Needs Google spend + gn_* Google Ads first-touch"
+                : "gn_* Google Ads revenue ÷ Google spend"
+            }
+            value={roasLabel(googleRoas)}
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Meta new-customer ROAS"
+            source={
+              facebookNewCustomerRoas === null
+                ? "Needs Meta spend"
+                : "New-customer Facebook gn_* revenue ÷ Meta spend"
+            }
+            value={roasLabel(facebookNewCustomerRoas)}
+          />
+          <MetricCard
+            label="Google new-customer ROAS"
+            source={
+              googleNewCustomerRoas === null
+                ? "Needs Google spend"
+                : "New-customer Google gn_* revenue ÷ Google spend"
+            }
+            value={roasLabel(googleNewCustomerRoas)}
+          />
           <MetricCard
             label="New customer orders"
             source={shopifySource}
@@ -171,103 +183,76 @@ export default async function AttributionPage() {
                 : null
             }
           />
-          <MetricCard
-            label="Purchases stitched to a person"
-            source="Shopify customer ID from Stape Data Client, matched to the browser"
-            value={formatNumber(attribution.identity.purchasesWithPerson)}
-          />
-          <MetricCard
-            label="People with more than one browser"
-            source="Same customer with page views from more than one browser"
-            value={formatNumber(attribution.identity.crossDevicePeople)}
-          />
         </div>
         <PlatformCompareTable
           rows={compare}
           currencyCode={currency}
-          facebookNote={
-            platform.facebook.state === "connected"
-              ? platform.facebook.message
-              : platform.facebook.message
-          }
+          facebookNote={platform.facebook.message}
           googleNote={platform.google.message}
         />
-        <FirstTouchRollupTable
-          title="Shopify first-touch (gn_*)"
-          description="Written once on the cart from the storefront script. This is not Shopify session / last-touch, and not Stape URL parsing."
-          rows={shopifyFirstTouch}
-          currencyCode={currency}
-        />
-        {attribution.hasPurchaseEvents ? (
-          <>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <ChannelContributionTable
-                title="Stape first-touch (browser path)"
-                description={`First real channel in the ${attribution.lookbackDays}-day Stape path. Use Shopify gn_* above when they disagree.`}
-                rows={attribution.firstNonDirect}
-                currencyCode={currency}
-              />
-              <ChannelContributionTable
-                title="Last non-direct (orders)"
-                description="Last real channel before checkout. This is the ‘real’ last-click, not the checkout page."
-                rows={attribution.lastNonDirect}
-                currencyCode={currency}
-              />
-            </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <ChannelContributionTable
-                title="Linear (multi-touch)"
-                description="Each order’s revenue is split evenly across unique non-direct channels on that person’s path."
-                rows={attribution.linear}
-                currencyCode={currency}
-              />
-              <ChannelContributionTable
-                title="New customer revenue by first-touch"
-                description={`${formatNumber(matchedOrders)} Stape purchases matched to a Shopify order. New = first Shopify order for that customer.`}
-                rows={newCustomerByChannel}
-                currencyCode={currency}
-              />
-            </div>
-            <ChannelContributionTable
-              title="Raw last-click (usually Direct)"
-              description="Crediting the purchase page itself. Shown so you can see why Shopify Direct is often wrong."
-              rows={attribution.lastClick}
-              currencyCode={currency}
-            />
-          </>
-        ) : (
-          <EmptyPanel
-            title="No purchase events in this date range"
-            description="True Performance needs Stape purchase events with transaction_id. Check Conversions for Today, or widen the date range."
-          />
-        )}
         <div className="grid gap-4 lg:grid-cols-2">
-          <TrafficSourcesPanel
-            title="Session first-touch"
-            sources={attribution.firstTouch}
-            periodLabel={period.label}
-            description={`First hit in each session · ${period.label}`}
+          <FirstTouchRollupTable
+            title="First-touch channel (gn_*)"
+            description="Source of truth. Written once on the cart. Unknown means the script did not run. ROAS fills in when that channel has spend."
+            rows={shopifyFirstTouch}
+            currencyCode={currency}
           />
-          <TrafficSourcesPanel
-            title="Session last-touch"
-            sources={attribution.lastTouch}
-            periodLabel={period.label}
-            description={`Last hit in each session · ${period.label}`}
+          <FirstTouchRollupTable
+            title="First-touch campaign (gn_utm_campaign)"
+            description="Same orders, grouped by campaign on the order."
+            rows={shopifyCampaigns}
+            currencyCode={currency}
           />
         </div>
+        <section className="rounded-2xl border border-dashed border-border bg-surface/60 p-6">
+          <h2 className="text-sm font-semibold text-foreground">
+            Stape comparison (not the source of truth)
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            Reconstructed from BigQuery page URLs. Use this when it disagrees
+            with gn_* to debug tracking, not to pick a winner for media.
+          </p>
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <ChannelContributionTable
+              title="Stape first-touch"
+              description={`${attribution.lookbackDays}-day browser path`}
+              rows={attribution.firstNonDirect}
+              currencyCode={currency}
+            />
+            <ChannelContributionTable
+              title="Stape last non-direct"
+              description="Last real channel before checkout"
+              rows={attribution.lastNonDirect}
+              currencyCode={currency}
+            />
+            <ChannelContributionTable
+              title="Stape linear"
+              description="Even split across assisting channels"
+              rows={attribution.linear}
+              currencyCode={currency}
+            />
+            <TrafficSourcesPanel
+              title="Stape sessions"
+              sources={attribution.firstTouch}
+              periodLabel={period.label}
+              description={`Session first hit · ${period.label}`}
+            />
+          </div>
+        </section>
         <InfoPanel
           title="How to read this"
           items={[
-            "Real purchases use last non-direct Stape paths. Platform purchases are what Meta/Google take credit for.",
-            "New customer ROAS = Shopify new-customer revenue ÷ ad spend. Blended ROAS uses Stape attributed revenue.",
-            `Lookback is ${attribution.lookbackDays} days. Paths now follow the Shopify customer ID when Stape Data Client sent user_id on purchase.`,
+            "Trust Shopify gn_* first-touch for which channel gets the order.",
+            "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
+            "ROAS = gn_* channel revenue ÷ that channel’s spend. New-customer ROAS uses only first-time Shopify customers.",
+            "Paste META_SPEND and GOOGLE_ADS_SPEND in .env.local for the same date range if the Meta API is not connected yet.",
             alignedShopify.guestOrders
               ? `${formatNumber(alignedShopify.guestOrders)} Shopify orders in this range have no customer record (guest checkout).`
-              : "Shopify new vs returning uses number of orders on the customer (1 = new).",
+              : "New vs returning uses Shopify number of orders on the customer (1 = new).",
           ]}
         />
         {attribution.gaps.length > 0 ? (
-          <InfoPanel title="Data quality notes" items={attribution.gaps} />
+          <InfoPanel title="Stape data notes" items={attribution.gaps} />
         ) : null}
         <TrackingHealth fields={attribution.tracking} />
       </section>

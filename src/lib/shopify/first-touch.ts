@@ -225,7 +225,27 @@ export type FirstTouchRollup = {
   revenue: number;
   newCustomerOrders: number;
   newCustomerRevenue: number;
+  spend: number | null;
+  roas: number | null;
+  newCustomerRoas: number | null;
 };
+
+function withEconomics(
+  row: Omit<FirstTouchRollup, "spend" | "roas" | "newCustomerRoas">,
+  spend: number | null,
+): FirstTouchRollup {
+  return {
+    ...row,
+    spend,
+    roas: spend && spend > 0 ? row.revenue / spend : null,
+    newCustomerRoas:
+      spend && spend > 0 ? row.newCustomerRevenue / spend : null,
+  };
+}
+
+export function findRollup(rows: FirstTouchRollup[], label: string) {
+  return rows.find((row) => row.label === label) ?? null;
+}
 
 export function rollupFirstTouch(
   rows: {
@@ -235,8 +255,12 @@ export function rollupFirstTouch(
     firstTouch: FirstTouch;
   }[],
   groupBy: "channel" | "campaign",
+  spendByLabel: Record<string, number | null> = {},
 ): FirstTouchRollup[] {
-  const groups = new Map<string, FirstTouchRollup>();
+  const groups = new Map<
+    string,
+    Omit<FirstTouchRollup, "spend" | "roas" | "newCustomerRoas">
+  >();
 
   for (const row of rows) {
     const label =
@@ -261,7 +285,7 @@ export function rollupFirstTouch(
     groups.set(label, current);
   }
 
-  return [...groups.values()].sort(
-    (a, b) => b.revenue - a.revenue || b.orders - a.orders,
-  );
+  return [...groups.values()]
+    .map((row) => withEconomics(row, spendByLabel[row.label] ?? null))
+    .sort((a, b) => b.revenue - a.revenue || b.orders - a.orders);
 }

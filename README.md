@@ -67,6 +67,28 @@ GOOGLE_APPLICATION_CREDENTIALS=secrets/gcp-service-account.json
 
 Restart `npm run dev`. Overview, Traffic, Conversions, and Attribution read `dashboard_events`.
 
+## True Performance (first-touch + spend)
+
+True Performance uses Shopify `gn_*` cart attributes as first-touch. Stape is shown as a comparison only.
+
+ROAS stays **—** until spend is present for the same date range. Do not invent numbers. Add one of:
+
+```bash
+# Meta API (preferred)
+META_ACCESS_TOKEN=
+META_AD_ACCOUNT_ID=
+
+# or paste Ads Manager totals for the selected range
+META_SPEND=
+META_PURCHASES=
+META_REVENUE=
+GOOGLE_ADS_SPEND=
+GOOGLE_ADS_PURCHASES=
+GOOGLE_ADS_REVENUE=
+```
+
+Keep this on localhost until the product is in final form.
+
 Optional: `bigquery/create_stape_events.sql` and `bigquery/attribution_views.sql` are only for the separate test dataset.
 
 Never commit `.env.local` or `secrets/`.

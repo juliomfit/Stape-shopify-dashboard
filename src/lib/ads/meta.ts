@@ -1,6 +1,35 @@
 import type { DashboardPeriod } from "@/lib/period";
 import type { PlatformClaim } from "@/lib/ads/types";
 
+function readNumber(name: string) {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return null;
+  }
+
+  const amount = Number(raw);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function pastedMetaClaim(): PlatformClaim | null {
+  const spend = readNumber("META_SPEND");
+  const purchases = readNumber("META_PURCHASES");
+  const revenue = readNumber("META_REVENUE");
+
+  if (spend === null && purchases === null && revenue === null) {
+    return null;
+  }
+
+  return {
+    source: "facebook",
+    label: "Meta Ads",
+    state: "connected",
+    spend,
+    purchases,
+    revenue,
+    message: "Numbers you entered from Meta Ads Manager — not an API pull",
+  };
+}
 function empty(state: PlatformClaim["state"], message?: string): PlatformClaim {
   return {
     source: "facebook",
@@ -37,9 +66,12 @@ export async function getMetaClaimed(
   const account = process.env.META_AD_ACCOUNT_ID?.trim();
 
   if (!token || !account) {
-    return empty(
-      "not_configured",
-      "Add META_ACCESS_TOKEN and META_AD_ACCOUNT_ID to .env.local",
+    return (
+      pastedMetaClaim() ||
+      empty(
+        "not_configured",
+        "Add META_ACCESS_TOKEN and META_AD_ACCOUNT_ID, or paste META_SPEND / META_PURCHASES / META_REVENUE",
+      )
     );
   }
 
@@ -65,9 +97,12 @@ export async function getMetaClaimed(
     };
 
     if (!response.ok || payload.error) {
-      return empty(
-        "error",
-        payload.error?.message || `Meta API failed (${response.status})`,
+      return (
+        pastedMetaClaim() ||
+        empty(
+          "error",
+          payload.error?.message || `Meta API failed (${response.status})`,
+        )
       );
     }
 
@@ -97,9 +132,12 @@ export async function getMetaClaimed(
       revenue: actionNumber(row.action_values, purchaseTypes),
     };
   } catch (error) {
-    return empty(
-      "error",
-      error instanceof Error ? error.message : "Meta API request failed",
+    return (
+      pastedMetaClaim() ||
+      empty(
+        "error",
+        error instanceof Error ? error.message : "Meta API request failed",
+      )
     );
   }
 }
