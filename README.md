@@ -94,6 +94,12 @@ ROAS stays **—** until spend is present.
 
 Keep this on localhost until the product is in final form.
 
+## Warehouse attribution
+
+`/warehouse` is multi-model observed-click attribution from `raw_events_full`. It does **not** replace True Performance (`gn_*`).
+
+SQL to create the `analytics` dataset (needs BigQuery Editor) lives in `bigquery/analytics/`. The app service account is read-only, so the page runs the same logic as SELECT until those views exist. Required sGTM column appends: `bigquery/analytics/GTM_CHANGES.md`.
+
 Optional: `bigquery/create_stape_events.sql` and `bigquery/attribution_views.sql` are only for the separate test dataset.
 
 Never commit `.env.local` or `secrets/`.

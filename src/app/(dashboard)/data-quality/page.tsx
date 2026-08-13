@@ -11,6 +11,8 @@ import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import { getBigQueryConfig } from "@/lib/stape/config";
+import { WarehouseQualityPanel } from "@/components/dashboard/WarehouseQualityPanel";
+import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +21,14 @@ export const metadata: Metadata = {
 };
 
 export default async function DataQualityPage() {
-  const [shopify, funnel, attribution, period, spendCoverage] = await Promise.all([
+  const [shopify, funnel, attribution, period, spendCoverage, warehouse] =
+    await Promise.all([
     getShopifyOverviewMetrics(),
     getStapeFunnelMetrics(),
     getAttributionMetrics(),
     getAlignedPeriod(),
     listSpendCoverage(),
+    getWarehouseMetrics(),
   ]);
   const config = (() => {
     try {
@@ -48,6 +52,8 @@ export default async function DataQualityPage() {
       : `${spendCoverage.length} saved spend range(s). Changing the header to dates without a matching paste shows “No ad spend saved for these dates.”`,
     "Missing gn_* is Unknown, not Direct. Shop Pay Express often has no storefront script.",
     "Device, country, bounce rate, session duration, and COGS are omitted because those fields are not in Shopify or dashboard_events.",
+    "Warehouse attribution reads raw_events_full. X-Stape-User-Id, gn_uid, and hashed_email are not BigQuery columns until the sGTM writer is appended.",
+    "dashboard_events expires 2026-10-11. Recreate the view without expiration. raw_events_full partitions expire after 60 days.",
   ];
 
   return (
@@ -73,6 +79,10 @@ export default async function DataQualityPage() {
           currentEnd={period.endDate}
         />
         <TrackingHealth fields={attribution.tracking} />
+        <WarehouseQualityPanel
+          quality={warehouse.quality}
+          totalOrders={warehouse.orders}
+        />
       </section>
     </>
   );
