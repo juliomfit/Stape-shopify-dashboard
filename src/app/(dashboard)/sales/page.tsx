@@ -7,6 +7,7 @@ import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
 import { Header } from "@/components/layout/Header";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
+import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import { getAverageOrderValue } from "@/lib/dashboard/conversion";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { rollupFirstTouch } from "@/lib/shopify/first-touch";
@@ -25,6 +26,7 @@ export default async function SalesPage() {
     getStapeFunnelMetrics(),
     getAlignedPeriod(),
   ]);
+  const ads = await getPlatformReported(period);
   const alignedShopify = shopifyMetricsSince(
     shopify.orderPoints,
     period.startMs,
@@ -185,6 +187,7 @@ export default async function SalesPage() {
             total={alignedShopify.revenue}
             processingFees={alignedShopify.processingFees}
             refundFees={alignedShopify.refundFees}
+            adSpend={ads.totalSpend}
           />
         ) : null}
         <div className="grid gap-4 lg:grid-cols-2">

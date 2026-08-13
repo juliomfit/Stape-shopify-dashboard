@@ -9,6 +9,7 @@ import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getConversionRate } from "@/lib/dashboard/conversion";
+import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 
@@ -24,6 +25,7 @@ export default async function OverviewPage() {
     getStapeFunnelMetrics(),
     getAlignedPeriod(),
   ]);
+  const ads = await getPlatformReported(period);
 
   const alignedShopify = shopifyMetricsSince(
     shopify.orderPoints,
@@ -171,6 +173,7 @@ export default async function OverviewPage() {
             total={alignedShopify.revenue}
             processingFees={alignedShopify.processingFees}
             refundFees={alignedShopify.refundFees}
+            adSpend={ads.totalSpend}
           />
         ) : null}
         <ConversionFunnel steps={funnel.steps} periodLabel={period.label} />

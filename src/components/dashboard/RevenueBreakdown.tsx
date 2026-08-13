@@ -11,6 +11,7 @@ type RevenueBreakdownProps = {
   total: number;
   processingFees: number | null;
   refundFees: number | null;
+  adSpend: number | null;
   periodLabel: string;
 };
 
@@ -48,10 +49,12 @@ export function RevenueBreakdown({
   total,
   processingFees,
   refundFees,
+  adSpend,
   periodLabel,
 }: RevenueBreakdownProps) {
-  const netAfterFees =
-    processingFees === null ? null : total - processingFees;
+  const feesKnown = (processingFees ?? 0) + (refundFees ?? 0);
+  const netAfterFees = total - feesKnown;
+  const netProfit = adSpend === null ? null : netAfterFees - adSpend;
 
   return (
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
@@ -59,9 +62,11 @@ export function RevenueBreakdown({
         Shopify revenue breakdown
       </h2>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Same orders as the header range · {periodLabel}. Gross is line items
-        before discounts. Total is what the customer paid. Fees are Shopify
-        Payments only — they are not inside total revenue.
+        Same orders and the same header dates · {periodLabel}. Gross is line
+        items before discounts. Total is what the customer paid. Ad spend is
+        Meta + Google pasted or synced for this range only — not guessed, not
+        first-touch. Net profit is total − Shopify fees − ad spend. No product
+        cost (COGS).
       </p>
       <div className="mt-4 divide-y divide-border">
         <Row label="Gross sales" amount={gross} currencyCode={currencyCode} />
@@ -100,6 +105,17 @@ export function RevenueBreakdown({
         <Row
           label="Net after processing fees"
           amount={netAfterFees}
+          currencyCode={currencyCode}
+        />
+        <Row
+          label="Ad spend"
+          amount={adSpend}
+          currencyCode={currencyCode}
+          muted
+        />
+        <Row
+          label="Net profit"
+          amount={netProfit}
           currencyCode={currencyCode}
         />
       </div>
