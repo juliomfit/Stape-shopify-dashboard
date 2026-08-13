@@ -1,3 +1,6 @@
+import { readFileSync } from "fs";
+import { existsSync } from "fs";
+
 export type BigQueryConfig = {
   projectId: string;
   dataset: string;
@@ -5,6 +8,34 @@ export type BigQueryConfig = {
   location: string;
   credentials?: object;
 };
+
+function parseServiceAccountJson(json: string) {
+  const credentials = JSON.parse(json) as { private_key?: string };
+  if (typeof credentials.private_key === "string") {
+    credentials.private_key = credentials.private_key.replace(/\\n/g, "\n");
+  }
+  return credentials;
+}
+
+function loadServiceAccount(): object | undefined {
+  const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
+  if (json) {
+    try {
+      return parseServiceAccountJson(json);
+    } catch {
+      throw new Error(
+        "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. Paste the full key as one line in Vercel env.",
+      );
+    }
+  }
+
+  const filePath = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+  if (filePath && existsSync(filePath)) {
+    return parseServiceAccountJson(readFileSync(filePath, "utf8"));
+  }
+
+  return undefined;
+}
 
 export function getBigQueryConfig(): BigQueryConfig | null {
   const projectId = process.env.GOOGLE_CLOUD_PROJECT?.trim();
@@ -15,25 +46,12 @@ export function getBigQueryConfig(): BigQueryConfig | null {
     return null;
   }
 
-  const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
-  let credentials: object | undefined;
-
-  if (json) {
-    try {
-      credentials = JSON.parse(json) as object;
-    } catch {
-      throw new Error(
-        "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. Paste the full key as one line.",
-      );
-    }
-  }
-
   return {
     projectId,
     dataset,
     table,
     location: process.env.BIGQUERY_LOCATION?.trim() || "US",
-    credentials,
+    credentials: loadServiceAccount(),
   };
 }
 

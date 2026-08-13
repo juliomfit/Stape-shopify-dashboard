@@ -1,9 +1,6 @@
-import { mkdir, readFile, writeFile } from "fs/promises";
-import path from "path";
 import type { PlatformClaim } from "@/lib/ads/types";
 import type { DashboardPeriod } from "@/lib/period";
-
-const PASTE_FILE = path.join(process.cwd(), "secrets/ads-paste.json");
+import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
 
 export type CampaignSpendRow = {
   campaign: string;
@@ -53,19 +50,11 @@ function parseAmount(value: unknown): number | null {
 }
 
 async function readPasteFile(): Promise<PasteFile> {
-  try {
-    return JSON.parse(await readFile(PASTE_FILE, "utf8")) as PasteFile;
-  } catch {
-    return {};
-  }
+  return (await readDurableJson<PasteFile>("ads-paste")) ?? {};
 }
 
 async function writePasteFile(data: PasteFile) {
-  await mkdir(path.dirname(PASTE_FILE), { recursive: true });
-  await writeFile(PASTE_FILE, `${JSON.stringify(data, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  await writeDurableJson("ads-paste", data);
 }
 
 export function parseSpendPaste(input: {

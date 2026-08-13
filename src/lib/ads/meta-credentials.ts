@@ -1,12 +1,9 @@
-import { mkdir, readFile, unlink, writeFile } from "fs/promises";
-import path from "path";
 import {
   getPendingOAuth,
   isMetaOAuthConfigured,
   type MetaAdAccountOption,
 } from "@/lib/ads/meta-oauth";
-
-const META_FILE = path.join(process.cwd(), "secrets/meta-ads.json");
+import { clearDurableJson, readDurableJson, writeDurableJson } from "@/lib/durable-json";
 
 export type MetaCredentials = {
   accessToken: string;
@@ -47,18 +44,14 @@ function fromEnv(): MetaCredentials | null {
 }
 
 async function fromFile(): Promise<MetaCredentials | null> {
-  try {
-    const stored = JSON.parse(await readFile(META_FILE, "utf8")) as StoredMeta;
-    const accessToken = stored.accessToken?.trim() || "";
-    const adAccountId = stored.adAccountId?.trim() || "";
-    if (!accessToken || !adAccountId) {
-      return null;
-    }
-
-    return { accessToken, adAccountId };
-  } catch {
+  const stored = await readDurableJson<StoredMeta>("meta-ads");
+  const accessToken = stored?.accessToken?.trim() || "";
+  const adAccountId = stored?.adAccountId?.trim() || "";
+  if (!accessToken || !adAccountId) {
     return null;
   }
+
+  return { accessToken, adAccountId };
 }
 
 export async function getMetaCredentials(): Promise<{
@@ -106,25 +99,12 @@ export async function getMetaConnectionPublic(): Promise<MetaConnectionPublic> {
 }
 
 export async function saveMetaCredentials(credentials: MetaCredentials) {
-  await mkdir(path.dirname(META_FILE), { recursive: true });
-  await writeFile(
-    META_FILE,
-    `${JSON.stringify(
-      {
-        accessToken: credentials.accessToken,
-        adAccountId: credentials.adAccountId.replace(/^act_/, ""),
-      },
-      null,
-      2,
-    )}\n`,
-    { encoding: "utf8", mode: 0o600 },
-  );
+  await writeDurableJson("meta-ads", {
+    accessToken: credentials.accessToken,
+    adAccountId: credentials.adAccountId.replace(/^act_/, ""),
+  });
 }
 
 export async function clearMetaCredentials() {
-  try {
-    await unlink(META_FILE);
-  } catch {
-    // Already gone.
-  }
+  await clearDurableJson("meta-ads");
 }

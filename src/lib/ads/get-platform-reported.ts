@@ -1,9 +1,8 @@
-import { readFile } from "fs/promises";
-import path from "path";
 import { getGoogleClaimed } from "@/lib/ads/google";
 import { getMetaClaimed } from "@/lib/ads/meta";
 import type { PlatformClaim, PlatformReported } from "@/lib/ads/types";
 import type { DashboardPeriod } from "@/lib/period";
+import { readDurableJson } from "@/lib/durable-json";
 
 type FileClaim = {
   spend?: number;
@@ -12,18 +11,10 @@ type FileClaim = {
 };
 
 async function readFileClaims() {
-  try {
-    const file = await readFile(
-      path.join(process.cwd(), "secrets/platform-reported.json"),
-      "utf8",
-    );
-    return JSON.parse(file) as {
-      facebook?: FileClaim;
-      google?: FileClaim;
-    };
-  } catch {
-    return null;
-  }
+  return readDurableJson<{
+    facebook?: FileClaim;
+    google?: FileClaim;
+  }>("platform-reported");
 }
 
 function mergeClaim(

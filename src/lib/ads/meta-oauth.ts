@@ -1,9 +1,7 @@
 import { randomBytes } from "crypto";
-import { mkdir, readFile, unlink, writeFile } from "fs/promises";
-import path from "path";
+import { clearDurableJson, readDurableJson, writeDurableJson } from "@/lib/durable-json";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
-const PENDING_FILE = path.join(process.cwd(), "secrets/meta-oauth-pending.json");
 
 export const META_OAUTH_STATE_COOKIE = "meta_oauth_state";
 
@@ -24,10 +22,22 @@ export function isMetaOAuthConfigured() {
 }
 
 export function getMetaRedirectUri() {
-  return (
-    process.env.META_OAUTH_REDIRECT_URI?.trim() ||
-    "http://localhost:3000/api/meta/callback"
-  );
+  const explicit = process.env.META_OAUTH_REDIRECT_URI?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (production) {
+    return `https://${production.replace(/^https?:\/\//, "")}/api/meta/callback`;
+  }
+
+  const preview = process.env.VERCEL_URL?.trim();
+  if (preview) {
+    return `https://${preview.replace(/^https?:\/\//, "")}/api/meta/callback`;
+  }
+
+  return "http://localhost:3000/api/meta/callback";
 }
 
 export function createOAuthState() {
@@ -104,25 +114,13 @@ export async function listAdAccounts(
 }
 
 export async function savePendingOAuth(pending: PendingOAuth) {
-  await mkdir(path.dirname(PENDING_FILE), { recursive: true });
-  await writeFile(PENDING_FILE, `${JSON.stringify(pending, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
+  await writeDurableJson("meta-oauth-pending", pending);
 }
 
 export async function getPendingOAuth(): Promise<PendingOAuth | null> {
-  try {
-    return JSON.parse(await readFile(PENDING_FILE, "utf8")) as PendingOAuth;
-  } catch {
-    return null;
-  }
+  return readDurableJson<PendingOAuth>("meta-oauth-pending");
 }
 
 export async function clearPendingOAuth() {
-  try {
-    await unlink(PENDING_FILE);
-  } catch {
-    // Already gone.
-  }
+  await clearDurableJson("meta-oauth-pending");
 }

@@ -94,6 +94,44 @@ ROAS stays **—** until spend is present.
 
 Keep this on localhost until the product is in final form.
 
+## Vercel (production)
+
+Edit in Cursor, commit, push. Vercel builds from GitHub. Never commit `.env.local` or `secrets/`.
+
+1. Import this GitHub repo in Vercel. Production branch: `main`. Pull requests get Preview URLs.
+2. In Vercel → Project → Settings → **Deployment Protection**, turn on password or SSO for Production **and** Preview.
+3. In Environment Variables, set these **names** (paste values in the Vercel UI, not in git). Apply to Production and Preview:
+
+```
+SHOPIFY_STORE_DOMAIN
+SHOPIFY_CLIENT_ID
+SHOPIFY_CLIENT_SECRET
+SHOPIFY_API_VERSION
+GOOGLE_CLOUD_PROJECT
+BIGQUERY_DATASET
+BIGQUERY_TABLE
+BIGQUERY_LOCATION
+GOOGLE_SERVICE_ACCOUNT_JSON
+DASHBOARD_PASSWORD
+```
+
+Optional if you use Meta login:
+
+```
+META_APP_ID
+META_APP_SECRET
+META_OAUTH_REDIRECT_URI
+```
+
+`GOOGLE_SERVICE_ACCOUNT_JSON` is the full GCP key as **one line**. Do not upload the JSON file to the repo. The service account should stay BigQuery Data Viewer + Job User.
+
+4. Redeploy after saving env vars.
+5. On Vercel, spend paste is stored in an httpOnly cookie (not git). Localhost still uses `secrets/ads-paste.json`.
+
+Local BigQuery can keep `GOOGLE_APPLICATION_CREDENTIALS=secrets/gcp-service-account.json`.
+
+Never commit `.env.local` or `secrets/`.
+
 ## Warehouse attribution
 
 `/warehouse` is multi-model observed-click attribution from `raw_events_full`. It does **not** replace True Performance (`gn_*`).
