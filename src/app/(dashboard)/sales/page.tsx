@@ -4,6 +4,7 @@ import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTa
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { OrdersTable } from "@/components/dashboard/OrdersTable";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
+import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
 import { Header } from "@/components/layout/Header";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getAverageOrderValue } from "@/lib/dashboard/conversion";
@@ -72,8 +73,20 @@ export default async function SalesPage() {
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Shopify revenue"
-            source={shopifySource}
+            label="Gross revenue"
+            source={`${shopifySource} · line items before discounts`}
+            value={
+              shopifyConnected
+                ? formatMoney({
+                    amount: alignedShopify.gross,
+                    currencyCode: currency,
+                  })
+                : null
+            }
+          />
+          <MetricCard
+            label="Total revenue"
+            source={`${shopifySource} · currentTotalPriceSet`}
             value={
               shopifyConnected
                 ? formatMoney({
@@ -83,6 +96,40 @@ export default async function SalesPage() {
                 : null
             }
           />
+          <MetricCard
+            label="Processing fees"
+            source={
+              alignedShopify.processingFees === null
+                ? "Shopify Payments fees on successful sale/capture · none in this range"
+                : `${shopifySource} · Shopify Payments sale/capture only`
+            }
+            value={
+              shopifyConnected && alignedShopify.processingFees !== null
+                ? formatMoney({
+                    amount: alignedShopify.processingFees,
+                    currencyCode: currency,
+                  })
+                : null
+            }
+          />
+          <MetricCard
+            label="Refund fees"
+            source={
+              alignedShopify.refundFees === null
+                ? "Shopify Payments fees on successful refunds · none in this range"
+                : `${shopifySource} · Shopify Payments refunds only`
+            }
+            value={
+              shopifyConnected && alignedShopify.refundFees !== null
+                ? formatMoney({
+                    amount: alignedShopify.refundFees,
+                    currencyCode: currency,
+                  })
+                : null
+            }
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Shopify orders"
             source={shopifySource}
@@ -125,6 +172,19 @@ export default async function SalesPage() {
             value={shopifyConnected ? formatNumber(unitsSold) : null}
           />
         </div>
+        {shopifyConnected ? (
+          <RevenueBreakdown
+            periodLabel={period.label}
+            currencyCode={currency}
+            gross={alignedShopify.gross}
+            subtotal={alignedShopify.subtotal}
+            discounts={alignedShopify.discounts}
+            shipping={alignedShopify.shipping}
+            tax={alignedShopify.tax}
+            refunded={alignedShopify.refunded}
+            total={alignedShopify.revenue}
+          />
+        ) : null}
         <div className="grid gap-4 lg:grid-cols-2">
           <FirstTouchRollupTable
             title="Revenue by first-touch channel"

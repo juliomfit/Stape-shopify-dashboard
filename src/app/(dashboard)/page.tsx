@@ -4,6 +4,7 @@ import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TopProductsPanel } from "@/components/dashboard/TopProductsPanel";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
+import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
@@ -61,8 +62,20 @@ export default async function OverviewPage() {
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Shopify revenue"
-            source={shopifySource}
+            label="Gross revenue"
+            source={`${shopifySource} · line items before discounts`}
+            value={
+              shopifyConnected
+                ? formatMoney({
+                    amount: alignedShopify.gross,
+                    currencyCode: shopify.revenue?.currencyCode || "USD",
+                  })
+                : null
+            }
+          />
+          <MetricCard
+            label="Total revenue"
+            source={`${shopifySource} · currentTotalPriceSet`}
             value={
               shopifyConnected
                 ? formatMoney({
@@ -72,6 +85,40 @@ export default async function OverviewPage() {
                 : null
             }
           />
+          <MetricCard
+            label="Processing fees"
+            source={
+              alignedShopify.processingFees === null
+                ? "Shopify Payments fees on successful sale/capture · none in this range"
+                : `${shopifySource} · Shopify Payments sale/capture only`
+            }
+            value={
+              shopifyConnected && alignedShopify.processingFees !== null
+                ? formatMoney({
+                    amount: alignedShopify.processingFees,
+                    currencyCode: shopify.revenue?.currencyCode || "USD",
+                  })
+                : null
+            }
+          />
+          <MetricCard
+            label="Refund fees"
+            source={
+              alignedShopify.refundFees === null
+                ? "Shopify Payments fees on successful refunds · none in this range"
+                : `${shopifySource} · Shopify Payments refunds only`
+            }
+            value={
+              shopifyConnected && alignedShopify.refundFees !== null
+                ? formatMoney({
+                    amount: alignedShopify.refundFees,
+                    currencyCode: shopify.revenue?.currencyCode || "USD",
+                  })
+                : null
+            }
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Shopify orders"
             source={shopifySource}
@@ -111,6 +158,19 @@ export default async function OverviewPage() {
             }
           />
         </div>
+        {shopifyConnected ? (
+          <RevenueBreakdown
+            periodLabel={period.label}
+            currencyCode={shopify.revenue?.currencyCode || "USD"}
+            gross={alignedShopify.gross}
+            subtotal={alignedShopify.subtotal}
+            discounts={alignedShopify.discounts}
+            shipping={alignedShopify.shipping}
+            tax={alignedShopify.tax}
+            refunded={alignedShopify.refunded}
+            total={alignedShopify.revenue}
+          />
+        ) : null}
         <ConversionFunnel steps={funnel.steps} periodLabel={period.label} />
         <TopProductsPanel products={shopify.topProducts} />
       </section>

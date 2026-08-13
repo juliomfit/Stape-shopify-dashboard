@@ -60,7 +60,22 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
               <Detail label="Date" value={formatDate(order.createdAt)} />
               <Detail label="Status" value={order.financialStatus} />
               <Detail label="Items" value={formatNumber(order.itemCount)} />
-              <Detail label="Total" value={formatMoney(order.total)} />
+              <Detail label="Gross sales" value={formatMoney(order.gross)} />
+              <Detail label="Total revenue" value={formatMoney(order.total)} />
+              <Detail
+                label="Processing fees"
+                value={
+                  order.processingFees
+                    ? formatMoney(order.processingFees)
+                    : "—"
+                }
+              />
+              <Detail
+                label="Refund fees"
+                value={
+                  order.refundFees ? formatMoney(order.refundFees) : "—"
+                }
+              />
               <Detail
                 label="Customer"
                 value={

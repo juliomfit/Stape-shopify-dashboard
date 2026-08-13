@@ -6,6 +6,11 @@ import {
   firstTouchChannel,
   parseFirstTouch,
 } from "@/lib/shopify/first-touch";
+import {
+  shopMoneyAmount,
+  transactionFees,
+  type OrderTransactionNode,
+} from "@/lib/shopify/money";
 import type {
   ShopifyOrder,
   ShopifyOverviewMetrics,
@@ -42,6 +47,12 @@ type OrdersPage = {
           createdAt: string;
           displayFinancialStatus: string | null;
           currentTotalPriceSet: MoneySet;
+          currentSubtotalPriceSet: MoneySet;
+          currentTotalDiscountsSet: MoneySet;
+          currentShippingPriceSet: MoneySet;
+          currentTotalTaxSet: MoneySet;
+          totalRefundedSet: MoneySet;
+          transactions: OrderTransactionNode[] | null;
           customer: {
             id: string;
             createdAt: string;
@@ -54,6 +65,7 @@ type OrdersPage = {
             node: {
               title: string;
               quantity: number;
+              originalTotalSet: MoneySet;
               discountedTotalSet: MoneySet;
               product: {
                 id: string;
@@ -66,6 +78,13 @@ type OrdersPage = {
     }[];
   };
 };
+
+const MONEY_SET = `
+  shopMoney {
+    amount
+    currencyCode
+  }
+`;
 
 const ORDERS_QUERY = `
   query OverviewOrders($query: String!, $cursor: String) {
@@ -92,10 +111,19 @@ const ORDERS_QUERY = `
             value
           }
           displayFinancialStatus
-          currentTotalPriceSet {
-            shopMoney {
-              amount
-              currencyCode
+          currentTotalPriceSet { ${MONEY_SET} }
+          currentSubtotalPriceSet { ${MONEY_SET} }
+          currentTotalDiscountsSet { ${MONEY_SET} }
+          currentShippingPriceSet { ${MONEY_SET} }
+          currentTotalTaxSet { ${MONEY_SET} }
+          totalRefundedSet { ${MONEY_SET} }
+          transactions(first: 50) {
+            kind
+            status
+            gateway
+            fees {
+              amount { amount currencyCode }
+              type
             }
           }
           customer {
@@ -108,12 +136,8 @@ const ORDERS_QUERY = `
               node {
                 title
                 quantity
-                discountedTotalSet {
-                  shopMoney {
-                    amount
-                    currencyCode
-                  }
-                }
+                originalTotalSet { ${MONEY_SET} }
+                discountedTotalSet { ${MONEY_SET} }
                 product {
                   id
                   title
@@ -197,8 +221,21 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           (total, item) => total + item.node.quantity,
           0,
         );
-
-        const amount = Number(order.currentTotalPriceSet.shopMoney.amount);
+        const gross = order.lineItems.edges.reduce(
+          (total, item) => total + shopMoneyAmount(item.node.originalTotalSet),
+          0,
+        );
+        const amount = shopMoneyAmount(order.currentTotalPriceSet);
+        const subtotal = shopMoneyAmount(order.currentSubtotalPriceSet);
+        const discounts = shopMoneyAmount(order.currentTotalDiscountsSet);
+        const shipping = shopMoneyAmount(order.currentShippingPriceSet);
+        const tax = shopMoneyAmount(order.currentTotalTaxSet);
+        const refunded = shopMoneyAmount(order.totalRefundedSet);
+        const { processingFees, refundFees } = transactionFees(
+          order.transactions,
+        );
+        const currency =
+          order.currentTotalPriceSet.shopMoney?.currencyCode || currencyCode;
         const customer = order.customer;
         const isGuest = !customer;
         const isNew = customer
@@ -220,6 +257,14 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
         orderPoints.push({
           createdAt: order.createdAt,
           amount,
+          gross,
+          subtotal,
+          discounts,
+          shipping,
+          tax,
+          refunded,
+          processingFees,
+          refundFees,
           isNew,
           isGuest,
           legacyId,
@@ -245,9 +290,18 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           financialStatus: order.displayFinancialStatus || "UNKNOWN",
           itemCount,
           total: {
-            amount: Number(order.currentTotalPriceSet.shopMoney.amount),
-            currencyCode: order.currentTotalPriceSet.shopMoney.currencyCode,
+            amount,
+            currencyCode: currency,
           },
+          gross: { amount: gross, currencyCode: currency },
+          processingFees:
+            processingFees === null
+              ? null
+              : { amount: processingFees, currencyCode: currency },
+          refundFees:
+            refundFees === null
+              ? null
+              : { amount: refundFees, currencyCode: currency },
           legacyId,
           firstTouch,
           firstTouchChannel: channel,
@@ -265,8 +319,8 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           };
 
           current.quantity += lineItem.node.quantity;
-          current.revenue += Number(
-            lineItem.node.discountedTotalSet.shopMoney.amount,
+          current.revenue += shopMoneyAmount(
+            lineItem.node.discountedTotalSet,
           );
           current.title = title;
           productTotals.set(id, current);

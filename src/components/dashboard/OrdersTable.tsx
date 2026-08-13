@@ -45,7 +45,7 @@ export function OrdersTable({
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[56rem] text-left text-sm">
+        <table className="w-full min-w-[64rem] text-left text-sm">
           <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
             <tr>
               <th className="px-6 py-3 font-medium">Order</th>
@@ -53,7 +53,9 @@ export function OrdersTable({
               <th className="px-6 py-3 font-medium">First-touch</th>
               <th className="px-6 py-3 font-medium">Campaign</th>
               <th className="px-6 py-3 font-medium">Click ID</th>
+              <th className="px-6 py-3 text-right font-medium">Gross</th>
               <th className="px-6 py-3 text-right font-medium">Total</th>
+              <th className="px-6 py-3 text-right font-medium">Fees</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -96,8 +98,16 @@ export function OrdersTable({
                   <td className="px-6 py-3 text-muted">
                     {clickIdLabel(order.firstTouch) || "—"}
                   </td>
+                  <td className="px-6 py-3 text-right text-muted">
+                    {formatMoney(order.gross)}
+                  </td>
                   <td className="px-6 py-3 text-right text-foreground">
                     {formatMoney(order.total)}
+                  </td>
+                  <td className="px-6 py-3 text-right text-muted">
+                    {order.processingFees
+                      ? formatMoney(order.processingFees)
+                      : "—"}
                   </td>
                 </tr>
               );

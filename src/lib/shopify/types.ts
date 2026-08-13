@@ -24,6 +24,9 @@ export type ShopifyOrder = {
   financialStatus: string;
   itemCount: number;
   total: Money;
+  gross: Money;
+  processingFees: Money | null;
+  refundFees: Money | null;
   legacyId: string | null;
   firstTouch: FirstTouch;
   firstTouchChannel: string;
@@ -41,6 +44,14 @@ export type CustomerPerformance = {
 export type OrderPoint = {
   createdAt: string;
   amount: number;
+  gross: number;
+  subtotal: number;
+  discounts: number;
+  shipping: number;
+  tax: number;
+  refunded: number;
+  processingFees: number | null;
+  refundFees: number | null;
   isNew: boolean | null;
   isGuest: boolean;
   legacyId: string | null;

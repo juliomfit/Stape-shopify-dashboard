@@ -1,9 +1,7 @@
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
-import {
-  firstTouchChannel,
-  parseFirstTouch,
-} from "@/lib/shopify/first-touch";
+import { firstTouchChannel, parseFirstTouch } from "@/lib/shopify/first-touch";
+import { shopMoneyAmount, transactionFees } from "@/lib/shopify/money";
 import type { ShopifyOrder } from "@/lib/shopify/types";
 
 type LastVisit = {
@@ -29,14 +27,30 @@ type OrderNode = {
   currentTotalPriceSet: {
     shopMoney: { amount: string; currencyCode: string };
   };
+  currentSubtotalPriceSet?: {
+    shopMoney: { amount: string; currencyCode: string };
+  } | null;
+  lineItems: {
+    edges: {
+      node: {
+        quantity: number;
+        originalTotalSet?: {
+          shopMoney: { amount: string; currencyCode: string };
+        };
+      };
+    }[];
+  };
+  transactions?: {
+    kind?: string | null;
+    status?: string | null;
+    gateway?: string | null;
+    fees?: { amount?: { amount?: string | null } | null; type?: string | null }[] | null;
+  }[] | null;
   customAttributes: { key: string; value: string | null }[];
   customer: {
     id: string;
     numberOfOrders: string | number | null;
   } | null;
-  lineItems: {
-    edges: { node: { quantity: number } }[];
-  };
   customerJourneySummary?: {
     lastVisit: LastVisit | null;
   } | null;
@@ -68,8 +82,22 @@ const ORDER_FIELDS = `
   }
   customAttributes { key value }
   customer { id numberOfOrders }
+  transactions(first: 50) {
+    kind
+    status
+    gateway
+    fees {
+      amount { amount currencyCode }
+      type
+    }
+  }
   lineItems(first: 50) {
-    edges { node { quantity } }
+    edges {
+      node {
+        quantity
+        originalTotalSet { shopMoney { amount currencyCode } }
+      }
+    }
   }
 `;
 
@@ -84,6 +112,12 @@ function mapOrder(node: OrderNode): ShopifyOrderDetail {
     (total, item) => total + item.node.quantity,
     0,
   );
+  const currency = node.currentTotalPriceSet.shopMoney.currencyCode;
+  const gross = node.lineItems.edges.reduce(
+    (total, item) => total + shopMoneyAmount(item.node.originalTotalSet),
+    0,
+  );
+  const { processingFees, refundFees } = transactionFees(node.transactions);
 
   return {
     id: node.id,
@@ -93,8 +127,15 @@ function mapOrder(node: OrderNode): ShopifyOrderDetail {
     itemCount,
     total: {
       amount: Number(node.currentTotalPriceSet.shopMoney.amount),
-      currencyCode: node.currentTotalPriceSet.shopMoney.currencyCode,
+      currencyCode: currency,
     },
+    gross: { amount: gross, currencyCode: currency },
+    processingFees:
+      processingFees === null
+        ? null
+        : { amount: processingFees, currencyCode: currency },
+    refundFees:
+      refundFees === null ? null : { amount: refundFees, currencyCode: currency },
     legacyId: node.legacyResourceId || node.id.split("/").pop() || null,
     firstTouch,
     firstTouchChannel: firstTouchChannel(firstTouch),

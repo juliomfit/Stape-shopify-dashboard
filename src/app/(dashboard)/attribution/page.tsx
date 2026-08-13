@@ -90,7 +90,7 @@ export default async function AttributionPage() {
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Shopify revenue"
+            label="Total revenue"
             source={shopifySource}
             value={
               shopify.status.state === "connected"
