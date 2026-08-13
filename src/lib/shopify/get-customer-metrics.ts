@@ -32,6 +32,7 @@ type CustomerOrdersPage = {
           id: string;
           displayName: string | null;
           createdAt: string;
+          numberOfOrders: string | number | null;
         } | null;
       };
     }[];
@@ -61,6 +62,7 @@ const CUSTOMER_ORDERS_QUERY = `
             id
             displayName
             createdAt
+            numberOfOrders
           }
         }
       }
@@ -116,7 +118,7 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
         name: string;
         orderCount: number;
         spend: number;
-        createdAt: string;
+        numberOfOrders: number;
       }
     >();
 
@@ -141,7 +143,7 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
           name: customerLabel(order.customer.id, order.customer.displayName),
           orderCount: 0,
           spend: 0,
-          createdAt: order.customer.createdAt,
+          numberOfOrders: Number(order.customer.numberOfOrders ?? 0),
         };
         current.orderCount += 1;
         current.spend += Number(order.currentTotalPriceSet.shopMoney.amount);
@@ -163,7 +165,7 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
         name: item.name,
         orderCount: item.orderCount,
         spend: { amount: item.spend, currencyCode },
-        isNew: new Date(item.createdAt).getTime() >= period.startMs,
+        isNew: item.numberOfOrders <= 1,
       }))
       .sort((a, b) => b.spend.amount - a.spend.amount);
 

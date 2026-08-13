@@ -39,7 +39,7 @@ export default async function OverviewPage() {
     ? `Stape · ${period.label}`
     : "Stape · no data yet";
   const conversion = getConversionRate(
-    stapeConnected ? funnel.purchases : null,
+    shopifyConnected ? alignedShopify.orders : null,
     stapeConnected ? funnel.sessions : null,
   );
   const conversionSource =

@@ -32,7 +32,7 @@ export function getConversionRate(
 
   return {
     rate: orders / sessions,
-    note: "Purchases ÷ sessions",
+    note: "Shopify orders ÷ Stape sessions",
   };
 }
 

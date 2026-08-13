@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   clearMetaPasteAction,
   disconnectMeta,
+  saveGooglePasteAction,
   saveMetaCsvAction,
   saveMetaPasteAction,
   selectMetaAdAccount,
@@ -22,6 +23,7 @@ type MetaSyncPanelProps = {
   startDate: string;
   endDate: string;
   paste: PeriodSpendPaste | null;
+  googlePaste: PeriodSpendPaste | null;
 };
 
 function amountValue(value: number | null | undefined) {
@@ -34,6 +36,7 @@ export function MetaSyncPanel({
   startDate,
   endDate,
   paste,
+  googlePaste,
 }: MetaSyncPanelProps) {
   const router = useRouter();
   const [pasteState, pasteAction, pasting] = useActionState(
@@ -41,6 +44,10 @@ export function MetaSyncPanel({
     idle,
   );
   const [csvState, csvAction, importing] = useActionState(saveMetaCsvAction, idle);
+  const [googleState, googleAction, savingGoogle] = useActionState(
+    saveGooglePasteAction,
+    idle,
+  );
   const [syncMessage, setSyncMessage] = useState("");
   const [syncOk, setSyncOk] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -205,6 +212,60 @@ export function MetaSyncPanel({
           className={`mt-3 text-sm ${csvState.ok ? "text-emerald-700" : "text-red-700"}`}
         >
           {csvState.message}
+        </p>
+      ) : null}
+
+      <form
+        key={`google-${startDate}_${endDate}`}
+        action={googleAction}
+        className="mt-6 grid gap-3 sm:grid-cols-3"
+      >
+        <p className="sm:col-span-3 text-sm font-medium text-foreground">
+          Google Ads spend · {periodLabel}
+        </p>
+        <label className="grid gap-1 text-sm">
+          <span className="text-muted">Amount spent</span>
+          <input
+            name="googleSpend"
+            inputMode="decimal"
+            defaultValue={amountValue(googlePaste?.spend)}
+            placeholder="0.00"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="text-muted">Conversions (optional)</span>
+          <input
+            name="googlePurchases"
+            inputMode="decimal"
+            defaultValue={amountValue(googlePaste?.purchases)}
+            placeholder="—"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="text-muted">Conv. value (optional)</span>
+          <input
+            name="googleRevenue"
+            inputMode="decimal"
+            defaultValue={amountValue(googlePaste?.revenue)}
+            placeholder="—"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={savingGoogle}
+          className="w-fit rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-60"
+        >
+          {savingGoogle ? "Saving…" : `Save Google totals · ${periodLabel}`}
+        </button>
+      </form>
+      {googleState.message ? (
+        <p
+          className={`mt-3 text-sm ${googleState.ok ? "text-emerald-700" : "text-red-700"}`}
+        >
+          {googleState.message}
         </p>
       ) : null}
       {syncMessage ? (

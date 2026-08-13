@@ -19,6 +19,7 @@ export type PeriodSpendPaste = SpendPaste & {
 
 type PasteFile = {
   facebook?: Record<string, PeriodSpendPaste>;
+  google?: Record<string, PeriodSpendPaste>;
 };
 
 function periodKey(period: DashboardPeriod) {
@@ -216,13 +217,42 @@ export async function clearMetaPaste(period: DashboardPeriod) {
   await writePasteFile(data);
 }
 
+export async function getGooglePaste(period: DashboardPeriod) {
+  const stored = (await readPasteFile()).google?.[periodKey(period)];
+  if (!stored) {
+    return null;
+  }
+
+  if (stored.startDate !== period.startDate || stored.endDate !== period.endDate) {
+    return null;
+  }
+
+  return stored;
+}
+
+export async function saveGooglePaste(period: DashboardPeriod, paste: SpendPaste) {
+  const data = await readPasteFile();
+  data.google = {
+    ...data.google,
+    [periodKey(period)]: {
+      ...paste,
+      startDate: period.startDate,
+      endDate: period.endDate,
+      label: period.label,
+    },
+  };
+  await writePasteFile(data);
+}
+
 export function pasteToClaim(
   paste: SpendPaste,
   message: string,
+  source: PlatformClaim["source"] = "facebook",
+  label = source === "google" ? "Google Ads" : "Meta Ads",
 ): PlatformClaim {
   return {
-    source: "facebook",
-    label: "Meta Ads",
+    source,
+    label,
     state: "connected",
     spend: paste.spend,
     purchases: paste.purchases,

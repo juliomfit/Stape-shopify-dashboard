@@ -1,18 +1,8 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { getBigQueryClient } from "@/lib/stape/client";
-import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
+import { ATTRIBUTION_CHANNELS, CHANNEL_SQL } from "@/lib/stape/channel-sql";
 import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
 import type { StapeTrafficMetrics, TrafficSource } from "@/lib/stape/types";
-
-const CHANNELS = [
-  "Google Ads",
-  "Facebook / Meta Ads",
-  "Google Organic",
-  "Meta Organic",
-  "Email",
-  "Direct",
-  "Other",
-] as const;
 
 type TotalsRow = {
   events: number;
@@ -44,7 +34,7 @@ function toNumber(value: unknown) {
 function withAllChannels(rows: SourceRow[]): TrafficSource[] {
   const counts = new Map(rows.map((row) => [row.source, toNumber(row.sessions)]));
 
-  return CHANNELS.map((source) => ({
+  return ATTRIBUTION_CHANNELS.map((source) => ({
     source,
     sessions: counts.get(source) ?? 0,
   }));
@@ -93,8 +83,13 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
             LOWER(IFNULL(page_location, '')) AS page_location,
             LOWER(IFNULL(page_referrer, '')) AS page_referrer,
             IFNULL(gclid, '') AS gclid,
+            IFNULL(gbraid, '') AS gbraid,
+            IFNULL(wbraid, '') AS wbraid,
+            IFNULL(dclid, '') AS dclid,
             IFNULL(fbclid, '') AS fbclid,
-            IFNULL(fbc, '') AS fbc
+            IFNULL(fbc, '') AS fbc,
+            IFNULL(ttclid, '') AS ttclid,
+            IFNULL(msclkid, '') AS msclkid
           FROM ${table}
           WHERE ${timeFilter}
         ),

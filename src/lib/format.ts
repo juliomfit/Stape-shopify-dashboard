@@ -1,3 +1,4 @@
+import { DASHBOARD_TZ } from "@/lib/period";
 import type { Money } from "@/lib/shopify/types";
 
 export function formatMoney(money: Money) {
@@ -14,6 +15,7 @@ export function formatNumber(value: number) {
 
 export function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: DASHBOARD_TZ,
     month: "short",
     day: "numeric",
     year: "numeric",

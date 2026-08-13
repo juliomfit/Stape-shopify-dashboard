@@ -104,8 +104,13 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
           LOWER(IFNULL(e.page_location, '')) AS page_location,
           LOWER(IFNULL(e.page_referrer, '')) AS page_referrer,
           IFNULL(e.gclid, '') AS gclid,
+          IFNULL(e.gbraid, '') AS gbraid,
+          IFNULL(e.wbraid, '') AS wbraid,
+          IFNULL(e.dclid, '') AS dclid,
           IFNULL(e.fbclid, '') AS fbclid,
           IFNULL(e.fbc, '') AS fbc,
+          IFNULL(e.ttclid, '') AS ttclid,
+          IFNULL(e.msclkid, '') AS msclkid,
           e.transaction_id,
           e.value
         FROM ${table} e
@@ -349,7 +354,11 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
           COUNTIF(event_id IS NOT NULL AND event_id != '') AS event_id,
           COUNTIF(
             (gclid IS NOT NULL AND gclid != '')
+            OR (gbraid IS NOT NULL AND gbraid != '')
+            OR (wbraid IS NOT NULL AND wbraid != '')
             OR LOWER(IFNULL(page_location, '')) LIKE '%gclid=%'
+            OR LOWER(IFNULL(page_location, '')) LIKE '%gbraid=%'
+            OR LOWER(IFNULL(page_location, '')) LIKE '%wbraid=%'
           ) AS gclid,
           COUNTIF(
             (fbclid IS NOT NULL AND fbclid != '')
@@ -359,7 +368,10 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
           ) AS facebook_ids,
           COUNTIF(fbp IS NOT NULL AND fbp != '') AS fbp,
           COUNTIF(transaction_id IS NOT NULL AND transaction_id != '') AS transaction_id,
-          COUNTIF(LOWER(IFNULL(event_name, '')) IN ('purchase', 'order_completed')) AS purchase,
+          COUNTIF(
+            LOWER(IFNULL(event_name, '')) IN ('purchase', 'order_completed')
+            AND IFNULL(transaction_id, '') != ''
+          ) AS purchase,
           COUNTIF(LOWER(IFNULL(event_name, '')) = 'begin_checkout') AS begin_checkout
         FROM ${table}
         WHERE timestamp >= @startMs
@@ -377,7 +389,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
       { label: "Meta click IDs / UTMs", filled: toNumber(tracking.facebook_ids), total, needed: true },
       { label: "fbp cookie", filled: toNumber(tracking.fbp), total, needed: false },
       { label: "begin_checkout", filled: toNumber(tracking.begin_checkout), total, needed: true },
-      { label: "purchase + transaction_id", filled: toNumber(tracking.purchase) + toNumber(tracking.transaction_id), total, needed: true },
+      { label: "purchase + transaction_id", filled: toNumber(tracking.purchase), total, needed: true },
     ];
 
     const models = modelRows as {

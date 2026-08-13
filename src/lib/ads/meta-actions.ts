@@ -12,6 +12,7 @@ import {
   clearMetaPaste,
   parseAdsManagerCsv,
   parseSpendPaste,
+  saveGooglePaste,
   saveMetaPaste,
 } from "@/lib/ads/spend-paste";
 import { getSelectedPeriod } from "@/lib/period-server";
@@ -183,6 +184,32 @@ export async function saveMetaCsvAction(
   return {
     ok: true,
     message: `Imported ${period.label}: spend ${paste.spend}, purchases ${paste.purchases ?? 0}.`,
+  };
+}
+
+export async function saveGooglePasteAction(
+  _prev: MetaSyncState,
+  formData: FormData,
+): Promise<MetaSyncState> {
+  const paste = parseSpendPaste({
+    spend: formData.get("googleSpend"),
+    purchases: formData.get("googlePurchases"),
+    revenue: formData.get("googleRevenue"),
+  });
+
+  if (!paste) {
+    return {
+      ok: false,
+      message: "Enter at least Google spend for this date range.",
+    };
+  }
+
+  const period = await getSelectedPeriod();
+  await saveGooglePaste(period, paste);
+  refreshDashboard();
+  return {
+    ok: true,
+    message: `Saved Google totals for ${period.label} (${period.startDate}–${period.endDate}).`,
   };
 }
 

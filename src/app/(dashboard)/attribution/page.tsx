@@ -45,6 +45,7 @@ export default async function AttributionPage() {
     shopifyCampaigns,
     metaConnection,
     metaPaste,
+    googlePaste,
   } = data;
   const conversion = getConversionRate(
     shopify.status.state === "connected" ? alignedShopify.orders : null,
@@ -79,6 +80,7 @@ export default async function AttributionPage() {
           startDate={period.startDate}
           endDate={period.endDate}
           paste={metaPaste}
+          googlePaste={googlePaste}
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard

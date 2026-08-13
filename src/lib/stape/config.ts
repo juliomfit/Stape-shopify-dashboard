@@ -41,7 +41,7 @@ export function isStapeConfigured() {
   try {
     return getBigQueryConfig() !== null;
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -50,10 +50,11 @@ export function tableId(config: BigQueryConfig) {
 }
 
 /**
- * Queryable events subquery. The live Stape pipeline writes to
- * stape_data.raw_events_full / dashboard_events (includes purchase +
- * begin_checkout). stape_shopify_dashboard.stape_events is a newer
- * test table and does not have those events yet.
+ * Queryable events subquery. Live pipeline: stape_data.dashboard_events
+ * (view over raw_events_full, event_date in America/Los_Angeles).
+ * Data Client rows whose event_name already exists in GA4 are dropped by
+ * the view; leftover shopify_order hits have no transaction_id and must
+ * not be counted as sessions.
  */
 export function eventsFromSql(config: BigQueryConfig) {
   const table = tableId(config);
@@ -70,13 +71,20 @@ export function eventsFromSql(config: BigQueryConfig) {
         page_location,
         page_referrer,
         gclid,
+        gbraid,
+        wbraid,
+        dclid,
         CAST(NULL AS STRING) AS fbclid,
         CAST(NULL AS STRING) AS fbc,
         CAST(NULL AS STRING) AS fbp,
+        CAST(NULL AS STRING) AS ttclid,
+        CAST(NULL AS STRING) AS msclkid,
         transaction_id,
         value,
         currency
       FROM ${table}
+      WHERE IFNULL(source_client, 'GA4') = 'GA4'
+        AND LOWER(IFNULL(event_name, '')) != 'shopify_order'
     )`;
   }
 
@@ -92,15 +100,21 @@ export function eventsFromSql(config: BigQueryConfig) {
         page_location,
         page_referrer,
         gclid,
+        gbraid,
+        wbraid,
+        dclid,
         CAST(NULL AS STRING) AS fbclid,
         CAST(NULL AS STRING) AS fbc,
         CAST(NULL AS STRING) AS fbp,
+        CAST(NULL AS STRING) AS ttclid,
+        CAST(NULL AS STRING) AS msclkid,
         transaction_id,
         value,
         currency
       FROM ${table}
       WHERE IFNULL(source_client, 'GA4') = 'GA4'
         AND event_name IS NOT NULL
+        AND LOWER(IFNULL(event_name, '')) != 'shopify_order'
     )`;
   }
 

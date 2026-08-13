@@ -66,8 +66,13 @@ export async function getStapeFunnelMetrics(): Promise<StapeFunnelMetrics> {
             LOWER(IFNULL(page_location, '')) AS page_location,
             LOWER(IFNULL(page_referrer, '')) AS page_referrer,
             IFNULL(gclid, '') AS gclid,
+            IFNULL(gbraid, '') AS gbraid,
+            IFNULL(wbraid, '') AS wbraid,
+            IFNULL(dclid, '') AS dclid,
             IFNULL(fbclid, '') AS fbclid,
             IFNULL(fbc, '') AS fbc,
+            IFNULL(ttclid, '') AS ttclid,
+            IFNULL(msclkid, '') AS msclkid,
             transaction_id,
             value
           FROM ${table}

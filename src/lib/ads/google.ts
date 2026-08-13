@@ -1,4 +1,6 @@
+import { getGooglePaste, pasteToClaim } from "@/lib/ads/spend-paste";
 import type { PlatformClaim } from "@/lib/ads/types";
+import type { DashboardPeriod } from "@/lib/period";
 
 function readNumber(name: string) {
   const raw = process.env[name]?.trim();
@@ -10,7 +12,18 @@ function readNumber(name: string) {
   return Number.isFinite(amount) ? amount : null;
 }
 
-export function getGoogleClaimed(): PlatformClaim {
+export async function getGoogleClaimed(
+  period: DashboardPeriod,
+): Promise<PlatformClaim> {
+  const pasted = await getGooglePaste(period);
+  if (pasted) {
+    return pasteToClaim(
+      pasted,
+      `Pasted from Google Ads · ${period.label} (${period.startDate}–${period.endDate})`,
+      "google",
+    );
+  }
+
   const spend = readNumber("GOOGLE_ADS_SPEND");
   const purchases = readNumber("GOOGLE_ADS_PURCHASES");
   const revenue = readNumber("GOOGLE_ADS_REVENUE");
@@ -21,7 +34,7 @@ export function getGoogleClaimed(): PlatformClaim {
       label: "Google Ads",
       state: "not_configured",
       message:
-        "Add GOOGLE_ADS_SPEND, GOOGLE_ADS_PURCHASES, and GOOGLE_ADS_REVENUE from Ads Manager for this date range",
+        "Paste Google Ads spend on True Performance for this date range",
       spend: null,
       purchases: null,
       revenue: null,
@@ -35,6 +48,7 @@ export function getGoogleClaimed(): PlatformClaim {
     spend,
     purchases,
     revenue,
-    message: "Numbers you entered from Google Ads Manager — not an API pull",
+    message:
+      "GOOGLE_ADS_* in .env.local applies to every date range — paste on the page instead when you switch ranges",
   };
 }

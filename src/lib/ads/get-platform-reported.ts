@@ -54,19 +54,20 @@ function mergeClaim(
 export async function getPlatformReported(
   period: DashboardPeriod,
 ): Promise<PlatformReported> {
-  const [facebook, file] = await Promise.all([
+  const [facebook, google, file] = await Promise.all([
     getMetaClaimed(period),
+    getGoogleClaimed(period),
     readFileClaims(),
   ]);
-  const google = mergeClaim(getGoogleClaimed(), file?.google);
+  const googleMerged = mergeClaim(google, file?.google);
   const meta = mergeClaim(facebook, file?.facebook);
-  const spendParts = [meta.spend, google.spend].filter(
+  const spendParts = [meta.spend, googleMerged.spend].filter(
     (value): value is number => value !== null,
   );
 
   return {
     facebook: meta,
-    google,
+    google: googleMerged,
     totalSpend: spendParts.length > 0 ? spendParts.reduce((a, b) => a + b, 0) : null,
   };
 }

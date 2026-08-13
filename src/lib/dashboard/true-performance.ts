@@ -3,7 +3,7 @@ import {
   getMetaConnectionPublic,
   type MetaConnectionPublic,
 } from "@/lib/ads/meta-credentials";
-import { getMetaPaste, type PeriodSpendPaste } from "@/lib/ads/spend-paste";
+import { getMetaPaste, getGooglePaste, type PeriodSpendPaste } from "@/lib/ads/spend-paste";
 import type { PlatformReported } from "@/lib/ads/types";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
@@ -45,6 +45,7 @@ export type TruePerformance = {
   shopifyCampaigns: FirstTouchRollup[];
   metaConnection: MetaConnectionPublic;
   metaPaste: PeriodSpendPaste | null;
+  googlePaste: PeriodSpendPaste | null;
 };
 
 function marketingSpendFallback() {
@@ -88,7 +89,7 @@ function compareRow(
 
 export async function getTruePerformance(): Promise<TruePerformance> {
   const period = await getAlignedPeriod();
-  const [shopify, funnel, attribution, platform, metaConnection, metaPaste] =
+  const [shopify, funnel, attribution, platform, metaConnection, metaPaste, googlePaste] =
     await Promise.all([
       getShopifyOverviewMetrics(),
       getStapeFunnelMetrics(),
@@ -96,6 +97,7 @@ export async function getTruePerformance(): Promise<TruePerformance> {
       getPlatformReported(period),
       getMetaConnectionPublic(),
       getMetaPaste(period),
+      getGooglePaste(period),
     ]);
 
   const alignedShopify = shopifyMetricsSince(
@@ -152,5 +154,6 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     shopifyCampaigns,
     metaConnection,
     metaPaste,
+    googlePaste,
   };
 }
