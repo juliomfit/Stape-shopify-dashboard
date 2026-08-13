@@ -2,6 +2,10 @@ import { shopifyOrdersQuery } from "@/lib/period";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
+import {
+  firstTouchChannel,
+  parseFirstTouch,
+} from "@/lib/shopify/first-touch";
 import type {
   ShopifyOrder,
   ShopifyOverviewMetrics,
@@ -44,6 +48,7 @@ type OrdersPage = {
             numberOfOrders: string | number | null;
           } | null;
           legacyResourceId: string | null;
+          customAttributes: { key: string; value: string | null }[];
           lineItems: {
           edges: {
             node: {
@@ -82,6 +87,10 @@ const ORDERS_QUERY = `
           name
           createdAt
           legacyResourceId
+          customAttributes {
+            key
+            value
+          }
           displayFinancialStatus
           currentTotalPriceSet {
             shopMoney {
@@ -193,6 +202,13 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           order.legacyResourceId || order.id.split("/").pop() || null;
         const customerId = customer?.id.split("/").pop() || null;
 
+        const attributes = (order.customAttributes || []).map((attribute) => ({
+          key: attribute.key,
+          value: attribute.value || "",
+        }));
+        const firstTouch = parseFirstTouch(attributes);
+        const channel = firstTouchChannel(firstTouch);
+
         revenue += amount;
         orderPoints.push({
           createdAt: order.createdAt,
@@ -201,6 +217,8 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           isGuest,
           legacyId,
           customerId,
+          firstTouch,
+          firstTouchChannel: channel,
         });
 
         if (isGuest) {
@@ -224,6 +242,10 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
               amount: Number(order.currentTotalPriceSet.shopMoney.amount),
               currencyCode: order.currentTotalPriceSet.shopMoney.currencyCode,
             },
+            legacyId,
+            firstTouch,
+            firstTouchChannel: channel,
+            customAttributes: attributes,
           });
         }
 

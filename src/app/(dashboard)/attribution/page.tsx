@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ChannelContributionTable } from "@/components/dashboard/ChannelContributionTable";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
+import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTable";
 import { InfoPanel } from "@/components/dashboard/InfoPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PlatformCompareTable } from "@/components/dashboard/PlatformCompareTable";
@@ -38,6 +39,7 @@ export default async function AttributionPage() {
     blendedRoas,
     compare,
     matchedOrders,
+    shopifyFirstTouch,
   } = data;
   const conversion = getConversionRate(
     attribution.hasPurchaseEvents ? attribution.attributedOrders : null,
@@ -190,12 +192,18 @@ export default async function AttributionPage() {
           }
           googleNote={platform.google.message}
         />
+        <FirstTouchRollupTable
+          title="Shopify first-touch (gn_*)"
+          description="Written once on the cart from the storefront script. This is not Shopify session / last-touch, and not Stape URL parsing."
+          rows={shopifyFirstTouch}
+          currencyCode={currency}
+        />
         {attribution.hasPurchaseEvents ? (
           <>
             <div className="grid gap-4 lg:grid-cols-2">
               <ChannelContributionTable
-                title="First-touch (orders)"
-                description={`First real channel in the ${attribution.lookbackDays}-day path, using the person ID when we have it.`}
+                title="Stape first-touch (browser path)"
+                description={`First real channel in the ${attribution.lookbackDays}-day Stape path. Use Shopify gn_* above when they disagree.`}
                 rows={attribution.firstNonDirect}
                 currencyCode={currency}
               />

@@ -1,3 +1,5 @@
+import type { FirstTouch } from "@/lib/shopify/first-touch";
+
 export type Money = {
   amount: number;
   currencyCode: string;
@@ -22,6 +24,10 @@ export type ShopifyOrder = {
   financialStatus: string;
   itemCount: number;
   total: Money;
+  legacyId: string | null;
+  firstTouch: FirstTouch;
+  firstTouchChannel: string;
+  customAttributes: { key: string; value: string }[];
 };
 
 export type CustomerPerformance = {
@@ -39,6 +45,8 @@ export type OrderPoint = {
   isGuest: boolean;
   legacyId: string | null;
   customerId: string | null;
+  firstTouch: FirstTouch;
+  firstTouchChannel: string;
 };
 
 export type ShopifyOverviewMetrics = {

@@ -4,6 +4,7 @@ import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-p
 import { ATTRIBUTION_CHANNELS } from "@/lib/stape/channel-sql";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
+import { rollupFirstTouch, type FirstTouchRollup } from "@/lib/shopify/first-touch";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import type { ChannelContribution } from "@/lib/stape/attribution-types";
 
@@ -31,6 +32,7 @@ export type TruePerformance = {
   blendedRoas: number | null;
   compare: PlatformCompareRow[];
   matchedOrders: number;
+  shopifyFirstTouch: FirstTouchRollup[];
 };
 
 function marketingSpendFallback() {
@@ -152,5 +154,12 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     blendedRoas: ratio(attribution.attributedRevenue, totalSpend),
     compare,
     matchedOrders,
+    shopifyFirstTouch: rollupFirstTouch(
+      shopify.orderPoints.filter((order) => {
+        const created = new Date(order.createdAt).getTime();
+        return created >= period.startMs && created < period.endMs;
+      }),
+      "channel",
+    ),
   };
 }
