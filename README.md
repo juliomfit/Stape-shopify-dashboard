@@ -71,18 +71,23 @@ Restart `npm run dev`. Overview, Traffic, Conversions, and Attribution read `das
 
 True Performance uses Shopify `gn_*` cart attributes as first-touch. Stape is shown as a comparison only.
 
-### Meta spend (no developer app)
+### Meta spend
 
-You do not need a Business app. On True Performance, paste Ads Manager totals for the same dates as the header toggle (Pacific time).
+Competitor apps already registered a Meta app, so you only log in. This dashboard can do the same after a one-time App ID (like Shopify). That is **not** a Business Manager account.
 
-1. Ads Manager → Campaigns.
-2. Set dates to match the dashboard (Today / Yesterday / 7d / 30d).
-3. Copy Amount spent. Purchases and purchase value are optional.
-4. Press **Save Meta totals**.
+1. [developers.facebook.com/apps](https://developers.facebook.com/apps/) → Create app → **Other** (not Business) → add Facebook Login.
+2. Facebook Login → Settings → Valid OAuth Redirect URI: `http://localhost:3000/api/meta/callback`
+3. Settings → Basic → put App ID and App Secret in `.env.local`:
 
-Each date range is stored separately in `secrets/ads-paste.json` (gitignored). Switch the range and paste again if you want ROAS for that range.
+```bash
+META_APP_ID=
+META_APP_SECRET=
+META_OAUTH_REDIRECT_URI=http://localhost:3000/api/meta/callback
+```
 
-A Meta token / Business app is optional and collapsed on the page.
+4. Restart `npm run dev`. True Performance shows **Log in with Facebook**. Spend then fills for the selected date range.
+
+If you cannot create any app, paste Ads Manager Amount spent for the same dates (Pacific time).
 
 Google spend is still pasted for the same date range:
 

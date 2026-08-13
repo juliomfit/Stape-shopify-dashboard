@@ -7,6 +7,7 @@ import {
   saveMetaCredentials,
 } from "@/lib/ads/meta-credentials";
 import { fetchMetaInsights } from "@/lib/ads/meta";
+import { clearPendingOAuth, getPendingOAuth } from "@/lib/ads/meta-oauth";
 import {
   clearMetaPaste,
   parseSpendPaste,
@@ -99,11 +100,32 @@ export async function syncMetaSpend(): Promise<MetaSyncState> {
 
 export async function disconnectMeta(): Promise<MetaSyncState> {
   await clearMetaCredentials();
+  await clearPendingOAuth();
   refreshDashboard();
   return {
     ok: true,
     message: "Removed the saved Meta token from this machine.",
   };
+}
+
+export async function selectMetaAdAccount(adAccountId: string): Promise<MetaSyncState> {
+  const pending = await getPendingOAuth();
+  if (!pending) {
+    return { ok: false, message: "Log in with Facebook again, then pick an ad account." };
+  }
+
+  const match = pending.accounts.find((account) => account.id === adAccountId);
+  if (!match) {
+    return { ok: false, message: "That ad account was not in the Facebook login list." };
+  }
+
+  await saveMetaCredentials({
+    accessToken: pending.accessToken,
+    adAccountId: match.id,
+  });
+  await clearPendingOAuth();
+  refreshDashboard();
+  return { ok: true, message: `Connected ${match.name}.` };
 }
 
 export async function saveMetaPasteAction(

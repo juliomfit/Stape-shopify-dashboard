@@ -1,5 +1,10 @@
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
+import {
+  getPendingOAuth,
+  isMetaOAuthConfigured,
+  type MetaAdAccountOption,
+} from "@/lib/ads/meta-oauth";
 
 const META_FILE = path.join(process.cwd(), "secrets/meta-ads.json");
 
@@ -14,6 +19,8 @@ export type MetaConnectionPublic = {
   adAccountId: string;
   tokenHint: string;
   canDisconnect: boolean;
+  oauthReady: boolean;
+  pendingAccounts: MetaAdAccountOption[];
 };
 
 type StoredMeta = {
@@ -72,6 +79,8 @@ export async function getMetaCredentials(): Promise<{
 }
 
 export async function getMetaConnectionPublic(): Promise<MetaConnectionPublic> {
+  const pending = await getPendingOAuth();
+  const oauthReady = isMetaOAuthConfigured();
   const { credentials, source } = await getMetaCredentials();
   if (!credentials) {
     return {
@@ -80,6 +89,8 @@ export async function getMetaConnectionPublic(): Promise<MetaConnectionPublic> {
       adAccountId: "",
       tokenHint: "",
       canDisconnect: false,
+      oauthReady,
+      pendingAccounts: pending?.accounts ?? [],
     };
   }
 
@@ -89,6 +100,8 @@ export async function getMetaConnectionPublic(): Promise<MetaConnectionPublic> {
     adAccountId: credentials.adAccountId.replace(/^act_/, ""),
     tokenHint: maskToken(credentials.accessToken),
     canDisconnect: source === "file",
+    oauthReady,
+    pendingAccounts: pending?.accounts ?? [],
   };
 }
 

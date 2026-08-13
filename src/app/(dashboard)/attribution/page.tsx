@@ -23,7 +23,12 @@ function roasLabel(value: number | null) {
   return value === null ? null : `${value.toFixed(2)}x`;
 }
 
-export default async function AttributionPage() {
+export default async function AttributionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ meta?: string; reason?: string }>;
+}) {
+  const params = await searchParams;
   const data = await getTruePerformance();
   const {
     shopify,
@@ -79,6 +84,8 @@ export default async function AttributionPage() {
           startDate={period.startDate}
           endDate={period.endDate}
           paste={metaPaste}
+          oauthStatus={params.meta}
+          oauthReason={params.reason}
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
