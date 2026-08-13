@@ -8,7 +8,7 @@ import type {
 } from "@/lib/shopify/types";
 
 const ORDERS_PER_PAGE = 100;
-const MAX_PAGES = 10;
+const MAX_PAGES = 20;
 
 type CustomerOrdersPage = {
   shop: {

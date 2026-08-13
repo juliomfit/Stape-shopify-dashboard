@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import {
+  CUSTOM_RANGE_COOKIE,
   getDashboardPeriod,
+  parseCustomRange,
   parseRangeKey,
   RANGE_COOKIE,
   type DashboardPeriod,
@@ -12,11 +14,13 @@ export async function getSelectedRange(): Promise<RangeKey> {
 }
 
 export async function getSelectedPeriod(): Promise<DashboardPeriod> {
-  return getDashboardPeriod(await getSelectedRange());
+  const jar = await cookies();
+  const key = parseRangeKey(jar.get(RANGE_COOKIE)?.value);
+  const custom = parseCustomRange(jar.get(CUSTOM_RANGE_COOKIE)?.value);
+  return getDashboardPeriod(key, new Date(), custom);
 }
 
-/** @deprecated Use getSelectedRange */
+/** @deprecated Use getSelectedPeriod().dayCount */
 export async function getSelectedRangeDays() {
-  const key = await getSelectedRange();
-  return key === "7d" ? 7 : 30;
+  return (await getSelectedPeriod()).dayCount;
 }

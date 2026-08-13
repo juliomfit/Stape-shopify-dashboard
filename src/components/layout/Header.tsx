@@ -1,5 +1,5 @@
 import { DateRangeToggle } from "@/components/layout/DateRangeToggle";
-import { getSelectedRange } from "@/lib/period-server";
+import { getSelectedPeriod } from "@/lib/period-server";
 
 type HeaderProps = {
   title: string;
@@ -7,11 +7,11 @@ type HeaderProps = {
 };
 
 export async function Header({ title, description }: HeaderProps) {
-  const range = await getSelectedRange();
+  const period = await getSelectedPeriod();
 
   return (
     <header className="border-b border-border bg-surface/90 px-8 py-6 backdrop-blur">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {title}
@@ -22,7 +22,10 @@ export async function Header({ title, description }: HeaderProps) {
             </p>
           ) : null}
         </div>
-        <DateRangeToggle value={range} />
+        <DateRangeToggle
+          key={`${period.key}:${period.startDate}:${period.endDate}`}
+          period={period}
+        />
       </div>
     </header>
   );
