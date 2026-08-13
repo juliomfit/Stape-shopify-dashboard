@@ -66,6 +66,14 @@ function ratio(numerator: number, spend: number | null) {
   return numerator / spend;
 }
 
+function merRatio(spend: number | null, orderRevenue: number) {
+  if (spend === null || spend <= 0 || orderRevenue <= 0) {
+    return null;
+  }
+
+  return spend / orderRevenue;
+}
+
 function compareRow(
   channel: string,
   real: FirstTouchRollup | null,
@@ -127,7 +135,7 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     alignedShopify,
     platform,
     totalSpend,
-    mer: ratio(alignedShopify.revenue, totalSpend),
+    mer: merRatio(totalSpend, alignedShopify.revenue),
     newCustomerRoas: ratio(alignedShopify.newCustomerRevenue, totalSpend),
     blendedRoas: ratio(alignedShopify.revenue, totalSpend),
     facebookRoas: facebook?.roas ?? null,

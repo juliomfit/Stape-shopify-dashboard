@@ -57,10 +57,14 @@ export default async function AttributionPage() {
     shopify.status.state === "connected"
       ? `Shopify gn_* · ${period.label}`
       : "Shopify · no data yet";
-  const spendNote =
+  const spendMissing =
     totalSpend === null
-      ? "Paste Meta spend for this date range — we will not guess"
-      : `${period.label} · Shopify revenue ÷ spend`;
+      ? "Paste ad spend for this date range — we will not guess"
+      : null;
+  const roasNote =
+    spendMissing ?? `${period.label} · total revenue ÷ blended ad spend`;
+  const merNote =
+    spendMissing ?? `${period.label} · blended ad spend ÷ total revenue`;
 
   return (
     <>
@@ -136,14 +140,14 @@ export default async function AttributionPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="New customer ROAS"
-            source={spendNote}
-            value={roasLabel(newCustomerRoas)}
+            label="Blended ROAS"
+            source={roasNote}
+            value={roasLabel(blendedRoas)}
           />
           <MetricCard
-            label="Blended ROAS / MER"
-            source={spendNote}
-            value={roasLabel(blendedRoas ?? mer)}
+            label="MER"
+            source={merNote}
+            value={mer === null ? null : formatPercent(mer)}
           />
           <MetricCard
             label="Meta ROAS"
@@ -165,6 +169,11 @@ export default async function AttributionPage() {
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="New customer ROAS"
+            source={roasNote}
+            value={roasLabel(newCustomerRoas)}
+          />
           <MetricCard
             label="Meta new-customer ROAS"
             source={
@@ -262,7 +271,8 @@ export default async function AttributionPage() {
           items={[
             "Trust Shopify gn_* first-touch for which channel gets the order.",
             "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
-            "ROAS = gn_* channel revenue ÷ that channel’s spend. New-customer ROAS uses only first-time Shopify customers.",
+            "ROAS = total revenue ÷ blended ad spend. MER is the inverse: blended ad spend ÷ total revenue (currentTotalPriceSet). They are not the same number.",
+            "Channel ROAS = gn_* channel revenue ÷ that channel’s spend. New-customer ROAS uses only first-time Shopify customers.",
             "Paste Meta Amount spent or upload an Ads Manager CSV for the same dates as the header toggle. Facebook will not connect without an app they control.",
             alignedShopify.guestOrders
               ? `${formatNumber(alignedShopify.guestOrders)} Shopify orders in this range have no customer record (guest checkout).`
