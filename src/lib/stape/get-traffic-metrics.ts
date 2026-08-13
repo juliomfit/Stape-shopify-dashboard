@@ -61,10 +61,10 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
           COUNT(*) AS events,
           COUNT(DISTINCT client_id) AS users,
           COUNT(
-            DISTINCT CONCAT(
-              IFNULL(client_id, ''),
-              '|',
-              IFNULL(ga_session_id, '')
+            DISTINCT IF(
+              CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) != '|',
+              CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')),
+              NULL
             )
           ) AS sessions
         FROM ${table}
@@ -100,6 +100,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
               hits.*,
               ROW_NUMBER() OVER (PARTITION BY session_key ORDER BY timestamp) AS rn
             FROM hits
+            WHERE session_key != '|'
           )
           WHERE rn = 1
         )

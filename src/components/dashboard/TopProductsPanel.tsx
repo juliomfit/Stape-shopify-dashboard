@@ -11,7 +11,7 @@ export function TopProductsPanel({ products }: TopProductsPanelProps) {
     return (
       <EmptyPanel
         title="Top Products"
-        description="Top-selling products will appear here after Shopify is connected."
+        description="No product line items in this date range, or Shopify is not connected yet."
       />
     );
   }

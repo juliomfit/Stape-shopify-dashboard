@@ -6,6 +6,7 @@ type FirstTouchRollupTableProps = {
   description: string;
   rows: FirstTouchRollup[];
   currencyCode: string;
+  showRoas?: boolean;
 };
 
 export function FirstTouchRollupTable({
@@ -13,6 +14,7 @@ export function FirstTouchRollupTable({
   description,
   rows,
   currencyCode,
+  showRoas = true,
 }: FirstTouchRollupTableProps) {
   return (
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
@@ -28,9 +30,13 @@ export function FirstTouchRollupTable({
                 <th className="pb-2 font-medium">Group</th>
                 <th className="pb-2 font-medium">Orders</th>
                 <th className="pb-2 font-medium">Revenue</th>
-                <th className="pb-2 font-medium">New customers</th>
-                <th className="pb-2 font-medium">ROAS</th>
-                <th className="pb-2 font-medium">NC ROAS</th>
+                <th className="pb-2 font-medium">New-customer orders</th>
+                {showRoas ? (
+                  <>
+                    <th className="pb-2 font-medium">ROAS</th>
+                    <th className="pb-2 font-medium">NC ROAS</th>
+                  </>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -44,14 +50,18 @@ export function FirstTouchRollupTable({
                   <td className="py-2.5 text-muted">
                     {formatNumber(row.newCustomerOrders)}
                   </td>
-                  <td className="py-2.5 text-muted">
-                    {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
-                  </td>
-                  <td className="py-2.5 text-muted">
-                    {row.newCustomerRoas === null
-                      ? "—"
-                      : `${row.newCustomerRoas.toFixed(2)}x`}
-                  </td>
+                  {showRoas ? (
+                    <>
+                      <td className="py-2.5 text-muted">
+                        {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
+                      </td>
+                      <td className="py-2.5 text-muted">
+                        {row.newCustomerRoas === null
+                          ? "—"
+                          : `${row.newCustomerRoas.toFixed(2)}x`}
+                      </td>
+                    </>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

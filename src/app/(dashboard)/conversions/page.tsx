@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { getAverageOrderValue, getConversionRate } from "@/lib/dashboard/conversion";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
@@ -35,7 +36,7 @@ export default async function ConversionsPage() {
     ? `Stape · ${period.label}`
     : "Stape · no data yet";
   const conversion = getConversionRate(
-    stapeConnected ? funnel.purchases : null,
+    shopifyConnected ? alignedShopify.orders : null,
     stapeConnected ? funnel.sessions : null,
   );
   const bothSource =
@@ -55,6 +56,11 @@ export default async function ConversionsPage() {
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
+        <TruncationNotice
+          truncated={shopify.truncated}
+          fetched={alignedShopify.orders}
+          reportedCount={shopify.reportedOrderCount}
+        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Conversion Rate"

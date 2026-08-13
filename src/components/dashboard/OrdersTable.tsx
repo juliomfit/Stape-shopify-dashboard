@@ -7,6 +7,7 @@ import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 type OrdersTableProps = {
   orders: ShopifyOrder[];
   periodLabel: string;
+  connected?: boolean;
 };
 
 function formatStatus(status: string) {
@@ -17,12 +18,20 @@ function formatStatus(status: string) {
     .join(" ");
 }
 
-export function OrdersTable({ orders, periodLabel }: OrdersTableProps) {
+export function OrdersTable({
+  orders,
+  periodLabel,
+  connected = false,
+}: OrdersTableProps) {
   if (orders.length === 0) {
     return (
       <EmptyPanel
-        title="Recent orders"
-        description="Orders will appear here after Shopify is connected."
+        title="Orders"
+        description={
+          connected
+            ? "No Shopify orders in this date range."
+            : "Orders will appear here after Shopify is connected."
+        }
       />
     );
   }
@@ -30,7 +39,7 @@ export function OrdersTable({ orders, periodLabel }: OrdersTableProps) {
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
       <div className="border-b border-border px-6 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Recent orders</h2>
+        <h2 className="text-sm font-semibold text-foreground">Orders</h2>
         <p className="mt-1 text-xs text-muted">
           First-touch from storefront gn_* cart attributes · {periodLabel}
         </p>

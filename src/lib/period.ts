@@ -270,7 +270,7 @@ function normalizeCustomRange(
     end = today;
   }
 
-  let days = inclusiveDayCount(ymd(start.year, start.month, start.day), ymd(end.year, end.month, end.day));
+  const days = inclusiveDayCount(ymd(start.year, start.month, start.day), ymd(end.year, end.month, end.day));
   if (days > MAX_CUSTOM_DAYS) {
     start = addDays(end.year, end.month, end.day, -(MAX_CUSTOM_DAYS - 1));
   }
@@ -371,7 +371,9 @@ export function getDashboardPeriod(
 }
 
 export function shopifyOrdersQuery(period: DashboardPeriod) {
-  return `created_at:>='${period.startIso}' AND created_at:<'${period.endIso}'`;
+  // GraphQL orders default to open-only; include closed paid/archived orders.
+  // Cancelled orders stay out unless we opt into status:any.
+  return `created_at:>='${period.startIso}' AND created_at:<'${period.endIso}' AND (status:open OR status:closed)`;
 }
 
 /** @deprecated Use rangeLabel / getDashboardPeriod */

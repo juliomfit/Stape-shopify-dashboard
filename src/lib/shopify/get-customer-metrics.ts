@@ -22,6 +22,7 @@ type CustomerOrdersPage = {
     };
     edges: {
       node: {
+        createdAt: string;
         currentTotalPriceSet: {
           shopMoney: {
             amount: string;
@@ -52,6 +53,7 @@ const CUSTOMER_ORDERS_QUERY = `
       }
       edges {
         node {
+          createdAt
           currentTotalPriceSet {
             shopMoney {
               amount
@@ -85,6 +87,8 @@ function emptyMetrics(periodLabel: string): ShopifyCustomerMetrics {
     periodLabel,
     customers: [],
     guestOrders: 0,
+    truncated: false,
+    fetchedOrders: 0,
   };
 }
 
@@ -112,6 +116,7 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
     let shopName = "";
     let currencyCode = "USD";
     let guestOrders = 0;
+    let fetchedOrders = 0;
     const customerTotals = new Map<
       string,
       {
@@ -133,6 +138,12 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
 
       for (const edge of data.orders.edges) {
         const order = edge.node;
+        const created = new Date(order.createdAt).getTime();
+        if (created < period.startMs || created >= period.endMs) {
+          continue;
+        }
+
+        fetchedOrders += 1;
 
         if (!order.customer) {
           guestOrders += 1;
@@ -174,6 +185,8 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
       periodLabel: period.label,
       customers,
       guestOrders,
+      truncated: hasNextPage,
+      fetchedOrders,
     };
   } catch (error) {
     const message =

@@ -86,6 +86,7 @@ export async function getStapeFunnelMetrics(): Promise<StapeFunnelMetrics> {
               events.*,
               ROW_NUMBER() OVER (PARTITION BY session_key ORDER BY timestamp) AS rn
             FROM events
+            WHERE session_key != '|'
           )
           WHERE rn = 1
         ),

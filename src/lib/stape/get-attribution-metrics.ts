@@ -139,6 +139,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
               ROW_NUMBER() OVER (PARTITION BY session_key ORDER BY timestamp) AS rn
             FROM events
             WHERE timestamp >= @startMs AND timestamp < @endMs
+              AND session_key != '|'
           )
           WHERE rn = 1
         )
@@ -160,6 +161,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
               ROW_NUMBER() OVER (PARTITION BY session_key ORDER BY timestamp DESC) AS rn
             FROM events
             WHERE timestamp >= @startMs AND timestamp < @endMs
+              AND session_key != '|'
           )
           WHERE rn = 1
         )

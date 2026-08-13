@@ -8,6 +8,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PlatformCompareTable } from "@/components/dashboard/PlatformCompareTable";
 import { TrackingHealth } from "@/components/dashboard/TrackingHealth";
 import { TrafficSourcesPanel } from "@/components/dashboard/TrafficSourcesPanel";
+import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { getTruePerformance } from "@/lib/dashboard/true-performance";
 import { getConversionRate } from "@/lib/dashboard/conversion";
@@ -73,6 +74,11 @@ export default async function AttributionPage() {
           stape={attribution.status}
           facebook={platform.facebook}
           google={platform.google}
+        />
+        <TruncationNotice
+          truncated={shopify.truncated}
+          fetched={alignedShopify.orders}
+          reportedCount={shopify.reportedOrderCount}
         />
         <MetaSyncPanel
           connection={metaConnection}
@@ -260,7 +266,8 @@ export default async function AttributionPage() {
             "Paste Meta Amount spent or upload an Ads Manager CSV for the same dates as the header toggle. Facebook will not connect without an app they control.",
             alignedShopify.guestOrders
               ? `${formatNumber(alignedShopify.guestOrders)} Shopify orders in this range have no customer record (guest checkout).`
-              : "New vs returning uses Shopify number of orders on the customer (1 = new).",
+              : "No guest checkouts in this range.",
+            "New vs returning here is order grain (new-customer orders). Customers counts unique people with 1 lifetime order — those numbers will not match.",
           ]}
         />
         {attribution.gaps.length > 0 ? (

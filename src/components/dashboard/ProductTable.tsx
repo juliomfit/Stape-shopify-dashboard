@@ -5,14 +5,23 @@ import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 type ProductTableProps = {
   products: TopProduct[];
   periodLabel: string;
+  connected?: boolean;
 };
 
-export function ProductTable({ products, periodLabel }: ProductTableProps) {
+export function ProductTable({
+  products,
+  periodLabel,
+  connected = false,
+}: ProductTableProps) {
   if (products.length === 0) {
     return (
       <EmptyPanel
         title="Products"
-        description="Product sales will appear here after Shopify is connected."
+        description={
+          connected
+            ? "No product line items in this date range."
+            : "Product sales will appear here after Shopify is connected."
+        }
       />
     );
   }
@@ -24,7 +33,8 @@ export function ProductTable({ products, periodLabel }: ProductTableProps) {
           Product sales
         </h2>
         <p className="mt-1 text-xs text-muted">
-          {periodLabel} · sorted by revenue
+          {periodLabel} · line-item totals (excludes shipping and tax) · sorted
+          by revenue
         </p>
       </div>
       <div className="overflow-x-auto">

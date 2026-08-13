@@ -5,14 +5,23 @@ import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 type CustomersTableProps = {
   customers: CustomerPerformance[];
   periodLabel: string;
+  connected?: boolean;
 };
 
-export function CustomersTable({ customers, periodLabel }: CustomersTableProps) {
+export function CustomersTable({
+  customers,
+  periodLabel,
+  connected = false,
+}: CustomersTableProps) {
   if (customers.length === 0) {
     return (
       <EmptyPanel
         title="Customers"
-        description="Customer sales will appear here after Shopify is connected."
+        description={
+          connected
+            ? "No customers with orders in this date range."
+            : "Customer sales will appear here after Shopify is connected."
+        }
       />
     );
   }
@@ -24,7 +33,8 @@ export function CustomersTable({ customers, periodLabel }: CustomersTableProps) 
           Customers by spend
         </h2>
         <p className="mt-1 text-xs text-muted">
-          {periodLabel} · names only, no emails
+          {periodLabel} · names only, no emails · New means 1 lifetime Shopify
+          order, not “new-customer orders” on True Performance
         </p>
       </div>
       <div className="overflow-x-auto">
@@ -38,7 +48,7 @@ export function CustomersTable({ customers, periodLabel }: CustomersTableProps) 
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {customers.slice(0, 25).map((customer) => (
+            {customers.map((customer) => (
               <tr key={customer.id}>
                 <td className="px-6 py-3 text-foreground">{customer.name}</td>
                 <td className="px-6 py-3 text-muted">

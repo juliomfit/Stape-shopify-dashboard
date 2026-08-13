@@ -20,6 +20,17 @@ export function ConversionFunnel({
   periodLabel,
   showTable = false,
 }: ConversionFunnelProps) {
+  if (steps.length === 0) {
+    return (
+      <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <h2 className="text-sm font-semibold text-foreground">Funnel</h2>
+        <p className="mt-6 text-sm text-muted">
+          Funnel steps will appear when Stape / BigQuery is connected.
+        </p>
+      </article>
+    );
+  }
+
   const max = Math.max(...steps.map((step) => step.count), 0);
   const sessions = steps[0]?.count ?? 0;
 

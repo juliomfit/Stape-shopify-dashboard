@@ -58,6 +58,8 @@ export type ShopifyOverviewMetrics = {
   topProducts: TopProduct[];
   recentOrders: ShopifyOrder[];
   orderPoints: OrderPoint[];
+  truncated: boolean;
+  reportedOrderCount: number | null;
   newCustomerOrders: number;
   returningCustomerOrders: number;
   guestOrders: number;
@@ -70,4 +72,6 @@ export type ShopifyCustomerMetrics = {
   periodLabel: string;
   customers: CustomerPerformance[];
   guestOrders: number;
+  truncated: boolean;
+  fetchedOrders: number;
 };

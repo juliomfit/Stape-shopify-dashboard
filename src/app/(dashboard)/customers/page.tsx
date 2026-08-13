@@ -3,6 +3,7 @@ import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { CustomersTable } from "@/components/dashboard/CustomersTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ScopeHelp } from "@/components/dashboard/ScopeHelp";
+import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { formatNumber } from "@/lib/format";
 import { getShopifyCustomerMetrics } from "@/lib/shopify/get-customer-metrics";
@@ -48,6 +49,11 @@ export default async function CustomersPage() {
           />
         ) : (
           <>
+            <TruncationNotice
+              truncated={shopify.truncated}
+              fetched={shopify.fetchedOrders}
+              noun="orders"
+            />
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard
                 label="Customers"
@@ -59,8 +65,8 @@ export default async function CustomersPage() {
                 }
               />
               <MetricCard
-                label="New"
-                source={shopifySource}
+                label="New customers"
+                source={`${shopifySource} · unique people with 1 lifetime order`}
                 value={
                   shopify.status.state === "connected"
                     ? formatNumber(newCustomers)
@@ -68,8 +74,8 @@ export default async function CustomersPage() {
                 }
               />
               <MetricCard
-                label="Returning"
-                source={shopifySource}
+                label="Returning customers"
+                source={`${shopifySource} · unique people with 2+ lifetime orders`}
                 value={
                   shopify.status.state === "connected"
                     ? formatNumber(returningCustomers)
@@ -89,6 +95,7 @@ export default async function CustomersPage() {
             <CustomersTable
               customers={shopify.customers}
               periodLabel={shopify.periodLabel}
+              connected={shopify.status.state === "connected"}
             />
           </>
         )}

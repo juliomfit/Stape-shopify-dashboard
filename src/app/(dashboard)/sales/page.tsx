@@ -3,6 +3,7 @@ import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { OrdersTable } from "@/components/dashboard/OrdersTable";
+import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getAverageOrderValue } from "@/lib/dashboard/conversion";
@@ -49,6 +50,10 @@ export default async function SalesPage() {
     const created = new Date(order.createdAt).getTime();
     return created >= period.startMs && created < period.endMs;
   });
+  const inRangeIds = new Set(inRange.map((order) => order.legacyId));
+  const tableOrders = shopify.recentOrders.filter((order) =>
+    inRangeIds.has(order.legacyId),
+  );
   const byChannel = rollupFirstTouch(inRange, "channel");
   const byCampaign = rollupFirstTouch(inRange, "campaign");
 
@@ -60,6 +65,11 @@ export default async function SalesPage() {
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
+        <TruncationNotice
+          truncated={shopify.truncated}
+          fetched={alignedShopify.orders}
+          reportedCount={shopify.reportedOrderCount}
+        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Shopify revenue"
@@ -121,17 +131,20 @@ export default async function SalesPage() {
             description="From gn_* on the order. Unknown means the stitching script did not run (for example Shop Pay)."
             rows={byChannel}
             currencyCode={currency}
+            showRoas={false}
           />
           <FirstTouchRollupTable
             title="Revenue by UTM campaign"
             description="gn_utm_campaign on the order. Date is order created."
             rows={byCampaign}
             currencyCode={currency}
+            showRoas={false}
           />
         </div>
         <OrdersTable
-          orders={shopify.recentOrders}
+          orders={tableOrders}
           periodLabel={period.label}
+          connected={shopifyConnected}
         />
       </section>
     </>

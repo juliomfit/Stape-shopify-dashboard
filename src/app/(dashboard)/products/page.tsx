@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ProductTable } from "@/components/dashboard/ProductTable";
+import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
@@ -35,9 +36,14 @@ export default async function ProductsPage() {
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} />
+        <TruncationNotice
+          truncated={shopify.truncated}
+          fetched={shopify.orderPoints.length}
+          reportedCount={shopify.reportedOrderCount}
+        />
         <div className="grid gap-4 sm:grid-cols-3">
           <MetricCard
-            label="Products sold"
+            label="Products"
             source={shopifySource}
             value={
               shopify.status.state === "connected"
@@ -55,8 +61,8 @@ export default async function ProductsPage() {
             }
           />
           <MetricCard
-            label="Product revenue"
-            source={shopifySource}
+            label="Line-item revenue"
+            source={`${shopifySource} · excludes shipping and tax`}
             value={
               shopify.revenue
                 ? formatMoney({
@@ -70,6 +76,7 @@ export default async function ProductsPage() {
         <ProductTable
           products={shopify.products}
           periodLabel={shopify.periodLabel}
+          connected={shopify.status.state === "connected"}
         />
       </section>
     </>

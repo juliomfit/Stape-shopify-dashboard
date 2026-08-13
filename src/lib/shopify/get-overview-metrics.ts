@@ -103,7 +103,7 @@ const ORDERS_QUERY = `
             createdAt
             numberOfOrders
           }
-          lineItems(first: 50) {
+          lineItems(first: 250) {
             edges {
               node {
                 title
@@ -137,6 +137,8 @@ function emptyMetrics(periodLabel: string): ShopifyOverviewMetrics {
     topProducts: [],
     recentOrders: [],
     orderPoints: [],
+    truncated: false,
+    reportedOrderCount: null,
     newCustomerOrders: 0,
     returningCustomerOrders: 0,
     guestOrders: 0,
@@ -186,6 +188,11 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
 
       for (const edge of data.orders.edges) {
         const order = edge.node;
+        const created = new Date(order.createdAt).getTime();
+        if (created < period.startMs || created >= period.endMs) {
+          continue;
+        }
+
         const itemCount = order.lineItems.edges.reduce(
           (total, item) => total + item.node.quantity,
           0,
@@ -231,23 +238,21 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
           returningCustomerRevenue += amount;
         }
 
-        if (recentOrders.length < 25) {
-          recentOrders.push({
-            id: order.id,
-            name: order.name,
-            createdAt: order.createdAt,
-            financialStatus: order.displayFinancialStatus || "UNKNOWN",
-            itemCount,
-            total: {
-              amount: Number(order.currentTotalPriceSet.shopMoney.amount),
-              currencyCode: order.currentTotalPriceSet.shopMoney.currencyCode,
-            },
-            legacyId,
-            firstTouch,
-            firstTouchChannel: channel,
-            customAttributes: attributes,
-          });
-        }
+        recentOrders.push({
+          id: order.id,
+          name: order.name,
+          createdAt: order.createdAt,
+          financialStatus: order.displayFinancialStatus || "UNKNOWN",
+          itemCount,
+          total: {
+            amount: Number(order.currentTotalPriceSet.shopMoney.amount),
+            currencyCode: order.currentTotalPriceSet.shopMoney.currencyCode,
+          },
+          legacyId,
+          firstTouch,
+          firstTouchChannel: channel,
+          customAttributes: attributes,
+        });
 
         for (const lineItem of order.lineItems.edges) {
           const product = lineItem.node.product;
@@ -286,11 +291,13 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
       status: { state: "connected", shopName },
       periodLabel: period.label,
       revenue: { amount: revenue, currencyCode },
-      orders: ordersCount,
+      orders: orderPoints.length,
       products,
       topProducts: products.slice(0, 5),
       recentOrders,
       orderPoints,
+      truncated: hasNextPage,
+      reportedOrderCount: ordersCount,
       newCustomerOrders,
       returningCustomerOrders,
       guestOrders,

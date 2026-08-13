@@ -3,13 +3,13 @@ import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TopProductsPanel } from "@/components/dashboard/TopProductsPanel";
+import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getConversionRate } from "@/lib/dashboard/conversion";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
-import { getStapeTrafficMetrics } from "@/lib/stape/get-traffic-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +18,8 @@ export const metadata: Metadata = {
 };
 
 export default async function OverviewPage() {
-  const [shopify, stape, funnel, period] = await Promise.all([
+  const [shopify, funnel, period] = await Promise.all([
     getShopifyOverviewMetrics(),
-    getStapeTrafficMetrics(),
     getStapeFunnelMetrics(),
     getAlignedPeriod(),
   ]);
@@ -55,6 +54,11 @@ export default async function OverviewPage() {
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
+        <TruncationNotice
+          truncated={shopify.truncated}
+          fetched={alignedShopify.orders}
+          reportedCount={shopify.reportedOrderCount}
+        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Shopify revenue"
@@ -96,7 +100,7 @@ export default async function OverviewPage() {
             label="Sessions"
             source={stapeSource}
             value={
-              stape.sessions === null ? null : formatNumber(stape.sessions)
+              stapeConnected ? formatNumber(funnel.sessions) : null
             }
           />
           <MetricCard
@@ -107,9 +111,7 @@ export default async function OverviewPage() {
             }
           />
         </div>
-        {funnel.steps.length > 0 ? (
-          <ConversionFunnel steps={funnel.steps} periodLabel={period.label} />
-        ) : null}
+        <ConversionFunnel steps={funnel.steps} periodLabel={period.label} />
         <TopProductsPanel products={shopify.topProducts} />
       </section>
     </>
