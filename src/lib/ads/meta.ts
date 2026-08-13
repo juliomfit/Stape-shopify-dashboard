@@ -1,5 +1,6 @@
-import type { DashboardPeriod } from "@/lib/period";
+import { getMetaCredentials } from "@/lib/ads/meta-credentials";
 import type { PlatformClaim } from "@/lib/ads/types";
+import type { DashboardPeriod } from "@/lib/period";
 
 function readNumber(name: string) {
   const raw = process.env[name]?.trim();
@@ -30,6 +31,7 @@ function pastedMetaClaim(): PlatformClaim | null {
     message: "Numbers you entered from Meta Ads Manager — not an API pull",
   };
 }
+
 function empty(state: PlatformClaim["state"], message?: string): PlatformClaim {
   return {
     source: "facebook",
@@ -59,23 +61,14 @@ function actionNumber(
   return 0;
 }
 
-export async function getMetaClaimed(
+export async function fetchMetaInsights(
   period: DashboardPeriod,
+  accessToken: string,
+  adAccountId: string,
 ): Promise<PlatformClaim> {
-  const token = process.env.META_ACCESS_TOKEN?.trim();
-  const account = process.env.META_AD_ACCOUNT_ID?.trim();
-
-  if (!token || !account) {
-    return (
-      pastedMetaClaim() ||
-      empty(
-        "not_configured",
-        "Add META_ACCESS_TOKEN and META_AD_ACCOUNT_ID, or paste META_SPEND / META_PURCHASES / META_REVENUE",
-      )
-    );
-  }
-
-  const actId = account.startsWith("act_") ? account : `act_${account}`;
+  const actId = adAccountId.startsWith("act_")
+    ? adAccountId
+    : `act_${adAccountId}`;
   const url = new URL(`https://graph.facebook.com/v21.0/${actId}/insights`);
   url.searchParams.set("fields", "spend,actions,action_values");
   url.searchParams.set(
@@ -83,54 +76,74 @@ export async function getMetaClaimed(
     JSON.stringify({ since: period.startDate, until: period.endDate }),
   );
   url.searchParams.set("level", "account");
-  url.searchParams.set("access_token", token);
+  url.searchParams.set("access_token", accessToken);
+
+  const response = await fetch(url, { cache: "no-store" });
+  const payload = (await response.json()) as {
+    data?: {
+      spend?: string;
+      actions?: { action_type?: string; value?: string }[];
+      action_values?: { action_type?: string; value?: string }[];
+    }[];
+    error?: { message?: string };
+  };
+
+  if (!response.ok || payload.error) {
+    throw new Error(
+      payload.error?.message || `Meta API failed (${response.status})`,
+    );
+  }
+
+  const row = payload.data?.[0];
+  if (!row) {
+    return {
+      ...empty("connected"),
+      spend: 0,
+      purchases: 0,
+      revenue: 0,
+      message: `Synced ${period.label} · no Meta insights rows`,
+    };
+  }
+
+  const purchaseTypes = [
+    "purchase",
+    "omni_purchase",
+    "offsite_conversion.fb_pixel_purchase",
+    "web_in_store_purchase",
+  ];
+
+  return {
+    source: "facebook",
+    label: "Meta Ads",
+    state: "connected",
+    spend: Number(row.spend || 0),
+    purchases: actionNumber(row.actions, purchaseTypes),
+    revenue: actionNumber(row.action_values, purchaseTypes),
+    message: `Synced from Meta API · ${period.label}`,
+  };
+}
+
+export async function getMetaClaimed(
+  period: DashboardPeriod,
+): Promise<PlatformClaim> {
+  const { credentials } = await getMetaCredentials();
+
+  if (!credentials) {
+    return (
+      pastedMetaClaim() ||
+      empty(
+        "not_configured",
+        "Use Sync Meta on True Performance, or paste META_SPEND for this date range",
+      )
+    );
+  }
 
   try {
-    const response = await fetch(url, { cache: "no-store" });
-    const payload = (await response.json()) as {
-      data?: {
-        spend?: string;
-        actions?: { action_type?: string; value?: string }[];
-        action_values?: { action_type?: string; value?: string }[];
-      }[];
-      error?: { message?: string };
-    };
-
-    if (!response.ok || payload.error) {
-      return (
-        pastedMetaClaim() ||
-        empty(
-          "error",
-          payload.error?.message || `Meta API failed (${response.status})`,
-        )
-      );
-    }
-
-    const row = payload.data?.[0];
-    if (!row) {
-      return {
-        ...empty("connected"),
-        spend: 0,
-        purchases: 0,
-        revenue: 0,
-      };
-    }
-
-    const purchaseTypes = [
-      "purchase",
-      "omni_purchase",
-      "offsite_conversion.fb_pixel_purchase",
-      "web_in_store_purchase",
-    ];
-
-    return {
-      source: "facebook",
-      label: "Meta Ads",
-      state: "connected",
-      spend: Number(row.spend || 0),
-      purchases: actionNumber(row.actions, purchaseTypes),
-      revenue: actionNumber(row.action_values, purchaseTypes),
-    };
+    return await fetchMetaInsights(
+      period,
+      credentials.accessToken,
+      credentials.adAccountId,
+    );
   } catch (error) {
     return (
       pastedMetaClaim() ||

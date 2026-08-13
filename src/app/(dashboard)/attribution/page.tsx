@@ -3,6 +3,7 @@ import { ChannelContributionTable } from "@/components/dashboard/ChannelContribu
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { FirstTouchRollupTable } from "@/components/dashboard/FirstTouchRollupTable";
 import { InfoPanel } from "@/components/dashboard/InfoPanel";
+import { MetaSyncPanel } from "@/components/dashboard/MetaSyncPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PlatformCompareTable } from "@/components/dashboard/PlatformCompareTable";
 import { TrackingHealth } from "@/components/dashboard/TrackingHealth";
@@ -42,6 +43,7 @@ export default async function AttributionPage() {
     compare,
     shopifyFirstTouch,
     shopifyCampaigns,
+    metaConnection,
   } = data;
   const conversion = getConversionRate(
     shopify.status.state === "connected" ? alignedShopify.orders : null,
@@ -54,7 +56,7 @@ export default async function AttributionPage() {
       : "Shopify · no data yet";
   const spendNote =
     totalSpend === null
-      ? "Paste META_SPEND / GOOGLE_ADS_SPEND or connect Meta — we will not guess"
+      ? "Press Sync Meta or paste Google spend — we will not guess"
       : `${period.label} · Shopify revenue ÷ spend`;
 
   return (
@@ -69,6 +71,10 @@ export default async function AttributionPage() {
           stape={attribution.status}
           facebook={platform.facebook}
           google={platform.google}
+        />
+        <MetaSyncPanel
+          connection={metaConnection}
+          periodLabel={period.label}
         />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
@@ -245,7 +251,7 @@ export default async function AttributionPage() {
             "Trust Shopify gn_* first-touch for which channel gets the order.",
             "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
             "ROAS = gn_* channel revenue ÷ that channel’s spend. New-customer ROAS uses only first-time Shopify customers.",
-            "Paste META_SPEND and GOOGLE_ADS_SPEND in .env.local for the same date range if the Meta API is not connected yet.",
+            "Press Sync Meta after you save a system-user token. Google spend is still pasted in .env.local for the same date range.",
             alignedShopify.guestOrders
               ? `${formatNumber(alignedShopify.guestOrders)} Shopify orders in this range have no customer record (guest checkout).`
               : "New vs returning uses Shopify number of orders on the customer (1 = new).",

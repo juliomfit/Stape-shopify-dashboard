@@ -1,0 +1,117 @@
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
+import path from "path";
+
+const META_FILE = path.join(process.cwd(), "secrets/meta-ads.json");
+
+export type MetaCredentials = {
+  accessToken: string;
+  adAccountId: string;
+};
+
+export type MetaConnectionPublic = {
+  configured: boolean;
+  source: "file" | "env" | "none";
+  adAccountId: string;
+  tokenHint: string;
+  canDisconnect: boolean;
+};
+
+type StoredMeta = {
+  accessToken?: string;
+  adAccountId?: string;
+};
+
+function maskToken(token: string) {
+  if (token.length <= 8) {
+    return "••••";
+  }
+
+  return `••••${token.slice(-4)}`;
+}
+
+function fromEnv(): MetaCredentials | null {
+  const accessToken = process.env.META_ACCESS_TOKEN?.trim() || "";
+  const adAccountId = process.env.META_AD_ACCOUNT_ID?.trim() || "";
+  if (!accessToken || !adAccountId) {
+    return null;
+  }
+
+  return { accessToken, adAccountId };
+}
+
+async function fromFile(): Promise<MetaCredentials | null> {
+  try {
+    const stored = JSON.parse(await readFile(META_FILE, "utf8")) as StoredMeta;
+    const accessToken = stored.accessToken?.trim() || "";
+    const adAccountId = stored.adAccountId?.trim() || "";
+    if (!accessToken || !adAccountId) {
+      return null;
+    }
+
+    return { accessToken, adAccountId };
+  } catch {
+    return null;
+  }
+}
+
+export async function getMetaCredentials(): Promise<{
+  credentials: MetaCredentials | null;
+  source: MetaConnectionPublic["source"];
+}> {
+  const file = await fromFile();
+  if (file) {
+    return { credentials: file, source: "file" };
+  }
+
+  const env = fromEnv();
+  if (env) {
+    return { credentials: env, source: "env" };
+  }
+
+  return { credentials: null, source: "none" };
+}
+
+export async function getMetaConnectionPublic(): Promise<MetaConnectionPublic> {
+  const { credentials, source } = await getMetaCredentials();
+  if (!credentials) {
+    return {
+      configured: false,
+      source: "none",
+      adAccountId: "",
+      tokenHint: "",
+      canDisconnect: false,
+    };
+  }
+
+  return {
+    configured: true,
+    source,
+    adAccountId: credentials.adAccountId.replace(/^act_/, ""),
+    tokenHint: maskToken(credentials.accessToken),
+    canDisconnect: source === "file",
+  };
+}
+
+export async function saveMetaCredentials(credentials: MetaCredentials) {
+  await mkdir(path.dirname(META_FILE), { recursive: true });
+  await writeFile(
+    META_FILE,
+    `${JSON.stringify(
+      {
+        accessToken: credentials.accessToken,
+        adAccountId: credentials.adAccountId.replace(/^act_/, ""),
+      },
+      null,
+      2,
+    )}\n`,
+    { encoding: "utf8", mode: 0o600 },
+  );
+}
+
+export async function clearMetaCredentials() {
+  try {
+    await unlink(META_FILE);
+  } catch {
+    // Already gone.
+  }
+}

@@ -71,21 +71,28 @@ Restart `npm run dev`. Overview, Traffic, Conversions, and Attribution read `das
 
 True Performance uses Shopify `gn_*` cart attributes as first-touch. Stape is shown as a comparison only.
 
-ROAS stays **—** until spend is present for the same date range. Do not invent numbers. Add one of:
+### Sync Meta (button)
+
+Facebook will not do a public “Connect with Facebook” login on localhost. Use a system-user token once, then press **Sync Meta** on True Performance.
+
+1. Create a Business app at [developers.facebook.com/apps](https://developers.facebook.com/apps/) and add Marketing API (Development mode is enough).
+2. [Business settings → System users](https://business.facebook.com/settings/system-users) → create **Goodsnova dashboard** (Admin).
+3. Add assets → your ad account → View performance.
+4. Generate token on that app with `ads_read`. Copy it.
+5. Ad account ID is in Ads Manager (numbers only, you can omit `act_`).
+6. On True Performance, paste both fields and press **Save and sync Meta**. After that, press **Sync Meta** whenever you change the date range.
+
+The token is stored in `secrets/meta-ads.json` (gitignored). Do not commit it.
+
+Google spend is still pasted for the same date range:
 
 ```bash
-# Meta API (preferred)
-META_ACCESS_TOKEN=
-META_AD_ACCOUNT_ID=
-
-# or paste Ads Manager totals for the selected range
-META_SPEND=
-META_PURCHASES=
-META_REVENUE=
 GOOGLE_ADS_SPEND=
 GOOGLE_ADS_PURCHASES=
 GOOGLE_ADS_REVENUE=
 ```
+
+ROAS stays **—** until spend is present. Do not invent numbers.
 
 Keep this on localhost until the product is in final form.
 

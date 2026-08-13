@@ -1,4 +1,8 @@
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
+import {
+  getMetaConnectionPublic,
+  type MetaConnectionPublic,
+} from "@/lib/ads/meta-credentials";
 import type { PlatformReported } from "@/lib/ads/types";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
@@ -38,6 +42,7 @@ export type TruePerformance = {
   compare: PlatformCompareRow[];
   shopifyFirstTouch: FirstTouchRollup[];
   shopifyCampaigns: FirstTouchRollup[];
+  metaConnection: MetaConnectionPublic;
 };
 
 function marketingSpendFallback() {
@@ -81,12 +86,14 @@ function compareRow(
 
 export async function getTruePerformance(): Promise<TruePerformance> {
   const period = await getAlignedPeriod();
-  const [shopify, funnel, attribution, platform] = await Promise.all([
-    getShopifyOverviewMetrics(),
-    getStapeFunnelMetrics(),
-    getAttributionMetrics(),
-    getPlatformReported(period),
-  ]);
+  const [shopify, funnel, attribution, platform, metaConnection] =
+    await Promise.all([
+      getShopifyOverviewMetrics(),
+      getStapeFunnelMetrics(),
+      getAttributionMetrics(),
+      getPlatformReported(period),
+      getMetaConnectionPublic(),
+    ]);
 
   const alignedShopify = shopifyMetricsSince(
     shopify.orderPoints,
@@ -140,5 +147,6 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     ],
     shopifyFirstTouch,
     shopifyCampaigns,
+    metaConnection,
   };
 }
