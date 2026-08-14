@@ -1,4 +1,5 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { CHANNEL_SQL, ATTRIBUTION_CHANNELS } from "@/lib/stape/channel-sql";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { eventsFromSql, getBigQueryConfig, identityMapSql } from "@/lib/stape/config";
@@ -70,6 +71,15 @@ function emptyMetrics(periodLabel: string): AttributionMetrics {
 
 export async function getAttributionMetrics(): Promise<AttributionMetrics> {
   const period = await getAlignedPeriod();
+  return rememberDashboard(
+    ["stape-attribution", String(period.startMs), String(period.endMs)],
+    () => loadAttributionMetrics(period),
+  );
+}
+
+async function loadAttributionMetrics(
+  period: Awaited<ReturnType<typeof getAlignedPeriod>>,
+): Promise<AttributionMetrics> {
 
   try {
     if (!getBigQueryConfig()) {

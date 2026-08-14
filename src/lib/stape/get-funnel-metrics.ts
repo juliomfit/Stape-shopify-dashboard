@@ -1,4 +1,4 @@
-import { cache } from "react";
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
@@ -112,11 +112,11 @@ async function loadFunnelMetrics(
     const table = eventsFromSql(config);
     const queryOptions = { location: config.location };
     const params = { startMs: period.startMs, endMs: period.endMs };
-
-    const [rows] = await client.query({
-      ...queryOptions,
-      params,
-      query: `
+    const [[rows], [dailyRows]] = await Promise.all([
+      client.query({
+        ...queryOptions,
+        params,
+        query: `
         WITH events AS (
           SELECT
             CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) AS session_key,
@@ -176,12 +176,11 @@ async function loadFunnelMetrics(
           (SELECT COUNT(*) FROM unique_orders) AS purchases,
           (SELECT IFNULL(SUM(revenue), 0) FROM unique_orders) AS purchase_revenue
       `,
-    });
-
-    const [dailyRows] = await client.query({
-      ...queryOptions,
-      params,
-      query: `
+      }),
+      client.query({
+        ...queryOptions,
+        params,
+        query: `
         WITH events AS (
           SELECT
             CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) AS session_key,
@@ -199,7 +198,8 @@ async function loadFunnelMetrics(
         GROUP BY 1
         ORDER BY 1
       `,
-    });
+      }),
+    ]);
 
     const row = (rows[0] ?? {}) as Record<string, unknown>;
     const sessions = toNumber(row.sessions);
@@ -251,17 +251,12 @@ async function loadFunnelMetrics(
   }
 }
 
-const loadFunnelCached = cache(async (key: string, serialized: string) => {
-  void key;
-  return loadFunnelMetrics(JSON.parse(serialized) as DashboardPeriod);
-});
-
 export async function getStapeFunnelMetricsForPeriod(
   period: DashboardPeriod,
 ): Promise<StapeFunnelMetrics> {
-  return loadFunnelCached(
-    `${period.startMs}:${period.endMs}`,
-    JSON.stringify(period),
+  return rememberDashboard(
+    ["stape-funnel", String(period.startMs), String(period.endMs)],
+    () => loadFunnelMetrics(period),
   );
 }
 

@@ -1,6 +1,6 @@
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
-import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { getShopifyOverviewForPeriod } from "@/lib/shopify/get-overview-metrics";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { getBigQueryConfig } from "@/lib/stape/config";
 import {
@@ -195,7 +195,7 @@ export async function getWarehouseMetrics(options: {
     const queryOptions = { location: config.location, params };
 
     const [shopify, platform] = await Promise.all([
-      getShopifyOverviewMetrics(),
+      getShopifyOverviewForPeriod(period),
       getPlatformReported(period),
     ]);
     const aligned = shopifyMetricsSince(
@@ -212,9 +212,19 @@ export async function getWarehouseMetrics(options: {
       );
     }).length;
 
-    const [orderRows] = await client.query({
-      ...queryOptions,
-      query: `
+    const [
+      [orderRows],
+      [copyRows],
+      [sessionRows],
+      [attrRows],
+      [confRows],
+      [prepRows],
+      [journeyRows],
+      [timingRows],
+    ] = await Promise.all([
+      client.query({
+        ...queryOptions,
+        query: `
         ${ctes}
         SELECT
           COUNT(*) AS orders,
@@ -229,11 +239,10 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(order_timestamp) >= @startMs
           AND UNIX_MILLIS(order_timestamp) < @endMs
       `,
-    });
-
-    const [copyRows] = await client.query({
-      ...queryOptions,
-      query: `
+      }),
+      client.query({
+        ...queryOptions,
+        query: `
         ${ctes}
         SELECT
           (SELECT COUNT(*) FROM enriched WHERE is_purchase
@@ -244,11 +253,10 @@ export async function getWarehouseMetrics(options: {
             AND UNIX_MILLIS(event_timestamp) >= @startMs
             AND UNIX_MILLIS(event_timestamp) < @endMs) AS late_events
       `,
-    });
-
-    const [sessionRows] = await client.query({
-      ...queryOptions,
-      query: `
+      }),
+      client.query({
+        ...queryOptions,
+        query: `
         ${ctes}
         SELECT
           COUNTIF(is_paid) AS paid_sessions,
@@ -264,11 +272,10 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(session_start) >= @startMs
           AND UNIX_MILLIS(session_start) < @endMs
       `,
-    });
-
-    const [attrRows] = await client.query({
-      ...queryOptions,
-      query: `
+      }),
+      client.query({
+        ...queryOptions,
+        query: `
         ${ctes},
         ${ATTRIBUTION_SQL}
         SELECT
@@ -281,11 +288,10 @@ export async function getWarehouseMetrics(options: {
           AND UNIX_MILLIS(order_timestamp) < @endMs
         GROUP BY 1, 2
       `,
-    });
-
-    const [confRows] = await client.query({
-      ...queryOptions,
-      query: `
+      }),
+      client.query({
+        ...queryOptions,
+        query: `
         ${ctes},
         ${ATTRIBUTION_SQL}
         SELECT
@@ -316,12 +322,11 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(o.order_timestamp) >= @startMs
           AND UNIX_MILLIS(o.order_timestamp) < @endMs
       `,
-      params: { ...params, model },
-    });
-
-    const [prepRows] = await client.query({
-      ...queryOptions,
-      query: `
+        params: { ...params, model },
+      }),
+      client.query({
+        ...queryOptions,
+        query: `
         ${ctes}
         SELECT COUNT(DISTINCT o.transaction_id) AS with_session
         FROM orders AS o
@@ -332,11 +337,10 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(o.order_timestamp) >= @startMs
           AND UNIX_MILLIS(o.order_timestamp) < @endMs
       `,
-    });
-
-    const [journeyRows] = await client.query({
-      ...queryOptions,
-      query: `
+      }),
+      client.query({
+        ...queryOptions,
+        query: `
         ${ctes}
         SELECT
           IFNULL(NULLIF(path, ""), "Unknown") AS path,
@@ -360,11 +364,10 @@ export async function getWarehouseMetrics(options: {
         ORDER BY orders DESC
         LIMIT 12
       `,
-    });
-
-    const [timingRows] = await client.query({
-      ...queryOptions,
-      query: `
+      }),
+      client.query({
+        ...queryOptions,
+        query: `
         ${ctes}
         SELECT
           AVG(TIMESTAMP_DIFF(o.order_timestamp, first_touch, DAY)) AS avg_days,
@@ -389,7 +392,8 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(o.order_timestamp) >= @startMs
           AND UNIX_MILLIS(o.order_timestamp) < @endMs
       `,
-    });
+      }),
+    ]);
 
     const order = (orderRows[0] ?? {}) as Record<string, unknown>;
     const copies = (copyRows[0] ?? {}) as Record<string, unknown>;

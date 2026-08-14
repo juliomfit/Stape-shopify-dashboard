@@ -1,3 +1,4 @@
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { shopifyOrdersQuery } from "@/lib/period";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { shopifyGraphql } from "@/lib/shopify/client";
@@ -7,7 +8,7 @@ import type {
   ShopifyCustomerMetrics,
 } from "@/lib/shopify/types";
 
-const ORDERS_PER_PAGE = 100;
+const ORDERS_PER_PAGE = 250;
 const MAX_PAGES = 20;
 
 type CustomerOrdersPage = {
@@ -102,6 +103,15 @@ function friendlyCustomerError(message: string) {
 
 export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetrics> {
   const period = await getSelectedPeriod();
+  return rememberDashboard(
+    ["shopify-customers", String(period.startMs), String(period.endMs)],
+    () => loadShopifyCustomerMetrics(period),
+  );
+}
+
+async function loadShopifyCustomerMetrics(
+  period: Awaited<ReturnType<typeof getSelectedPeriod>>,
+): Promise<ShopifyCustomerMetrics> {
 
   if (!isShopifyConfigured()) {
     return emptyMetrics(period.label);
