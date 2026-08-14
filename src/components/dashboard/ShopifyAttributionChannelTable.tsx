@@ -1,3 +1,4 @@
+import { ChannelLabel, TypeBadge } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { ShopifyqlChannelRow } from "@/lib/shopify/get-shopify-attribution";
 
@@ -43,8 +44,12 @@ export function ShopifyAttributionChannelTable({
             ) : (
               rows.map((row) => (
                 <tr key={row.label}>
-                  <td className="text-foreground">{row.channel}</td>
-                  <td className="text-muted">{row.type}</td>
+                  <td>
+                    <ChannelLabel name={row.channel} type={row.type} />
+                  </td>
+                  <td>
+                    <TypeBadge type={row.type} />
+                  </td>
                   <td className="num text-muted">{formatNumber(row.orders)}</td>
                   <td className="num text-muted">
                     {formatMoney({ amount: row.sales, currencyCode })}

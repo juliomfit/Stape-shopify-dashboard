@@ -3,6 +3,7 @@ import type { ShopifyOrder } from "@/lib/shopify/types";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { mismatchLabel, truncateReferrer } from "@/lib/shopify/journey";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 
 type OrdersTableProps = {
@@ -82,8 +83,8 @@ export function OrdersTable({
                     </span>
                   </td>
                   <td className="text-muted">{formatDate(order.createdAt)}</td>
-                  <td className="text-foreground">
-                    {order.firstTouchChannel}
+                  <td>
+                    <ChannelLabel name={order.firstTouchChannel} />
                     {order.firstTouch.utmSource || order.firstTouch.utmMedium ? (
                       <span className="mt-0.5 block text-xs text-muted">
                         {[order.firstTouch.utmSource, order.firstTouch.utmMedium]
@@ -92,8 +93,12 @@ export function OrdersTable({
                       </span>
                     ) : null}
                   </td>
-                  <td className="text-foreground">
-                    {order.journey?.firstClick.label || "—"}
+                  <td>
+                    {order.journey?.firstClick.label ? (
+                      <ChannelLabel name={order.journey.firstClick.label} />
+                    ) : (
+                      "—"
+                    )}
                     {order.journeyMismatch ? (
                       <span className="mt-0.5 block text-xs text-muted">
                         {mismatchLabel(order.journeyMismatch)}

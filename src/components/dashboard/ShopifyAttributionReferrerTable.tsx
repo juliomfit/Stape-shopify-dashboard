@@ -1,3 +1,4 @@
+import { ChannelLabel, TypeBadge } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { truncateReferrer } from "@/lib/shopify/journey";
 import type { ShopifyqlReferrerRow } from "@/lib/shopify/get-shopify-attribution";
@@ -39,8 +40,12 @@ export function ShopifyAttributionReferrerTable({
             ) : (
               rows.slice(0, 80).map((row) => (
                 <tr key={`${row.channel}-${row.type}-${row.referrerUrl}`}>
-                  <td className="text-foreground">{row.channel}</td>
-                  <td className="text-muted">{row.type}</td>
+                  <td>
+                    <ChannelLabel name={row.channel} type={row.type} />
+                  </td>
+                  <td>
+                    <TypeBadge type={row.type} />
+                  </td>
                   <td className="text-muted" title={row.referrerUrl}>
                     {truncateReferrer(row.referrerUrl, 72) || "(none)"}
                   </td>

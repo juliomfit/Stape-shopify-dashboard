@@ -1,3 +1,4 @@
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { WarehouseChannelRow } from "@/lib/warehouse/types";
 
@@ -37,7 +38,9 @@ export function WarehouseChannelTable({
             ) : (
               rows.map((row) => (
                 <tr key={row.channel}>
-                  <td className="text-foreground">{row.channel}</td>
+                  <td>
+                    <ChannelLabel name={row.channel} />
+                  </td>
                   <td className="num text-muted">{formatNumber(row.orders)}</td>
                   <td className="num text-muted">
                     {formatMoney({ amount: row.revenue, currencyCode })}

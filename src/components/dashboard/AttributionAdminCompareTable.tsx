@@ -1,3 +1,4 @@
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { AttributionCompareTotals } from "@/lib/shopify/compare";
 
@@ -37,7 +38,9 @@ export function AttributionAdminCompareTable({
           <tbody>
             {data.rows.map((row) => (
               <tr key={row.channel}>
-                <td className="text-foreground">{row.channel}</td>
+                <td>
+                  <ChannelLabel name={row.channel} />
+                </td>
                 <td className="num text-muted">{formatNumber(row.shopifyOrders)}</td>
                 <td className="num text-muted">{formatNumber(row.gnOrders)}</td>
                 <td className="num text-muted">{formatNumber(row.orderGap)}</td>

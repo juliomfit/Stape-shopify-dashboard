@@ -6,7 +6,7 @@
   --muted: #64748b;
   --border: #e6eaf0;
   --surface: #ffffff;
-  --sidebar: #0b1220;
+  --sidebar: #070b14;
   --sidebar-foreground: #94a3b8;
   --sidebar-active: #ffffff;
   --accent: #2563eb;
@@ -61,6 +61,10 @@ body {
 
 .dash-table tbody tr:hover td {
   background: #f8fafc;
+}
+
+.dash-table td:first-child {
+  white-space: nowrap;
 }
 
 .dash-table tfoot td {

@@ -1,3 +1,12 @@
+import {
+  Activity,
+  DollarSign,
+  MousePointerClick,
+  Percent,
+  ShoppingBag,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { formatPercent } from "@/lib/format";
 
 type MetricCardProps = {
@@ -37,6 +46,30 @@ function Sparkline({ values }: { values: number[] }) {
   );
 }
 
+function MetricIcon({ label }: { label: string }) {
+  const className = "h-3.5 w-3.5";
+  const text = label.toLowerCase();
+  if (text.includes("revenue") || text.includes("sales") || text.includes("aov")) {
+    return <DollarSign className={className} />;
+  }
+  if (text.includes("order")) {
+    return <ShoppingBag className={className} />;
+  }
+  if (text.includes("session") || text.includes("traffic") || text.includes("pageview")) {
+    return <Activity className={className} />;
+  }
+  if (text.includes("conversion") || text.includes("rate") || text.includes("mer")) {
+    return <Percent className={className} />;
+  }
+  if (text.includes("user") || text.includes("customer")) {
+    return <Users className={className} />;
+  }
+  if (text.includes("roas") || text.includes("spend") || text.includes("cpa")) {
+    return <MousePointerClick className={className} />;
+  }
+  return <Sparkles className={className} />;
+}
+
 export function MetricCard({
   label,
   source,
@@ -57,7 +90,10 @@ export function MetricCard({
 
   return (
     <article className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted">
+      <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent-soft text-accent">
+          <MetricIcon label={label} />
+        </span>
         {label}
       </p>
       <p

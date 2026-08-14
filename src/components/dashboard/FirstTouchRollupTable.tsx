@@ -1,3 +1,4 @@
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { FirstTouchRollup } from "@/lib/shopify/first-touch";
 
@@ -45,7 +46,9 @@ export function FirstTouchRollupTable({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.label}>
-                  <td className="text-foreground">{row.label}</td>
+                  <td>
+                    <ChannelLabel name={row.label} />
+                  </td>
                   <td className="num text-muted">{formatNumber(row.orders)}</td>
                   <td className="num text-muted">
                     {formatMoney({ amount: row.revenue, currencyCode })}

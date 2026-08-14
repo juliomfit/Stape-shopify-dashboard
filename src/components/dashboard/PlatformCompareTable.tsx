@@ -1,3 +1,4 @@
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { PlatformCompareRow } from "@/lib/dashboard/true-performance";
 
@@ -40,7 +41,9 @@ export function PlatformCompareTable({
           <tbody>
             {rows.map((row) => (
               <tr key={row.channel}>
-                <td className="text-foreground">{row.channel}</td>
+                <td>
+                  <ChannelLabel name={row.channel} />
+                </td>
                 <td className="num text-muted">
                   {row.platformPurchases === null
                     ? "—"

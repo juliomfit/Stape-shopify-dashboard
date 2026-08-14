@@ -1,3 +1,4 @@
+import { ChannelLabel, TypeBadge } from "@/components/dashboard/ChannelMark";
 import { formatNumber } from "@/lib/format";
 import type { ShopifyqlSessionPoint } from "@/lib/shopify/get-shopify-attribution";
 
@@ -42,8 +43,12 @@ export function ShopifySessionTable({ points, error }: ShopifySessionTableProps)
                     key={`${point.hour}-${point.channel}-${point.type}-${index}`}
                   >
                     <td className="text-muted">{point.hour || "—"}</td>
-                    <td className="text-foreground">{point.channel}</td>
-                    <td className="text-muted">{point.type}</td>
+                    <td>
+                      <ChannelLabel name={point.channel} type={point.type} />
+                    </td>
+                    <td>
+                      <TypeBadge type={point.type} />
+                    </td>
                     <td className="num text-muted">
                       {formatNumber(point.sessions)}
                     </td>
