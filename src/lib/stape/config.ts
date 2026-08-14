@@ -17,14 +17,50 @@ function parseServiceAccountJson(json: string) {
   return credentials;
 }
 
+function looksLikeServiceAccountJson(value: string) {
+  const trimmed = value.trim();
+  return trimmed.startsWith("{") && trimmed.includes("private_key");
+}
+
+function looksLikeAccidentalCommand(value: string) {
+  const trimmed = value.trim();
+  if (looksLikeServiceAccountJson(trimmed)) {
+    return false;
+  }
+  return (
+    /^jq\b/.test(trimmed) ||
+    trimmed.includes("pbcopy") ||
+    trimmed.includes("|") ||
+    trimmed.startsWith("cat ")
+  );
+}
+
 /**
  * @google-cloud/bigquery always reads GOOGLE_APPLICATION_CREDENTIALS when
- * that env var is set. On Vercel the local path does not exist, so drop it
- * and use GOOGLE_SERVICE_ACCOUNT_JSON instead.
+ * that env var is set. On Vercel that must never be a laptop path or a
+ * pasted shell command — only GOOGLE_SERVICE_ACCOUNT_JSON is valid.
  */
 export function ignoreMissingCredentialFile() {
-  const filePath = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
-  if (filePath && !existsSync(filePath)) {
+  const raw = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!raw) {
+    return;
+  }
+
+  const value = raw.trim();
+  const onServerless = Boolean(
+    process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME,
+  );
+
+  if (looksLikeServiceAccountJson(value) && !process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()) {
+    process.env.GOOGLE_SERVICE_ACCOUNT_JSON = value;
+  }
+
+  if (
+    onServerless ||
+    looksLikeServiceAccountJson(value) ||
+    looksLikeAccidentalCommand(value) ||
+    !existsSync(value)
+  ) {
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
   }
 }
@@ -34,11 +70,16 @@ function loadServiceAccount(): object | undefined {
 
   const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
   if (json) {
+    if (looksLikeAccidentalCommand(json) || !json.startsWith("{")) {
+      throw new Error(
+        'GOOGLE_SERVICE_ACCOUNT_JSON must be the key file contents, starting with {"type":"service_account". Do not paste a terminal command. In Vercel, delete GOOGLE_APPLICATION_CREDENTIALS, paste the JSON file into GOOGLE_SERVICE_ACCOUNT_JSON, and redeploy.',
+      );
+    }
     try {
       return parseServiceAccountJson(json);
     } catch {
       throw new Error(
-        "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. Paste the full key as one line in Vercel env.",
+        "GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON. Open secrets/gcp-service-account.json, copy the whole file, paste it into that Vercel env var, delete GOOGLE_APPLICATION_CREDENTIALS, and redeploy.",
       );
     }
   }

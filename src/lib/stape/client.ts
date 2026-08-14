@@ -1,6 +1,8 @@
 import { BigQuery } from "@google-cloud/bigquery";
 import { getBigQueryConfig, ignoreMissingCredentialFile } from "@/lib/stape/config";
 
+ignoreMissingCredentialFile();
+
 let client: BigQuery | null = null;
 
 export function getBigQueryClient() {
@@ -13,7 +15,7 @@ export function getBigQueryClient() {
 
   if (!config.credentials) {
     throw new Error(
-      "BigQuery credentials are missing. On Vercel, set GOOGLE_SERVICE_ACCOUNT_JSON to the full service-account key as one line, and remove GOOGLE_APPLICATION_CREDENTIALS (that file path only exists on your laptop).",
+      "BigQuery credentials are missing. In Vercel: delete GOOGLE_APPLICATION_CREDENTIALS, then set GOOGLE_SERVICE_ACCOUNT_JSON to the full contents of secrets/gcp-service-account.json (the text that starts with {\"type\":\"service_account\"), and redeploy.",
     );
   }
 
