@@ -1,22 +1,14 @@
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { firstTouchChannel, parseFirstTouch } from "@/lib/shopify/first-touch";
+import {
+  journeyMismatch,
+  JOURNEY_GRAPHQL,
+  parseShopifyJourney,
+  type ShopifyVisitInput,
+} from "@/lib/shopify/journey";
 import { shopMoneyAmount, transactionFees } from "@/lib/shopify/money";
 import type { ShopifyOrder } from "@/lib/shopify/types";
-
-type LastVisit = {
-  landingPage: string | null;
-  referrerUrl: string | null;
-  source: string | null;
-  sourceType: string | null;
-  utmParameters: {
-    source: string | null;
-    medium: string | null;
-    campaign: string | null;
-    content: string | null;
-    term: string | null;
-  } | null;
-};
 
 type OrderNode = {
   id: string;
@@ -52,23 +44,16 @@ type OrderNode = {
     numberOfOrders: string | number | null;
   } | null;
   customerJourneySummary?: {
-    lastVisit: LastVisit | null;
+    ready?: boolean | null;
+    daysToConversion?: number | null;
+    customerOrderIndex?: number | null;
+    firstVisit?: ShopifyVisitInput | null;
+    lastVisit?: ShopifyVisitInput | null;
   } | null;
-};
-
-export type ShopifyLastTouch = {
-  landingPage: string;
-  referrerUrl: string;
-  source: string;
-  sourceType: string;
-  utmSource: string;
-  utmMedium: string;
-  utmCampaign: string;
 };
 
 export type ShopifyOrderDetail = ShopifyOrder & {
   isNew: boolean | null;
-  shopifyLastTouch: ShopifyLastTouch | null;
 };
 
 const ORDER_FIELDS = `
@@ -107,7 +92,8 @@ function mapOrder(node: OrderNode): ShopifyOrderDetail {
     value: attribute.value || "",
   }));
   const firstTouch = parseFirstTouch(attributes);
-  const lastVisit = node.customerJourneySummary?.lastVisit || null;
+  const channel = firstTouchChannel(firstTouch);
+  const journey = parseShopifyJourney(node.customerJourneySummary);
   const itemCount = node.lineItems.edges.reduce(
     (total, item) => total + item.node.quantity,
     0,
@@ -138,20 +124,11 @@ function mapOrder(node: OrderNode): ShopifyOrderDetail {
       refundFees === null ? null : { amount: refundFees, currencyCode: currency },
     legacyId: node.legacyResourceId || node.id.split("/").pop() || null,
     firstTouch,
-    firstTouchChannel: firstTouchChannel(firstTouch),
+    firstTouchChannel: channel,
     customAttributes: attributes,
+    journey,
+    journeyMismatch: journeyMismatch(journey, channel),
     isNew: node.customer ? Number(node.customer.numberOfOrders ?? 0) <= 1 : null,
-    shopifyLastTouch: lastVisit
-      ? {
-          landingPage: lastVisit.landingPage || "",
-          referrerUrl: lastVisit.referrerUrl || "",
-          source: lastVisit.source || "",
-          sourceType: lastVisit.sourceType || "",
-          utmSource: lastVisit.utmParameters?.source || "",
-          utmMedium: lastVisit.utmParameters?.medium || "",
-          utmCampaign: lastVisit.utmParameters?.campaign || "",
-        }
-      : null,
   };
 }
 
@@ -167,12 +144,7 @@ export async function getShopifyOrder(
   try {
     const data = await shopifyGraphql<{ order: OrderNode | null }>(
       `query OrderDetail($id: ID!) { order(id: $id) { ${ORDER_FIELDS}
-        customerJourneySummary {
-          lastVisit {
-            landingPage referrerUrl source sourceType
-            utmParameters { source medium campaign content term }
-          }
-        }
+        ${JOURNEY_GRAPHQL}
       } }`,
       { id },
     );

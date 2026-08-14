@@ -5,6 +5,7 @@ import { Header } from "@/components/layout/Header";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { getShopifyOrder } from "@/lib/shopify/get-order";
+import { mismatchLabel, truncateReferrer } from "@/lib/shopify/journey";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,9 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
     notFound();
   }
 
-  const last = order.shopifyLastTouch;
+  const journey = order.journey;
+  const first = journey?.firstVisit;
+  const last = journey?.lastVisit;
 
   return (
     <>
@@ -72,9 +75,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
               />
               <Detail
                 label="Refund fees"
-                value={
-                  order.refundFees ? formatMoney(order.refundFees) : "—"
-                }
+                value={order.refundFees ? formatMoney(order.refundFees) : "—"}
               />
               <Detail
                 label="Customer"
@@ -112,27 +113,84 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
         </div>
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">
-            Shopify last-touch / session
+            Shopify Attribution (Admin)
           </h2>
           <p className="mt-1 text-xs text-muted">
-            Shopify’s own session details. This can differ from first-touch and
-            is not used for our channel rules.
+            30-day session journey. First-click is firstVisit. Last-click is
+            lastVisit. Not used for True Performance gn_* rules.
           </p>
-          {last ? (
-            <div className="mt-2">
-              <Detail label="Source" value={[last.source, last.sourceType].filter(Boolean).join(" · ")} />
-              <Detail
-                label="UTM"
-                value={[last.utmSource, last.utmMedium, last.utmCampaign]
-                  .filter(Boolean)
-                  .join(" / ")}
-              />
-              <Detail label="Landing page" value={last.landingPage} />
-              <Detail label="Referrer" value={last.referrerUrl} />
+          {journey ? (
+            <div className="mt-2 grid gap-4 lg:grid-cols-2">
+              <div>
+                <Detail
+                  label="Ready"
+                  value={journey.ready ? "Yes" : "Not ready"}
+                />
+                <Detail
+                  label="Mismatch"
+                  value={mismatchLabel(order.journeyMismatch) || "None"}
+                />
+                <Detail
+                  label="Days to conversion"
+                  value={
+                    journey.daysToConversion === null
+                      ? "—"
+                      : String(journey.daysToConversion)
+                  }
+                />
+                <Detail
+                  label="Shopify first-click"
+                  value={journey.firstClick.label}
+                />
+                <Detail
+                  label="First landing"
+                  value={truncateReferrer(first?.landingPage || "", 120)}
+                />
+                <Detail
+                  label="First referrer"
+                  value={truncateReferrer(first?.referrerUrl || "", 120)}
+                />
+                <Detail
+                  label="First UTM"
+                  value={[first?.utmSource, first?.utmMedium, first?.utmCampaign]
+                    .filter(Boolean)
+                    .join(" / ")}
+                />
+              </div>
+              <div>
+                <Detail
+                  label="Shopify last-click"
+                  value={journey.lastClick.label}
+                />
+                <Detail
+                  label="Last landing"
+                  value={truncateReferrer(last?.landingPage || "", 120)}
+                />
+                <Detail
+                  label="Last referrer"
+                  value={truncateReferrer(last?.referrerUrl || "", 120)}
+                />
+                <Detail
+                  label="Last UTM"
+                  value={[last?.utmSource, last?.utmMedium, last?.utmCampaign]
+                    .filter(Boolean)
+                    .join(" / ")}
+                />
+                <Detail
+                  label="First click ids"
+                  value={
+                    first
+                      ? Object.entries(first.clickIds)
+                          .map(([key, value]) => `${key}=${value}`)
+                          .join(" ")
+                      : ""
+                  }
+                />
+              </div>
             </div>
           ) : (
             <p className="mt-4 text-sm text-muted">
-              Shopify session details were not available on this order.
+              Shopify journey details were not available on this order.
             </p>
           )}
         </article>

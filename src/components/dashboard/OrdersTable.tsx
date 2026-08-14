@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ShopifyOrder } from "@/lib/shopify/types";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
+import { mismatchLabel, truncateReferrer } from "@/lib/shopify/journey";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 
@@ -45,12 +46,13 @@ export function OrdersTable({
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[64rem] text-left text-sm">
+        <table className="w-full min-w-[72rem] text-left text-sm">
           <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
             <tr>
               <th className="px-6 py-3 font-medium">Order</th>
               <th className="px-6 py-3 font-medium">Date</th>
               <th className="px-6 py-3 font-medium">First-touch</th>
+              <th className="px-6 py-3 font-medium">Shopify first-click</th>
               <th className="px-6 py-3 font-medium">Campaign</th>
               <th className="px-6 py-3 font-medium">Click ID</th>
               <th className="px-6 py-3 text-right font-medium">Gross</th>
@@ -89,6 +91,18 @@ export function OrdersTable({
                         {[order.firstTouch.utmSource, order.firstTouch.utmMedium]
                           .filter(Boolean)
                           .join(" / ")}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-6 py-3 text-foreground">
+                    {order.journey?.firstClick.label || "—"}
+                    {order.journeyMismatch ? (
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {mismatchLabel(order.journeyMismatch)}
+                      </span>
+                    ) : order.journey?.firstVisit?.referrerUrl ? (
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {truncateReferrer(order.journey.firstVisit.referrerUrl, 40)}
                       </span>
                     ) : null}
                   </td>

@@ -12,6 +12,9 @@ import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import { getBigQueryConfig } from "@/lib/stape/config";
 import { WarehouseQualityPanel } from "@/components/dashboard/WarehouseQualityPanel";
+import { AttributionAdminCompareTable } from "@/components/dashboard/AttributionAdminCompareTable";
+import { JourneyQualityPanel } from "@/components/dashboard/JourneyQualityPanel";
+import { buildAttributionCompare } from "@/lib/shopify/compare";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +33,11 @@ export default async function DataQualityPage() {
     listSpendCoverage(),
     getWarehouseMetrics(),
   ]);
+  const inRange = shopify.orderPoints.filter((order) => {
+    const created = new Date(order.createdAt).getTime();
+    return created >= period.startMs && created < period.endMs;
+  });
+  const adminCompare = buildAttributionCompare(inRange);
   const config = (() => {
     try {
       return getBigQueryConfig();
@@ -51,6 +59,7 @@ export default async function DataQualityPage() {
       ? "No Meta or Google spend is saved for any date range. Overview MER/ROAS/CPA/net profit stay — until you paste or import for the header dates."
       : `${spendCoverage.length} saved spend range(s). Changing the header to dates without a matching paste shows “No ad spend saved for these dates.”`,
     "Missing gn_* is Unknown, not Direct. Shop Pay Express often has no storefront script.",
+    "Shopify Attribution (Admin) is a 30-day first-click compare. Direct in Admin ≠ Direct here.",
     "Device, country, bounce rate, session duration, and COGS are omitted because those fields are not in Shopify or dashboard_events.",
     "Warehouse attribution reads raw_events_full. X-Stape-User-Id, gn_uid, and hashed_email are not BigQuery columns until the sGTM writer is appended.",
     "dashboard_events expires 2026-10-11. Recreate the view without expiration. raw_events_full partitions expire after 60 days.",
@@ -73,6 +82,12 @@ export default async function DataQualityPage() {
           reportedCount={shopify.reportedOrderCount}
         />
         <InfoPanel title="Quality notes" items={notes} />
+        <JourneyQualityPanel orders={inRange} />
+        <AttributionAdminCompareTable
+          data={adminCompare}
+          currencyCode={shopify.revenue?.currencyCode || "USD"}
+          periodLabel={period.label}
+        />
         <SpendCoveragePanel
           rows={spendCoverage}
           currentStart={period.startDate}
