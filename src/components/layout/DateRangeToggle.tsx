@@ -118,7 +118,9 @@ export function DateRangeToggle({ period }: DateRangeToggleProps) {
         </label>
 
         <form
-          className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end lg:justify-end"
+          className={`${
+            customMode || period.key === "custom" ? "flex" : "hidden"
+          } flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end lg:flex lg:justify-end`}
           onSubmit={(event) => {
             event.preventDefault();
             void applyCustom();

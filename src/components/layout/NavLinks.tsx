@@ -107,7 +107,6 @@ export function MenuButton() {
       aria-controls="mobile-nav-drawer"
       onClick={toggle}
     >
-      <span className="sr-only">{open ? "Close menu" : "Open menu"}</span>
       <svg
         viewBox="0 0 24 24"
         className="h-5 w-5"

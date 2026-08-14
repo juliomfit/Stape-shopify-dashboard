@@ -57,7 +57,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
           </Link>
         </p>
         <div className="grid gap-4 lg:grid-cols-2">
-          <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+          <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
             <h2 className="text-sm font-semibold text-foreground">Order</h2>
             <div className="mt-2">
               <Detail label="Date" value={formatDate(order.createdAt)} />
@@ -89,7 +89,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
               />
             </div>
           </article>
-          <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+          <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
             <h2 className="text-sm font-semibold text-foreground">
               First-touch (gn_*)
             </h2>
@@ -111,7 +111,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
             </div>
           </article>
         </div>
-        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
           <h2 className="text-sm font-semibold text-foreground">
             Shopify Attribution (Admin)
           </h2>

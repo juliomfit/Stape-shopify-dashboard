@@ -9,7 +9,7 @@ import { useNav } from "@/components/layout/nav-context";
 const TABS = [
   { href: "/", label: "Overview" },
   { href: "/sales", label: "Sales" },
-  { href: "/attribution", label: "Real" },
+  { href: "/attribution", label: "True" },
   { href: "/traffic", label: "Traffic" },
 ] as const;
 

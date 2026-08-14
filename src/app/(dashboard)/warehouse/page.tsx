@@ -6,6 +6,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { WarehouseChannelTable } from "@/components/dashboard/WarehouseChannelTable";
 import { WarehouseControls } from "@/components/dashboard/WarehouseControls";
 import { WarehouseQualityPanel } from "@/components/dashboard/WarehouseQualityPanel";
+import { MetricReveal } from "@/components/dashboard/MetricReveal";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
@@ -88,6 +89,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
             }
           />
         </div>
+        <MetricReveal>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Attributed revenue"
@@ -151,6 +153,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
             }
           />
         </div>
+        </MetricReveal>
         <div className="grid gap-4 lg:grid-cols-2">
           <WarehouseChannelTable
             title="Selected model"
@@ -177,7 +180,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
             currencyCode={currency}
           />
         </div>
-        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
           <h2 className="text-sm font-semibold text-foreground">
             Cross-channel journeys
           </h2>

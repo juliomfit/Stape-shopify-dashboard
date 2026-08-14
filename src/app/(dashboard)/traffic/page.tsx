@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TrafficSourcesPanel } from "@/components/dashboard/TrafficSourcesPanel";
+import { MetricReveal } from "@/components/dashboard/MetricReveal";
 import { Header } from "@/components/layout/Header";
 import { formatNumber } from "@/lib/format";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
@@ -67,6 +68,7 @@ export default async function TrafficPage() {
             value={stape.events === null ? null : formatNumber(stape.events)}
           />
         </div>
+        <MetricReveal>
         <div className="grid gap-4 sm:grid-cols-2">
           <MetricCard
             label="Paid sessions"
@@ -87,6 +89,7 @@ export default async function TrafficPage() {
             }
           />
         </div>
+        </MetricReveal>
         <div className="grid gap-4 lg:grid-cols-2">
           <TrafficSourcesPanel
             title="Paid (Stape)"
