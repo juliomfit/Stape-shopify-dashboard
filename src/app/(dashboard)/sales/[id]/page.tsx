@@ -50,7 +50,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
         title={order.name}
         description="First-touch is from storefront gn_* cart attributes, not Shopify session."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <p className="text-sm text-muted">
           <Link href="/sales" className="text-accent hover:underline">
             ← Sales

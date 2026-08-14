@@ -19,36 +19,33 @@ export function ShopifyAttributionReferrerTable({
         goodsnova.com are treated as no external referrer on order journeys.
       </p>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[40rem] text-left text-sm">
+        <table className="dash-table min-w-[40rem]">
           <thead>
-            <tr className="border-b border-border text-xs text-muted">
-              <th className="pb-2 font-medium">Channel</th>
-              <th className="pb-2 font-medium">Type</th>
-              <th className="pb-2 font-medium">Referring URL</th>
-              <th className="pb-2 font-medium">Orders</th>
-              <th className="pb-2 font-medium">Sales</th>
+            <tr>
+              <th>Channel</th>
+              <th>Type</th>
+              <th>Referring URL</th>
+              <th className="num">Orders</th>
+              <th className="num">Sales</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td className="py-3 text-muted" colSpan={5}>
+                <td className="text-muted" colSpan={5}>
                   No referring URL rows.
                 </td>
               </tr>
             ) : (
               rows.slice(0, 80).map((row) => (
-                <tr
-                  key={`${row.channel}-${row.type}-${row.referrerUrl}`}
-                  className="border-b border-border last:border-0"
-                >
-                  <td className="py-2.5 text-foreground">{row.channel}</td>
-                  <td className="py-2.5 text-muted">{row.type}</td>
-                  <td className="py-2.5 text-muted" title={row.referrerUrl}>
+                <tr key={`${row.channel}-${row.type}-${row.referrerUrl}`}>
+                  <td className="text-foreground">{row.channel}</td>
+                  <td className="text-muted">{row.type}</td>
+                  <td className="text-muted" title={row.referrerUrl}>
                     {truncateReferrer(row.referrerUrl, 72) || "(none)"}
                   </td>
-                  <td className="py-2.5 text-muted">{formatNumber(row.orders)}</td>
-                  <td className="py-2.5 text-muted">
+                  <td className="num text-muted">{formatNumber(row.orders)}</td>
+                  <td className="num text-muted">
                     {formatMoney({ amount: row.sales, currencyCode })}
                   </td>
                 </tr>

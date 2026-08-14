@@ -33,3 +33,44 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+.dash-table {
+  width: 100%;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.dash-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  padding: 0.5rem 1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dash-table td {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.dash-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.dash-table tfoot td {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border);
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.dash-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

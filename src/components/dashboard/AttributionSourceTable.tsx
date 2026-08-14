@@ -131,115 +131,109 @@ export function AttributionSourceTable({
         <p className="mt-6 text-sm text-muted">No orders in this range.</p>
       ) : (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[56rem] text-left text-sm">
+          <table className="dash-table min-w-[56rem]">
             <thead>
-              <tr className="border-b border-border text-xs text-muted">
-                <th className="pb-2 pr-3 font-medium">Source</th>
-                <th className="pb-2 pr-3 font-medium">Medium</th>
-                <th className="pb-2 pr-3 font-medium">Orders</th>
-                <th className="pb-2 pr-3 font-medium">Revenue</th>
-                <th className="pb-2 pr-3 font-medium">New orders</th>
-                <th className="pb-2 pr-3 font-medium">New revenue</th>
-                <th className="pb-2 pr-3 font-medium">Repeat orders</th>
-                <th className="pb-2 pr-3 font-medium">Spend</th>
-                <th
-                  className={`pb-2 pr-3 font-medium ${highlightEconomics ? "bg-accent-soft" : ""}`}
-                >
+              <tr>
+                <th>Source</th>
+                <th>Medium</th>
+                <th className="num">Orders</th>
+                <th className="num">Revenue</th>
+                <th className="num">New orders</th>
+                <th className="num">New revenue</th>
+                <th className="num">Repeat orders</th>
+                <th className="num">Spend</th>
+                <th className={`num ${highlightEconomics ? "bg-accent-soft" : ""}`}>
                   ROAS
                 </th>
-                <th
-                  className={`pb-2 pr-3 font-medium ${highlightEconomics ? "bg-accent-soft" : ""}`}
-                >
+                <th className={`num ${highlightEconomics ? "bg-accent-soft" : ""}`}>
                   NC ROAS
                 </th>
-                <th className="pb-2 pr-3 font-medium">CPA</th>
-                <th className="pb-2 font-medium">NC CPA</th>
+                <th className="num">CPA</th>
+                <th className="num">NC CPA</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.label} className="border-b border-border">
-                  <td className="py-2 pr-3 font-medium text-foreground">
-                    {row.source}
-                  </td>
-                  <td className="py-2 pr-3 text-muted">{row.medium}</td>
-                  <td className="py-2 pr-3 text-muted">{formatNumber(row.orders)}</td>
-                  <td className="py-2 pr-3 text-muted">
+                <tr key={row.label}>
+                  <td className="font-medium text-foreground">{row.source}</td>
+                  <td className="text-muted">{row.medium}</td>
+                  <td className="num text-muted">{formatNumber(row.orders)}</td>
+                  <td className="num text-muted">
                     {formatMoney({ amount: row.revenue, currencyCode })}
                   </td>
-                  <td className="py-2 pr-3 text-muted">
+                  <td className="num text-muted">
                     {formatNumber(row.newCustomerOrders)}
                   </td>
-                  <td className="py-2 pr-3 text-muted">
+                  <td className="num text-muted">
                     {formatMoney({
                       amount: row.newCustomerRevenue,
                       currencyCode,
                     })}
                   </td>
-                  <td className="py-2 pr-3 text-muted">
+                  <td className="num text-muted">
                     {formatNumber(row.repeatOrders)}
                   </td>
-                  <td className="py-2 pr-3 text-muted">
+                  <td className="num text-muted">
                     {dashMoney(row.spend, currencyCode)}
                   </td>
                   <td
-                    className={`py-2 pr-3 text-muted ${highlightEconomics ? "bg-accent-soft" : ""}`}
+                    className={`num text-muted ${highlightEconomics ? "bg-accent-soft" : ""}`}
                   >
                     {dashRoas(row.roas)}
                   </td>
                   <td
-                    className={`py-2 pr-3 text-muted ${highlightEconomics ? "bg-accent-soft" : ""}`}
+                    className={`num text-muted ${highlightEconomics ? "bg-accent-soft" : ""}`}
                   >
                     {dashRoas(row.newCustomerRoas)}
                   </td>
-                  <td className="py-2 pr-3 text-muted">
+                  <td className="num text-muted">
                     {dashMoney(row.cpa, currencyCode)}
                   </td>
-                  <td className="py-2 text-muted">
+                  <td className="num text-muted">
                     {dashMoney(row.ncCpa, currencyCode)}
                   </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t border-border bg-slate-50 text-sm">
-                <td className="py-2.5 pr-3 font-semibold text-foreground">Total</td>
-                <td className="py-2.5 pr-3 text-muted">—</td>
-                <td className="py-2.5 pr-3 font-semibold text-foreground">
+              <tr>
+                <td className="text-foreground">Total</td>
+                <td className="text-muted">—</td>
+                <td className="num text-foreground">
                   {formatNumber(totals.orders)}
                 </td>
-                <td className="py-2.5 pr-3 font-semibold text-foreground">
+                <td className="num text-foreground">
                   {formatMoney({ amount: totals.revenue, currencyCode })}
                 </td>
-                <td className="py-2.5 pr-3 font-semibold text-foreground">
+                <td className="num text-foreground">
                   {formatNumber(totals.newCustomerOrders)}
                 </td>
-                <td className="py-2.5 pr-3 font-semibold text-foreground">
+                <td className="num text-foreground">
                   {formatMoney({
                     amount: totals.newCustomerRevenue,
                     currencyCode,
                   })}
                 </td>
-                <td className="py-2.5 pr-3 font-semibold text-foreground">
+                <td className="num text-foreground">
                   {formatNumber(totals.repeatOrders)}
                 </td>
-                <td className="py-2.5 pr-3 font-semibold text-foreground">
+                <td className="num text-foreground">
                   {dashMoney(totals.spend, currencyCode)}
                 </td>
                 <td
-                  className={`py-2.5 pr-3 font-semibold text-foreground ${highlightEconomics ? "bg-accent-soft" : ""}`}
+                  className={`num text-foreground ${highlightEconomics ? "bg-accent-soft" : ""}`}
                 >
                   {dashRoas(totals.roas)}
                 </td>
                 <td
-                  className={`py-2.5 pr-3 font-semibold text-foreground ${highlightEconomics ? "bg-accent-soft" : ""}`}
+                  className={`num text-foreground ${highlightEconomics ? "bg-accent-soft" : ""}`}
                 >
                   {dashRoas(totals.newCustomerRoas)}
                 </td>
-                <td className="py-2.5 pr-3 font-semibold text-foreground">
+                <td className="num text-foreground">
                   {dashMoney(totals.cpa, currencyCode)}
                 </td>
-                <td className="py-2.5 font-semibold text-foreground">
+                <td className="num text-foreground">
                   {dashMoney(totals.ncCpa, currencyCode)}
                 </td>
               </tr>

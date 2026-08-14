@@ -56,10 +56,12 @@ export function MetricCard({
           : "text-muted";
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-      <p className="text-sm font-medium text-muted">{label}</p>
+    <article className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted">
+        {label}
+      </p>
       <p
-        className={`mt-5 text-3xl font-semibold tracking-tight ${
+        className={`mt-3 text-2xl font-semibold tracking-tight ${
           hasValue ? "text-foreground" : "text-slate-300"
         }`}
       >
@@ -72,7 +74,7 @@ export function MetricCard({
         </p>
       ) : null}
       {sparkline && sparkline.length > 1 ? <Sparkline values={sparkline} /> : null}
-      <p className="mt-3 text-xs text-muted">{source}</p>
+      <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{source}</p>
     </article>
   );
 }

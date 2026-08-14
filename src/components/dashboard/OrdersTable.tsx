@@ -46,21 +46,21 @@ export function OrdersTable({
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[72rem] text-left text-sm">
-          <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+        <table className="dash-table min-w-[72rem]">
+          <thead>
             <tr>
-              <th className="px-6 py-3 font-medium">Order</th>
-              <th className="px-6 py-3 font-medium">Date</th>
-              <th className="px-6 py-3 font-medium">First-touch</th>
-              <th className="px-6 py-3 font-medium">Shopify first-click</th>
-              <th className="px-6 py-3 font-medium">Campaign</th>
-              <th className="px-6 py-3 font-medium">Click ID</th>
-              <th className="px-6 py-3 text-right font-medium">Gross</th>
-              <th className="px-6 py-3 text-right font-medium">Total</th>
-              <th className="px-6 py-3 text-right font-medium">Fees</th>
+              <th>Order</th>
+              <th>Date</th>
+              <th>First-touch</th>
+              <th>Shopify first-click</th>
+              <th>Campaign</th>
+              <th>Click ID</th>
+              <th className="num">Gross</th>
+              <th className="num">Total</th>
+              <th className="num">Fees</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody>
             {orders.map((order) => {
               const href = order.legacyId
                 ? `/sales/${order.legacyId}`
@@ -68,7 +68,7 @@ export function OrdersTable({
 
               return (
                 <tr key={order.id}>
-                  <td className="px-6 py-3 font-medium text-foreground">
+                  <td className="font-medium text-foreground">
                     {href ? (
                       <Link href={href} className="hover:text-accent">
                         {order.name}
@@ -81,10 +81,8 @@ export function OrdersTable({
                       {formatNumber(order.itemCount)} items
                     </span>
                   </td>
-                  <td className="px-6 py-3 text-muted">
-                    {formatDate(order.createdAt)}
-                  </td>
-                  <td className="px-6 py-3 text-foreground">
+                  <td className="text-muted">{formatDate(order.createdAt)}</td>
+                  <td className="text-foreground">
                     {order.firstTouchChannel}
                     {order.firstTouch.utmSource || order.firstTouch.utmMedium ? (
                       <span className="mt-0.5 block text-xs text-muted">
@@ -94,7 +92,7 @@ export function OrdersTable({
                       </span>
                     ) : null}
                   </td>
-                  <td className="px-6 py-3 text-foreground">
+                  <td className="text-foreground">
                     {order.journey?.firstClick.label || "—"}
                     {order.journeyMismatch ? (
                       <span className="mt-0.5 block text-xs text-muted">
@@ -106,19 +104,15 @@ export function OrdersTable({
                       </span>
                     ) : null}
                   </td>
-                  <td className="px-6 py-3 text-muted">
+                  <td className="text-muted">
                     {order.firstTouch.utmCampaign || "—"}
                   </td>
-                  <td className="px-6 py-3 text-muted">
+                  <td className="num text-muted">
                     {clickIdLabel(order.firstTouch) || "—"}
                   </td>
-                  <td className="px-6 py-3 text-right text-muted">
-                    {formatMoney(order.gross)}
-                  </td>
-                  <td className="px-6 py-3 text-right text-foreground">
-                    {formatMoney(order.total)}
-                  </td>
-                  <td className="px-6 py-3 text-right text-muted">
+                  <td className="num text-muted">{formatMoney(order.gross)}</td>
+                  <td className="num text-foreground">{formatMoney(order.total)}</td>
+                  <td className="num text-muted">
                     {order.processingFees
                       ? formatMoney(order.processingFees)
                       : "—"}

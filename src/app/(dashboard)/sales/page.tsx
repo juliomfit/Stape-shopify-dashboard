@@ -75,7 +75,7 @@ export default async function SalesPage({ searchParams }: PageProps) {
         title="Sales"
         description="Shopify orders with first-touch from storefront gn_* cart attributes — not Shopify session."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <TruncationNotice
           truncated={shopify.truncated}

@@ -26,13 +26,13 @@ export function SpendCoveragePanel({
         </p>
       ) : (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[28rem] text-left text-sm">
+          <table className="dash-table min-w-[28rem]">
             <thead>
-              <tr className="border-b border-border text-xs text-muted">
-                <th className="pb-2 font-medium">Platform</th>
-                <th className="pb-2 font-medium">Dates</th>
-                <th className="pb-2 font-medium">Spend</th>
-                <th className="pb-2 font-medium">CSV grain</th>
+              <tr>
+                <th>Platform</th>
+                <th>Dates</th>
+                <th className="num">Spend</th>
+                <th>CSV grain</th>
               </tr>
             </thead>
             <tbody>
@@ -41,25 +41,22 @@ export function SpendCoveragePanel({
                   row.startDate === currentStart && row.endDate === currentEnd;
 
                 return (
-                  <tr
-                    key={`${row.platform}-${row.startDate}-${row.endDate}`}
-                    className="border-b border-border last:border-0"
-                  >
-                    <td className="py-2.5 text-foreground">
+                  <tr key={`${row.platform}-${row.startDate}-${row.endDate}`}>
+                    <td className="text-foreground">
                       {row.platform === "facebook" ? "Meta" : "Google"}
                       {current ? (
                         <span className="ml-2 text-xs text-muted">this range</span>
                       ) : null}
                     </td>
-                    <td className="py-2.5 text-muted">
+                    <td className="text-muted">
                       {row.startDate} – {row.endDate}
                     </td>
-                    <td className="py-2.5 text-muted">
+                    <td className="num text-muted">
                       {row.spend === null
                         ? "—"
                         : formatMoney({ amount: row.spend, currencyCode: "USD" })}
                     </td>
-                    <td className="py-2.5 text-muted">
+                    <td className="text-muted">
                       {row.hasCampaignRows
                         ? "Campaign rows"
                         : "Account totals"}

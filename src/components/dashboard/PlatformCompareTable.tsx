@@ -25,34 +25,34 @@ export function PlatformCompareTable({
         sales than first-touch can support.
       </p>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[40rem] text-left text-sm">
+        <table className="dash-table min-w-[40rem]">
           <thead>
-            <tr className="border-b border-border text-xs text-muted">
-              <th className="pb-2 font-medium">Channel</th>
-              <th className="pb-2 font-medium">Platform purchases</th>
-              <th className="pb-2 font-medium">Real purchases</th>
-              <th className="pb-2 font-medium">Gap</th>
-              <th className="pb-2 font-medium">Platform revenue</th>
-              <th className="pb-2 font-medium">Real revenue</th>
-              <th className="pb-2 font-medium">Spend</th>
+            <tr>
+              <th>Channel</th>
+              <th className="num">Platform purchases</th>
+              <th className="num">Real purchases</th>
+              <th className="num">Gap</th>
+              <th className="num">Platform revenue</th>
+              <th className="num">Real revenue</th>
+              <th className="num">Spend</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.channel} className="border-b border-border last:border-0">
-                <td className="py-2.5 text-foreground">{row.channel}</td>
-                <td className="py-2.5 text-muted">
+              <tr key={row.channel}>
+                <td className="text-foreground">{row.channel}</td>
+                <td className="num text-muted">
                   {row.platformPurchases === null
                     ? "—"
                     : formatNumber(row.platformPurchases)}
                 </td>
-                <td className="py-2.5 text-muted">
+                <td className="num text-muted">
                   {formatNumber(row.realPurchases)}
                 </td>
-                <td className="py-2.5 text-muted">
+                <td className="num text-muted">
                   {row.purchaseGap === null ? "—" : formatNumber(row.purchaseGap)}
                 </td>
-                <td className="py-2.5 text-muted">
+                <td className="num text-muted">
                   {row.platformRevenue === null
                     ? "—"
                     : formatMoney({
@@ -60,10 +60,10 @@ export function PlatformCompareTable({
                         currencyCode,
                       })}
                 </td>
-                <td className="py-2.5 text-muted">
+                <td className="num text-muted">
                   {formatMoney({ amount: row.realRevenue, currencyCode })}
                 </td>
-                <td className="py-2.5 text-muted">
+                <td className="num text-muted">
                   {row.platformSpend === null
                     ? "—"
                     : formatMoney({ amount: row.platformSpend, currencyCode })}

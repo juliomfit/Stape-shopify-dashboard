@@ -23,33 +23,33 @@ export function ShopifyAttributionChannelTable({
           : "ShopifyQL sales with the selected Admin attribution model. Shopify sessions are not the conversion denominator here."}
       </p>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[36rem] text-left text-sm">
+        <table className="dash-table min-w-[36rem]">
           <thead>
-            <tr className="border-b border-border text-xs text-muted">
-              <th className="pb-2 font-medium">Channel</th>
-              <th className="pb-2 font-medium">Type</th>
-              <th className="pb-2 font-medium">Orders</th>
-              <th className="pb-2 font-medium">Sales</th>
-              <th className="pb-2 font-medium">AOV</th>
+            <tr>
+              <th>Channel</th>
+              <th>Type</th>
+              <th className="num">Orders</th>
+              <th className="num">Sales</th>
+              <th className="num">AOV</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td className="py-3 text-muted" colSpan={5}>
+                <td className="text-muted" colSpan={5}>
                   No Shopify Attribution rows for this range.
                 </td>
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.label} className="border-b border-border last:border-0">
-                  <td className="py-2.5 text-foreground">{row.channel}</td>
-                  <td className="py-2.5 text-muted">{row.type}</td>
-                  <td className="py-2.5 text-muted">{formatNumber(row.orders)}</td>
-                  <td className="py-2.5 text-muted">
+                <tr key={row.label}>
+                  <td className="text-foreground">{row.channel}</td>
+                  <td className="text-muted">{row.type}</td>
+                  <td className="num text-muted">{formatNumber(row.orders)}</td>
+                  <td className="num text-muted">
                     {formatMoney({ amount: row.sales, currencyCode })}
                   </td>
-                  <td className="py-2.5 text-muted">
+                  <td className="num text-muted">
                     {row.orders > 0
                       ? formatMoney({ amount: row.aov, currencyCode })
                       : "—"}

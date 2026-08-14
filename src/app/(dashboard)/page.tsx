@@ -69,9 +69,9 @@ export default async function OverviewPage() {
     <>
       <Header
         title="Overview"
-        description="Sales and funnel for the selected date range, using America/Los_Angeles calendar days."
+        description="Pacific calendar days. Revenue and orders are Shopify. Sessions are Stape."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <TruncationNotice
           truncated={shopify.truncated}
@@ -79,43 +79,10 @@ export default async function OverviewPage() {
           reportedCount={shopify.reportedOrderCount}
         />
         <MismatchBanner mismatch={mismatch} currencyCode={currency} />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Sessions"
-            source={`${stapeSource} · same session definition as the funnel`}
-            value={stapeConnected ? formatNumber(funnel.sessions) : null}
-            delta={deltas.sessions}
-            deltaLabel={deltaLabel}
-            sparkline={dailySessions}
-          />
-          <MetricCard
-            label="Users"
-            source={`${stapeSource} · distinct client_id`}
-            value={stapeConnected ? formatNumber(funnel.users) : null}
-            delta={deltas.users}
-            deltaLabel={deltaLabel}
-          />
-          <MetricCard
-            label="Pageviews"
-            source={`${stapeSource} · page_view events`}
-            value={stapeConnected ? formatNumber(funnel.pageviews) : null}
-            delta={deltas.pageviews}
-            deltaLabel={deltaLabel}
-            sparkline={dailyPageviews}
-          />
-          <MetricCard
-            label="Shopify orders"
-            source={shopifySource}
-            value={shopifyConnected ? formatNumber(alignedShopify.orders) : null}
-            delta={deltas.orders}
-            deltaLabel={deltaLabel}
-            sparkline={dailyOrders}
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Total revenue"
-            source={`${shopifySource} · currentTotalPriceSet`}
+            source={shopifySource}
             value={
               shopifyConnected
                 ? formatMoney({
@@ -128,6 +95,33 @@ export default async function OverviewPage() {
             deltaLabel={deltaLabel}
           />
           <MetricCard
+            label="Shopify orders"
+            source={shopifySource}
+            value={shopifyConnected ? formatNumber(alignedShopify.orders) : null}
+            delta={deltas.orders}
+            deltaLabel={deltaLabel}
+            sparkline={dailyOrders}
+          />
+          <MetricCard
+            label="Sessions"
+            source={stapeSource}
+            value={stapeConnected ? formatNumber(funnel.sessions) : null}
+            delta={deltas.sessions}
+            deltaLabel={deltaLabel}
+            sparkline={dailySessions}
+          />
+          <MetricCard
+            label="Conversion Rate"
+            source={conversionSource}
+            value={
+              conversion.rate === null ? null : formatPercent(conversion.rate)
+            }
+            delta={deltas.conversion}
+            deltaLabel={deltaLabel}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
             label="Average Order Value"
             source={shopifySource}
             value={
@@ -139,29 +133,6 @@ export default async function OverviewPage() {
             deltaLabel={deltaLabel}
           />
           <MetricCard
-            label="Conversion Rate"
-            source={conversionSource}
-            value={
-              conversion.rate === null ? null : formatPercent(conversion.rate)
-            }
-            delta={deltas.conversion}
-            deltaLabel={deltaLabel}
-          />
-          <MetricCard
-            label="Gross revenue"
-            source={`${shopifySource} · line items before discounts`}
-            value={
-              shopifyConnected
-                ? formatMoney({
-                    amount: alignedShopify.gross,
-                    currencyCode: currency,
-                  })
-                : null
-            }
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
             label="Ad spend"
             source={spendSource}
             value={
@@ -171,70 +142,50 @@ export default async function OverviewPage() {
             }
           />
           <MetricCard
-            label="MER"
-            source={
-              mer === null
-                ? spendSource
-                : `${period.label} · blended ad spend ÷ total revenue`
-            }
-            value={mer === null ? null : formatPercent(mer)}
-          />
-          <MetricCard
             label="Blended ROAS"
             source={
               blendedRoas === null
                 ? spendSource
-                : `${period.label} · total revenue ÷ blended ad spend`
+                : `${period.label} · revenue ÷ spend`
             }
             value={roasLabel(blendedRoas)}
           />
           <MetricCard
-            label="Blended CPA"
+            label="MER"
             source={
-              cpa === null
-                ? spendSource
-                : `${period.label} · spend ÷ Shopify orders with total > $0`
+              mer === null ? spendSource : `${period.label} · spend ÷ revenue`
             }
-            value={
-              cpa === null
-                ? null
-                : formatMoney({ amount: cpa, currencyCode: currency })
-            }
+            value={mer === null ? null : formatPercent(mer)}
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Net after fees"
-            source={`${shopifySource} · total − Shopify Payments fees`}
-            value={
-              shopifyConnected
-                ? formatMoney({ amount: feesAfter, currencyCode: currency })
-                : null
-            }
-          />
-          <MetricCard
-            label="Net profit"
-            source={
-              profit === null
-                ? "Needs ad spend for these dates · no COGS"
-                : `${period.label} · total − fees − ad spend · no COGS`
-            }
-            value={
-              profit === null
-                ? null
-                : formatMoney({ amount: profit, currencyCode: currency })
-            }
-          />
-          <MetricCard
-            label="New-customer orders"
-            source={`${shopifySource} · numberOfOrders ≤ 1`}
-            value={
-              shopifyConnected
-                ? formatNumber(alignedShopify.newCustomerOrders)
-                : null
-            }
-            delta={deltas.newCustomerOrders}
+            label="Users"
+            source={stapeSource}
+            value={stapeConnected ? formatNumber(funnel.users) : null}
+            delta={deltas.users}
             deltaLabel={deltaLabel}
+          />
+          <MetricCard
+            label="Pageviews"
+            source={stapeSource}
+            value={stapeConnected ? formatNumber(funnel.pageviews) : null}
+            delta={deltas.pageviews}
+            deltaLabel={deltaLabel}
+            sparkline={dailyPageviews}
+          />
+          <MetricCard
+            label="Unknown first-touch"
+            source="Missing gn_* · often Shop Pay"
+            value={
+              shopifyConnected
+                ? `${formatNumber(unknown.orders)} · ${
+                    unknown.orderShare === null
+                      ? "—"
+                      : formatPercent(unknown.orderShare)
+                  }`
+                : null
+            }
           />
           <MetricCard
             label="New-customer revenue"
@@ -251,47 +202,82 @@ export default async function OverviewPage() {
             deltaLabel={deltaLabel}
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Blended CPA"
+            source={
+              cpa === null
+                ? spendSource
+                : `${period.label} · spend ÷ paid orders`
+            }
+            value={
+              cpa === null
+                ? null
+                : formatMoney({ amount: cpa, currencyCode: currency })
+            }
+          />
+          <MetricCard
+            label="Net after fees"
+            source="Total − Shopify Payments fees"
+            value={
+              shopifyConnected
+                ? formatMoney({ amount: feesAfter, currencyCode: currency })
+                : null
+            }
+          />
+          <MetricCard
+            label="Net profit"
+            source={
+              profit === null
+                ? "Needs ad spend · no COGS"
+                : "Total − fees − spend · no COGS"
+            }
+            value={
+              profit === null
+                ? null
+                : formatMoney({ amount: profit, currencyCode: currency })
+            }
+          />
           <MetricCard
             label="New-customer ROAS"
             source={
               ncRoas === null
                 ? spendSource
-                : `${period.label} · new-customer revenue ÷ blended ad spend`
+                : "New-customer revenue ÷ spend"
             }
             value={roasLabel(ncRoas)}
           />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Unknown first-touch orders"
-            source={`${shopifySource} · missing gn_* · often Shop Pay`}
-            value={shopifyConnected ? formatNumber(unknown.orders) : null}
-          />
-          <MetricCard
-            label="Unknown first-touch revenue"
-            source={shopifySource}
+            label="Gross revenue"
+            source="Line items before discounts"
             value={
               shopifyConnected
-                ? formatMoney({ amount: unknown.revenue, currencyCode: currency })
+                ? formatMoney({
+                    amount: alignedShopify.gross,
+                    currencyCode: currency,
+                  })
                 : null
             }
           />
           <MetricCard
-            label="Unknown % of orders"
-            source="Missing gn_* ÷ Shopify orders"
+            label="New-customer orders"
+            source={shopifySource}
             value={
-              unknown.orderShare === null
-                ? null
-                : formatPercent(unknown.orderShare)
+              shopifyConnected
+                ? formatNumber(alignedShopify.newCustomerOrders)
+                : null
             }
+            delta={deltas.newCustomerOrders}
+            deltaLabel={deltaLabel}
           />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Processing fees"
             source={
               alignedShopify.processingFees === null
-                ? "Shopify Payments fees on successful sale/capture · none in this range"
-                : `${shopifySource} · Shopify Payments sale/capture only`
+                ? "None in this range"
+                : "Shopify Payments sale/capture"
             }
             value={
               shopifyConnected && alignedShopify.processingFees !== null
@@ -306,8 +292,8 @@ export default async function OverviewPage() {
             label="Refund fees"
             source={
               alignedShopify.refundFees === null
-                ? "Shopify Payments fees on successful refunds · none in this range"
-                : `${shopifySource} · Shopify Payments refunds only`
+                ? "None in this range"
+                : "Shopify Payments refunds"
             }
             value={
               shopifyConnected && alignedShopify.refundFees !== null
@@ -315,6 +301,17 @@ export default async function OverviewPage() {
                     amount: alignedShopify.refundFees,
                     currencyCode: currency,
                   })
+                : null
+            }
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Unknown first-touch revenue"
+            source={shopifySource}
+            value={
+              shopifyConnected
+                ? formatMoney({ amount: unknown.revenue, currencyCode: currency })
                 : null
             }
           />

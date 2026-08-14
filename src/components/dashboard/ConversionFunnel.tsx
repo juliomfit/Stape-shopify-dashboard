@@ -89,14 +89,14 @@ export function ConversionFunnel({
       </ul>
       {showTable ? (
         <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[28rem] text-left text-sm">
+          <table className="dash-table min-w-[28rem]">
             <thead>
-              <tr className="border-b border-border text-xs text-muted">
-                <th className="pb-2 font-medium">Step</th>
-                <th className="pb-2 font-medium">Count</th>
-                <th className="pb-2 font-medium">% of previous</th>
-                <th className="pb-2 font-medium">Drop-off</th>
-                <th className="pb-2 font-medium">% of sessions</th>
+              <tr>
+                <th>Step</th>
+                <th className="num">Count</th>
+                <th className="num">% of previous</th>
+                <th className="num">Drop-off</th>
+                <th className="num">% of sessions</th>
               </tr>
             </thead>
             <tbody>
@@ -111,16 +111,16 @@ export function ConversionFunnel({
                 const fromSessions = ratio(step.count, sessions);
 
                 return (
-                  <tr key={step.key} className="border-b border-border last:border-0">
-                    <td className="py-2.5 text-foreground">{step.label}</td>
-                    <td className="py-2.5 text-muted">{formatNumber(step.count)}</td>
-                    <td className="py-2.5 text-muted">
+                  <tr key={step.key}>
+                    <td className="text-foreground">{step.label}</td>
+                    <td className="num text-muted">{formatNumber(step.count)}</td>
+                    <td className="num text-muted">
                       {fromPrevious === null ? "—" : formatPercent(fromPrevious)}
                     </td>
-                    <td className="py-2.5 text-muted">
+                    <td className="num text-muted">
                       {lost === null ? "—" : formatPercent(lost)}
                     </td>
-                    <td className="py-2.5 text-muted">
+                    <td className="num text-muted">
                       {fromSessions === null ? "—" : formatPercent(fromSessions)}
                     </td>
                   </tr>

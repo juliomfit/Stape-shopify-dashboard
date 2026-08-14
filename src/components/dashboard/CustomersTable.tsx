@@ -38,34 +38,34 @@ export function CustomersTable({
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[36rem] text-left text-sm">
-          <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+        <table className="dash-table min-w-[36rem]">
+          <thead>
             <tr>
-              <th className="px-6 py-3 font-medium">Customer</th>
-              <th className="px-6 py-3 font-medium">Type</th>
-                <th className="px-6 py-3 font-medium">Last order in range</th>
-                <th className="px-6 py-3 text-right font-medium">Orders</th>
-                <th className="px-6 py-3 text-right font-medium">Lifetime orders</th>
-                <th className="px-6 py-3 text-right font-medium">Spend</th>
+              <th>Customer</th>
+              <th>Type</th>
+              <th>Last order in range</th>
+              <th className="num">Orders</th>
+              <th className="num">Lifetime orders</th>
+              <th className="num">Spend</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody>
             {customers.map((customer) => (
               <tr key={customer.id}>
-                <td className="px-6 py-3 text-foreground">{customer.name}</td>
-                <td className="px-6 py-3 text-muted">
+                <td className="text-foreground">{customer.name}</td>
+                <td className="text-muted">
                   {customer.isNew ? "New" : "Returning"}
                 </td>
-                <td className="px-6 py-3 text-muted">
+                <td className="text-muted">
                   {customer.lastOrderAt ? formatDate(customer.lastOrderAt) : "—"}
                 </td>
-                <td className="px-6 py-3 text-right text-muted">
+                <td className="num text-muted">
                   {formatNumber(customer.orderCount)}
                 </td>
-                <td className="px-6 py-3 text-right text-muted">
+                <td className="num text-muted">
                   {formatNumber(customer.lifetimeOrders)}
                 </td>
-                <td className="px-6 py-3 text-right text-foreground">
+                <td className="num text-foreground">
                   {formatMoney(customer.spend)}
                 </td>
               </tr>

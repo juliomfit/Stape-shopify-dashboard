@@ -9,81 +9,60 @@ type ConnectionStatusProps = {
   google?: PlatformClaim;
 };
 
-function AdsPill({ claim }: { claim: PlatformClaim }) {
-  if (claim.state === "connected") {
-    return (
-      <p className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-        {claim.label} connected
-      </p>
-    );
-  }
-
-  if (claim.state === "error") {
-    return (
-      <p className="max-w-xl rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-        {claim.label} error · {claim.message}
-      </p>
-    );
-  }
-
+function pill(kind: "ok" | "err" | "off", children: string) {
+  const cls =
+    kind === "ok"
+      ? "bg-emerald-50 text-emerald-800"
+      : kind === "err"
+        ? "bg-red-50 text-red-700"
+        : "bg-slate-100 text-slate-600";
   return (
-    <p className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-      {claim.label} not connected
+    <p className={`max-w-xl truncate rounded-md px-2.5 py-1 text-xs font-medium ${cls}`}>
+      {children}
     </p>
   );
+}
+
+function AdsPill({ claim }: { claim: PlatformClaim }) {
+  if (claim.state === "connected") {
+    return pill("ok", `${claim.label} connected`);
+  }
+  if (claim.state === "error") {
+    const message = claim.message ?? "error";
+    return pill(
+      "err",
+      `${claim.label} error · ${message.length > 120 ? `${message.slice(0, 120)}…` : message}`,
+    );
+  }
+  return pill("off", `${claim.label} off`);
 }
 
 function ShopifyPill({ status }: { status: ShopifyConnectionStatus }) {
   if (status.state === "connected") {
-    return (
-      <p className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-        Shopify connected · {status.shopName}
-      </p>
-    );
+    return pill("ok", `Shopify · ${status.shopName}`);
   }
-
   if (status.state === "error") {
-    return (
-      <p className="max-w-xl rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-        Shopify error · {status.message.length > 140
-          ? `${status.message.slice(0, 140)}…`
-          : status.message}
-      </p>
-    );
+    const message =
+      status.message.length > 140
+        ? `${status.message.slice(0, 140)}…`
+        : status.message;
+    return pill("err", `Shopify · ${message}`);
   }
-
-  return (
-    <p className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-      Shopify not connected yet
-    </p>
-  );
+  return pill("off", "Shopify off");
 }
 
 function StapePill({ status }: { status: StapeConnectionStatus }) {
   if (status.state === "connected") {
-    return (
-      <p className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-        Stape / BigQuery connected · {status.projectId}
-      </p>
-    );
+    return pill("ok", "Stape · BigQuery");
   }
-
   if (status.state === "error") {
-    return (
-      <p className="max-w-xl rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-        Stape error ·{" "}
-        {status.message.length > 180
-          ? `${status.message.slice(0, 180)}…`
-          : status.message}
-      </p>
-    );
+    const message =
+      status.message.length > 140
+        ? `${status.message.slice(0, 140)}…`
+        : status.message;
+    return pill("err", `Stape · ${message}`);
   }
-
-  return (
-    <p className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-      Stape not connected yet
-    </p>
-  );
+  return pill("off", "Stape off");
 }
 
 export function ConnectionStatus({
@@ -93,7 +72,7 @@ export function ConnectionStatus({
   google,
 }: ConnectionStatusProps) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-1.5">
       <ShopifyPill status={shopify} />
       {stape ? <StapePill status={stape} /> : null}
       {facebook ? <AdsPill claim={facebook} /> : null}

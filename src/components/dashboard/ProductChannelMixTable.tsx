@@ -26,20 +26,20 @@ export function ProductChannelMixTable({
         totals exclude shipping and tax.
       </p>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[24rem] text-left text-sm">
+        <table className="dash-table min-w-[24rem]">
           <thead>
-            <tr className="border-b border-border text-xs text-muted">
-              <th className="pb-2 font-medium">First-touch</th>
-              <th className="pb-2 font-medium">Units</th>
-              <th className="pb-2 font-medium">Line-item revenue</th>
+            <tr>
+              <th>First-touch</th>
+              <th className="num">Units</th>
+              <th className="num">Line-item revenue</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.channel} className="border-b border-border last:border-0">
-                <td className="py-2.5 text-foreground">{row.channel}</td>
-                <td className="py-2.5 text-muted">{formatNumber(row.quantity)}</td>
-                <td className="py-2.5 text-muted">
+              <tr key={row.channel}>
+                <td className="text-foreground">{row.channel}</td>
+                <td className="num text-muted">{formatNumber(row.quantity)}</td>
+                <td className="num text-muted">
                   {formatMoney({ amount: row.revenue, currencyCode })}
                 </td>
               </tr>

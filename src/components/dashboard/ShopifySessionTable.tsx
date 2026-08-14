@@ -20,19 +20,19 @@ export function ShopifySessionTable({ points, error }: ShopifySessionTableProps)
         <p className="mt-4 text-sm text-muted">{error}</p>
       ) : (
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[32rem] text-left text-sm">
+          <table className="dash-table min-w-[32rem]">
             <thead>
-              <tr className="border-b border-border text-xs text-muted">
-                <th className="pb-2 font-medium">Hour</th>
-                <th className="pb-2 font-medium">Channel</th>
-                <th className="pb-2 font-medium">Type</th>
-                <th className="pb-2 font-medium">Shopify sessions</th>
+              <tr>
+                <th>Hour</th>
+                <th>Channel</th>
+                <th>Type</th>
+                <th className="num">Shopify sessions</th>
               </tr>
             </thead>
             <tbody>
               {points.length === 0 ? (
                 <tr>
-                  <td className="py-3 text-muted" colSpan={4}>
+                  <td className="text-muted" colSpan={4}>
                     No Shopify session rows.
                   </td>
                 </tr>
@@ -40,12 +40,11 @@ export function ShopifySessionTable({ points, error }: ShopifySessionTableProps)
                 points.slice(0, 120).map((point, index) => (
                   <tr
                     key={`${point.hour}-${point.channel}-${point.type}-${index}`}
-                    className="border-b border-border last:border-0"
                   >
-                    <td className="py-2.5 text-muted">{point.hour || "—"}</td>
-                    <td className="py-2.5 text-foreground">{point.channel}</td>
-                    <td className="py-2.5 text-muted">{point.type}</td>
-                    <td className="py-2.5 text-muted">
+                    <td className="text-muted">{point.hour || "—"}</td>
+                    <td className="text-foreground">{point.channel}</td>
+                    <td className="text-muted">{point.type}</td>
+                    <td className="num text-muted">
                       {formatNumber(point.sessions)}
                     </td>
                   </tr>

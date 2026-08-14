@@ -8,7 +8,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ShopifyAttributionChannelTable } from "@/components/dashboard/ShopifyAttributionChannelTable";
 import { ShopifyAttributionControls } from "@/components/dashboard/ShopifyAttributionControls";
 import { ShopifyAttributionReferrerTable } from "@/components/dashboard/ShopifyAttributionReferrerTable";
-import { ShopifySessionTable } from "@/components/dashboard/ShopifySessionTable";
+import { ShopifySessionPanel } from "@/components/dashboard/ShopifySessionPanel";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber } from "@/lib/format";
@@ -49,7 +49,7 @@ export default async function ShopifyAttributionPage({ searchParams }: PageProps
         title="Shopify Attribution"
         description="Shopify Admin 30-day session journey. This is not gn_* True Performance and not Stape warehouse models."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <ConnectionStatus shopify={data.shopify.status} />
         {data.qlError ? (
           <p className="max-w-3xl rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
@@ -119,7 +119,7 @@ export default async function ShopifyAttributionPage({ searchParams }: PageProps
           rows={data.referrerRows}
           currencyCode={currency}
         />
-        <ShopifySessionTable
+        <ShopifySessionPanel
           points={data.sessionPoints}
           error={data.qlError}
         />

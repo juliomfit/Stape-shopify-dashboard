@@ -71,7 +71,7 @@ export default async function DataQualityPage() {
         title="Data quality"
         description="Truncation, tracking fill, BigQuery source, and which date ranges have ad spend saved."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <ConnectionStatus
           shopify={shopify.status}
           stape={funnel.status}
