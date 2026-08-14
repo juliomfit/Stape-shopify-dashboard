@@ -1,6 +1,11 @@
 import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { FirstTouchRollup } from "@/lib/shopify/first-touch";
+import {
+  StackList,
+  StackRow,
+  TableOrCards,
+} from "@/components/dashboard/TableOrCards";
 
 type FirstTouchRollupTableProps = {
   title: string;
@@ -21,14 +26,36 @@ export function FirstTouchRollupTable({
   const showRoasColumns = showRoas && hasChannelSpend;
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
       {rows.length === 0 ? (
         <p className="mt-6 text-sm text-muted">No orders in this range.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto">
-          <table className="dash-table min-w-[28rem]">
+        <div className="mt-4">
+          <TableOrCards
+            cards={
+              <StackList>
+                {rows.map((row) => (
+                  <StackRow key={row.label}>
+                    <div className="flex items-start justify-between gap-3">
+                      <ChannelLabel name={row.label} />
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
+                        {formatMoney({ amount: row.revenue, currencyCode })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted">
+                      {formatNumber(row.orders)} orders
+                      {showRoasColumns
+                        ? ` · ROAS ${row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}`
+                        : ""}
+                    </p>
+                  </StackRow>
+                ))}
+              </StackList>
+            }
+            table={
+              <table className="dash-table min-w-[28rem]">
             <thead>
               <tr>
                 <th>Group</th>
@@ -72,6 +99,8 @@ export function FirstTouchRollupTable({
               ))}
             </tbody>
           </table>
+            }
+          />
         </div>
       )}
     </article>

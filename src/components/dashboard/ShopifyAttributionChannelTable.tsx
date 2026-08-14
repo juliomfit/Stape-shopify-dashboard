@@ -1,6 +1,11 @@
 import { ChannelLabel, TypeBadge } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { ShopifyqlChannelRow } from "@/lib/shopify/get-shopify-attribution";
+import {
+  StackList,
+  StackRow,
+  TableOrCards,
+} from "@/components/dashboard/TableOrCards";
 
 type ShopifyAttributionChannelTableProps = {
   rows: ShopifyqlChannelRow[];
@@ -14,7 +19,7 @@ export function ShopifyAttributionChannelTable({
   fallback,
 }: ShopifyAttributionChannelTableProps) {
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">
         Sales by referring channel
       </h2>
@@ -23,47 +28,74 @@ export function ShopifyAttributionChannelTable({
           ? "ShopifyQL failed. This rollup is firstVisit on each order, not the Attribution Center table."
           : "ShopifyQL sales with the selected Admin attribution model. Shopify sessions are not the conversion denominator here."}
       </p>
-      <div className="mt-4 overflow-x-auto">
-        <table className="dash-table min-w-[36rem]">
-          <thead>
-            <tr>
-              <th>Channel</th>
-              <th>Type</th>
-              <th className="num">Orders</th>
-              <th className="num">Sales</th>
-              <th className="num">AOV</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td className="text-muted" colSpan={5}>
-                  No Shopify Attribution rows for this range.
-                </td>
-              </tr>
+      <div className="mt-4">
+        <TableOrCards
+          cards={
+            rows.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-muted">
+                No Shopify Attribution rows for this range.
+              </p>
             ) : (
-              rows.map((row) => (
-                <tr key={row.label}>
-                  <td>
-                    <ChannelLabel name={row.channel} type={row.type} />
-                  </td>
-                  <td>
-                    <TypeBadge type={row.type} />
-                  </td>
-                  <td className="num text-muted">{formatNumber(row.orders)}</td>
-                  <td className="num text-muted">
-                    {formatMoney({ amount: row.sales, currencyCode })}
-                  </td>
-                  <td className="num text-muted">
-                    {row.orders > 0
-                      ? formatMoney({ amount: row.aov, currencyCode })
-                      : "—"}
-                  </td>
+              <StackList>
+                {rows.map((row) => (
+                  <StackRow key={row.label}>
+                    <div className="flex items-start justify-between gap-3">
+                      <ChannelLabel name={row.channel} type={row.type} />
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
+                        {formatMoney({ amount: row.sales, currencyCode })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted">
+                      {formatNumber(row.orders)} orders
+                    </p>
+                  </StackRow>
+                ))}
+              </StackList>
+            )
+          }
+          table={
+            <table className="dash-table min-w-[36rem]">
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Type</th>
+                  <th className="num">Orders</th>
+                  <th className="num">Sales</th>
+                  <th className="num">AOV</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td className="text-muted" colSpan={5}>
+                      No Shopify Attribution rows for this range.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row) => (
+                    <tr key={row.label}>
+                      <td>
+                        <ChannelLabel name={row.channel} type={row.type} />
+                      </td>
+                      <td>
+                        <TypeBadge type={row.type} />
+                      </td>
+                      <td className="num text-muted">{formatNumber(row.orders)}</td>
+                      <td className="num text-muted">
+                        {formatMoney({ amount: row.sales, currencyCode })}
+                      </td>
+                      <td className="num text-muted">
+                        {row.orders > 0
+                          ? formatMoney({ amount: row.aov, currencyCode })
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          }
+        />
       </div>
     </article>
   );

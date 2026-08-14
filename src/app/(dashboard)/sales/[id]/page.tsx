@@ -50,14 +50,14 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
         title={order.name}
         description="First-touch is from storefront gn_* cart attributes, not Shopify session."
       />
-      <section className="flex flex-1 flex-col gap-5 p-6">
+      <section className="dash-page">
         <p className="text-sm text-muted">
           <Link href="/sales" className="text-accent hover:underline">
             ← Sales
           </Link>
         </p>
         <div className="grid gap-4 lg:grid-cols-2">
-          <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+          <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
             <h2 className="text-sm font-semibold text-foreground">Order</h2>
             <div className="mt-2">
               <Detail label="Date" value={formatDate(order.createdAt)} />
@@ -89,7 +89,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
               />
             </div>
           </article>
-          <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+          <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
             <h2 className="text-sm font-semibold text-foreground">
               First-touch (gn_*)
             </h2>
@@ -111,7 +111,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
             </div>
           </article>
         </div>
-        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
           <h2 className="text-sm font-semibold text-foreground">
             Shopify Attribution (Admin)
           </h2>

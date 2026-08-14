@@ -14,7 +14,7 @@ export default async function LoginPage({
   const nextPath = params.next?.startsWith("/") ? params.next : "/";
 
   return (
-    <main className="flex min-h-full items-center justify-center bg-background p-8">
+    <main className="flex min-h-full items-center justify-center bg-background p-4 lg:p-8">
       <form
         method="post"
         action="/api/auth/login"
@@ -34,7 +34,7 @@ export default async function LoginPage({
         <label className="mt-4 flex flex-col gap-1 text-xs text-muted">
           Password
           <input
-            className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground lg:text-sm"
             type="password"
             name="password"
             autoComplete="current-password"
@@ -42,7 +42,7 @@ export default async function LoginPage({
           />
         </label>
         <button
-          className="mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white"
+          className="mt-4 min-h-11 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white"
           type="submit"
         >
           Sign in

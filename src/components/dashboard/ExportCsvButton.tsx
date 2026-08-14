@@ -46,7 +46,7 @@ export function ExportCsvButton({
     <button
       type="button"
       onClick={download}
-      className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground"
+      className="min-h-11 w-full rounded-lg border border-border px-3 text-sm font-medium text-foreground md:min-h-0 md:w-auto md:py-1.5 md:text-xs"
     >
       {label}
     </button>

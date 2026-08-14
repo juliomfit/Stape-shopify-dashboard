@@ -13,10 +13,10 @@ export function SalesJourneyFilter({ filter }: SalesJourneyFilterProps) {
   const searchParams = useSearchParams();
 
   return (
-    <label className="flex max-w-sm flex-col gap-1 text-xs text-muted">
+    <label className="flex w-full flex-col gap-1 text-xs text-muted md:max-w-sm">
       Journey filter
       <select
-        className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+        className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground md:text-sm"
         value={filter}
         onChange={(event) => {
           const next = new URLSearchParams(searchParams.toString());

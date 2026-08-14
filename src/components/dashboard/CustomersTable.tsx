@@ -1,6 +1,11 @@
 import type { CustomerPerformance } from "@/lib/shopify/types";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
+import {
+  StackList,
+  StackRow,
+  TableOrCards,
+} from "@/components/dashboard/TableOrCards";
 
 type CustomersTableProps = {
   customers: CustomerPerformance[];
@@ -28,7 +33,7 @@ export function CustomersTable({
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
-      <div className="border-b border-border px-6 py-4">
+      <div className="border-b border-border px-4 py-4 lg:px-6">
         <h2 className="text-sm font-semibold text-foreground">
           Customers by spend
         </h2>
@@ -37,8 +42,29 @@ export function CustomersTable({
           order, not “new-customer orders” on True Performance
         </p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="dash-table min-w-[36rem]">
+      <TableOrCards
+        cards={
+          <StackList>
+            {customers.map((customer) => (
+              <StackRow key={customer.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-foreground">{customer.name}</p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {customer.isNew ? "New" : "Returning"} ·{" "}
+                      {formatNumber(customer.orderCount)} orders
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold tabular-nums">
+                    {formatMoney(customer.spend)}
+                  </p>
+                </div>
+              </StackRow>
+            ))}
+          </StackList>
+        }
+        table={
+          <table className="dash-table min-w-[36rem]">
           <thead>
             <tr>
               <th>Customer</th>
@@ -71,8 +97,9 @@ export function CustomersTable({
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+          </table>
+        }
+      />
     </article>
   );
 }

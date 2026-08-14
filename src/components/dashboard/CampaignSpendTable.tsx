@@ -1,5 +1,10 @@
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { CampaignSpendCompare } from "@/lib/dashboard/true-performance";
+import {
+  StackList,
+  StackRow,
+  TableOrCards,
+} from "@/components/dashboard/TableOrCards";
 
 type CampaignSpendTableProps = {
   rows: CampaignSpendCompare[];
@@ -13,7 +18,7 @@ export function CampaignSpendTable({
   periodLabel,
 }: CampaignSpendTableProps) {
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">
         Campaign spend vs gn_utm_campaign
       </h2>
@@ -22,37 +27,61 @@ export function CampaignSpendTable({
         campaign names. Names that do not match still show spend; ROAS stays —
         until they match.
       </p>
-      <div className="mt-4 overflow-x-auto">
-        <table className="dash-table min-w-[32rem]">
-          <thead>
-            <tr>
-              <th>Campaign</th>
-              <th className="num">Spend</th>
-              <th className="num">gn_* orders</th>
-              <th className="num">gn_* revenue</th>
-              <th className="num">ROAS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.campaign}>
-                <td className="text-foreground">{row.campaign}</td>
-                <td className="num text-muted">
-                  {formatMoney({ amount: row.spend, currencyCode })}
-                </td>
-                <td className="num text-muted">
-                  {formatNumber(row.shopifyOrders)}
-                </td>
-                <td className="num text-muted">
-                  {formatMoney({ amount: row.shopifyRevenue, currencyCode })}
-                </td>
-                <td className="num text-muted">
-                  {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mt-4">
+        <TableOrCards
+          cards={
+            <StackList>
+              {rows.map((row) => (
+                <StackRow key={row.campaign}>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 font-medium text-foreground">
+                      {row.campaign}
+                    </p>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums">
+                      {formatMoney({ amount: row.spend, currencyCode })}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted">
+                    {formatNumber(row.shopifyOrders)} gn_* orders · ROAS{" "}
+                    {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
+                  </p>
+                </StackRow>
+              ))}
+            </StackList>
+          }
+          table={
+            <table className="dash-table min-w-[32rem]">
+              <thead>
+                <tr>
+                  <th>Campaign</th>
+                  <th className="num">Spend</th>
+                  <th className="num">gn_* orders</th>
+                  <th className="num">gn_* revenue</th>
+                  <th className="num">ROAS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.campaign}>
+                    <td className="text-foreground">{row.campaign}</td>
+                    <td className="num text-muted">
+                      {formatMoney({ amount: row.spend, currencyCode })}
+                    </td>
+                    <td className="num text-muted">
+                      {formatNumber(row.shopifyOrders)}
+                    </td>
+                    <td className="num text-muted">
+                      {formatMoney({ amount: row.shopifyRevenue, currencyCode })}
+                    </td>
+                    <td className="num text-muted">
+                      {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          }
+        />
       </div>
     </article>
   );

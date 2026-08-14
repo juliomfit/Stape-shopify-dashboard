@@ -1,6 +1,11 @@
 import type { TopProduct } from "@/lib/shopify/types";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
+import {
+  StackList,
+  StackRow,
+  TableOrCards,
+} from "@/components/dashboard/TableOrCards";
 
 type ProductTableProps = {
   products: TopProduct[];
@@ -28,7 +33,7 @@ export function ProductTable({
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
-      <div className="border-b border-border px-6 py-4">
+      <div className="border-b border-border px-4 py-4 lg:px-6">
         <h2 className="text-sm font-semibold text-foreground">
           Product sales
         </h2>
@@ -37,8 +42,28 @@ export function ProductTable({
           by revenue
         </p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="dash-table min-w-[32rem]">
+      <TableOrCards
+        cards={
+          <StackList>
+            {products.map((product) => (
+              <StackRow key={product.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 font-medium text-foreground">
+                    {product.title}
+                  </p>
+                  <p className="shrink-0 text-sm font-semibold tabular-nums">
+                    {formatMoney(product.revenue)}
+                  </p>
+                </div>
+                <p className="text-xs text-muted">
+                  {formatNumber(product.quantity)} units
+                </p>
+              </StackRow>
+            ))}
+          </StackList>
+        }
+        table={
+          <table className="dash-table min-w-[32rem]">
           <thead>
             <tr>
               <th>Product</th>
@@ -57,8 +82,9 @@ export function ProductTable({
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+          </table>
+        }
+      />
     </article>
   );
 }

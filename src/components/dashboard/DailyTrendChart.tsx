@@ -71,7 +71,7 @@ export function DailyTrendChart({
 
   if (days.length === 0) {
     return (
-      <article className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+      <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-5">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         <p className="mt-6 text-sm text-muted">No series for this range.</p>
       </article>
@@ -79,12 +79,12 @@ export function DailyTrendChart({
   }
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+      <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-5">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="mt-5 h-52 w-full"
+        className="mt-5 h-40 w-full md:h-52"
         role="img"
         aria-label={series.map((item) => item.label).join(" and ")}
       >

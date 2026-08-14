@@ -18,7 +18,7 @@ export function ProductChannelMixTable({
   }
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">
         Line-item revenue by first-touch
       </h2>
@@ -26,8 +26,8 @@ export function ProductChannelMixTable({
         Same gn_* channel as the parent Shopify order · {periodLabel}. Line-item
         totals exclude shipping and tax.
       </p>
-      <div className="mt-4 overflow-x-auto">
-        <table className="dash-table min-w-[24rem]">
+        <div className="mt-4 overflow-x-auto">
+          <table className="dash-table min-w-0 md:min-w-[24rem]">
           <thead>
             <tr>
               <th>First-touch</th>

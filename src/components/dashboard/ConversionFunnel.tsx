@@ -32,7 +32,7 @@ export function ConversionFunnel({
 }: ConversionFunnelProps) {
   if (steps.length === 0) {
     return (
-      <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+      <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
         <h2 className="text-sm font-semibold text-foreground">Funnel</h2>
         <p className="mt-6 text-sm text-muted">
           Funnel steps will appear when Stape / BigQuery is connected.
@@ -45,7 +45,7 @@ export function ConversionFunnel({
   const sessions = steps[0]?.count ?? 0;
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <h2 className="text-sm font-semibold text-foreground">Funnel</h2>
         <p className="text-xs text-muted">{periodLabel} · Stape</p>
@@ -60,7 +60,7 @@ export function ConversionFunnel({
 
           return (
             <li key={step.key}>
-              <div className="mb-1.5 flex items-center justify-between gap-4">
+              <div className="mb-1.5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <span className="text-sm text-foreground">
                   {step.label}
                   {step.note ? (
@@ -88,7 +88,7 @@ export function ConversionFunnel({
         })}
       </ul>
       {showTable ? (
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-6 hidden overflow-x-auto md:block">
           <table className="dash-table min-w-[28rem]">
             <thead>
               <tr>

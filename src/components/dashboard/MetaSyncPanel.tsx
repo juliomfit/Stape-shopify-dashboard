@@ -180,7 +180,7 @@ export function MetaSyncPanel({
             inputMode="decimal"
             defaultValue={amountValue(paste?.spend)}
             placeholder="0.00"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground"
           />
         </label>
         <label className="grid gap-1 text-sm">
@@ -190,7 +190,7 @@ export function MetaSyncPanel({
             inputMode="decimal"
             defaultValue={amountValue(paste?.purchases)}
             placeholder="—"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground"
           />
         </label>
         <label className="grid gap-1 text-sm">
@@ -200,7 +200,7 @@ export function MetaSyncPanel({
             inputMode="decimal"
             defaultValue={amountValue(paste?.revenue)}
             placeholder="—"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground"
           />
         </label>
         <div className="flex flex-wrap gap-2 sm:col-span-3">
@@ -278,7 +278,7 @@ export function MetaSyncPanel({
             inputMode="decimal"
             defaultValue={amountValue(googlePaste?.spend)}
             placeholder="0.00"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground"
           />
         </label>
         <label className="grid gap-1 text-sm">
@@ -288,7 +288,7 @@ export function MetaSyncPanel({
             inputMode="decimal"
             defaultValue={amountValue(googlePaste?.purchases)}
             placeholder="—"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground"
           />
         </label>
         <label className="grid gap-1 text-sm">
@@ -298,7 +298,7 @@ export function MetaSyncPanel({
             inputMode="decimal"
             defaultValue={amountValue(googlePaste?.revenue)}
             placeholder="—"
-            className="rounded-lg border border-border bg-background px-3 py-2 text-foreground"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground"
           />
         </label>
         <button

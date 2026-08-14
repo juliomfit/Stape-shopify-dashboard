@@ -10,6 +10,7 @@ import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
+import { MetricReveal } from "@/components/dashboard/MetricReveal";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ export default async function OverviewPage() {
         title="Overview"
         description="Pacific calendar days. Revenue and orders are Shopify. Sessions are Stape."
       />
-      <section className="flex flex-1 flex-col gap-5 p-6">
+      <section className="dash-page">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <TruncationNotice
           truncated={shopify.truncated}
@@ -158,6 +159,7 @@ export default async function OverviewPage() {
             value={mer === null ? null : formatPercent(mer)}
           />
         </div>
+        <MetricReveal>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Users"
@@ -333,6 +335,7 @@ export default async function OverviewPage() {
             }
           />
         </div>
+        </MetricReveal>
         <DailyTrendChart
           title="Daily sessions and orders"
           description="Pacific calendar days for the header range. Sessions are Stape. Orders are Shopify. Not first-touch."
