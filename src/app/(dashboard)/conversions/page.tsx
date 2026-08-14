@@ -6,6 +6,7 @@ import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
+import { MetricReveal } from "@/components/dashboard/MetricReveal";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -53,7 +54,7 @@ export default async function ConversionsPage() {
         title="Conversions"
         description="Clicks to purchase for the selected date range. Landing page views are page_view sessions, not product views."
       />
-      <section className="flex flex-1 flex-col gap-5 p-6">
+      <section className="dash-page">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <TruncationNotice
           truncated={shopify.truncated}
@@ -98,6 +99,7 @@ export default async function ConversionsPage() {
             deltaLabel={deltaLabel}
           />
         </div>
+        <MetricReveal>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Sessions"
@@ -120,6 +122,7 @@ export default async function ConversionsPage() {
             }
           />
         </div>
+        </MetricReveal>
         <ConversionFunnel
           periodLabel={period.label}
           steps={funnel.steps}

@@ -22,7 +22,7 @@ export function ShopifyAttributionControls({
       <label className="flex flex-col gap-1 text-xs text-muted">
         Shopify Attribution model
         <select
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground md:min-h-0 md:text-sm"
           value={model}
           onChange={(event) => {
             const next = new URLSearchParams(searchParams.toString());

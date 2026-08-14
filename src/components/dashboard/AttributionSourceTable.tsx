@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 import { ChannelMark } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { FirstTouchGroupBy, FirstTouchRollup } from "@/lib/shopify/first-touch";
+import {
+  StackList,
+  StackRow,
+  TableOrCards,
+} from "@/components/dashboard/TableOrCards";
 
 type AttributionSourceTableProps = {
   currencyCode: string;
@@ -90,7 +95,7 @@ export function AttributionSourceTable({
   }, [rows]);
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
@@ -102,7 +107,7 @@ export function AttributionSourceTable({
             totals for these dates.
           </p>
         </div>
-        <div className="flex flex-wrap rounded-lg border border-border bg-background p-1">
+        <div className="grid w-full grid-cols-3 rounded-lg border border-border bg-background p-1 sm:w-auto sm:flex sm:flex-wrap">
           {GROUPS.map((item) => {
             const active = group === item.key;
 
@@ -113,7 +118,7 @@ export function AttributionSourceTable({
                 onClick={() => {
                   setGroup(item.key);
                 }}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                className={`min-h-10 rounded-md px-2 py-1.5 text-xs font-medium sm:px-3 ${
                   active
                     ? "bg-surface text-foreground shadow-sm"
                     : "text-muted hover:text-foreground"
@@ -131,8 +136,39 @@ export function AttributionSourceTable({
       {rows.length === 0 ? (
         <p className="mt-6 text-sm text-muted">No orders in this range.</p>
       ) : (
-        <div className="mt-4 overflow-x-auto">
-          <table className="dash-table min-w-[56rem]">
+        <div className="mt-4">
+          <TableOrCards
+            cards={
+              <StackList>
+                {rows.map((row) => (
+                  <StackRow key={row.label}>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="inline-flex min-w-0 items-center gap-2 font-medium text-foreground">
+                        <ChannelMark name={row.source} />
+                        <span className="truncate">
+                          {row.source}
+                          {row.medium ? (
+                            <span className="block text-xs font-normal text-muted">
+                              {row.medium}
+                            </span>
+                          ) : null}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-sm font-semibold tabular-nums">
+                        {formatMoney({ amount: row.revenue, currencyCode })}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted">
+                      {formatNumber(row.orders)} orders · spend{" "}
+                      {dashMoney(row.spend, currencyCode)} · ROAS{" "}
+                      {dashRoas(row.roas)}
+                    </p>
+                  </StackRow>
+                ))}
+              </StackList>
+            }
+            table={
+              <table className="dash-table min-w-[56rem]">
             <thead>
               <tr>
                 <th>Source</th>
@@ -245,6 +281,8 @@ export function AttributionSourceTable({
               </tr>
             </tfoot>
           </table>
+            }
+          />
         </div>
       )}
     </article>

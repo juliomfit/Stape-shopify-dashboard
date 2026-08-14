@@ -49,7 +49,7 @@ export default async function ShopifyAttributionPage({ searchParams }: PageProps
         title="Shopify Attribution"
         description="Shopify Admin 30-day session journey. This is not gn_* True Performance and not Stape warehouse models."
       />
-      <section className="flex flex-1 flex-col gap-5 p-6">
+      <section className="dash-page">
         <ConnectionStatus shopify={data.shopify.status} />
         {data.qlError ? (
           <p className="max-w-3xl rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">

@@ -53,7 +53,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
         title="Warehouse attribution"
         description="Observed click and session paths in BigQuery. Changing the model reallocates credit; canonical Shopify order totals do not change. True Performance remains gn_* first-touch."
       />
-      <section className="flex flex-1 flex-col gap-5 p-6">
+      <section className="dash-page">
         <ConnectionStatus shopify={shopify.status} stape={data.status} />
         <Suspense fallback={null}>
           <WarehouseControls model={data.model} lookbackDays={data.lookbackDays} />

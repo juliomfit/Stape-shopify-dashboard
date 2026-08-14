@@ -31,7 +31,7 @@ export function WarehouseControls({
       <label className="flex flex-col gap-1 text-xs text-muted">
         Attribution model
         <select
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground md:min-h-0 md:text-sm"
           value={model}
           onChange={(event) => setParam("model", event.target.value)}
         >
@@ -45,7 +45,7 @@ export function WarehouseControls({
       <label className="flex flex-col gap-1 text-xs text-muted">
         Lookback window
         <select
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          className="min-h-11 rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground md:min-h-0 md:text-sm"
           value={String(lookbackDays)}
           onChange={(event) => setParam("lookback", event.target.value)}
         >

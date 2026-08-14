@@ -14,6 +14,7 @@ import { TrackingHealth } from "@/components/dashboard/TrackingHealth";
 import { TrafficSourcesPanel } from "@/components/dashboard/TrafficSourcesPanel";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
+import { MetricReveal } from "@/components/dashboard/MetricReveal";
 import { getTruePerformance } from "@/lib/dashboard/true-performance";
 import { getConversionRate } from "@/lib/dashboard/conversion";
 import { shopifyStapeMismatch, unknownFirstTouch } from "@/lib/dashboard/kpis";
@@ -97,7 +98,7 @@ export default async function AttributionPage() {
         title="True Performance"
         description="First-touch is the gn_* cart attribute written on the Shopify order. Stape is a comparison only."
       />
-      <section className="flex flex-1 flex-col gap-5 p-6">
+      <section className="dash-page">
         <ConnectionStatus
           shopify={shopify.status}
           stape={attribution.status}
@@ -164,6 +165,7 @@ export default async function AttributionPage() {
             }
           />
         </div>
+        <MetricReveal>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Blended ROAS"
@@ -275,6 +277,7 @@ export default async function AttributionPage() {
             }
           />
         </div>
+        </MetricReveal>
         <AttributionSourceTable
           currencyCode={currency}
           periodLabel={period.label}

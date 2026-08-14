@@ -16,11 +16,11 @@ export function ChannelContributionTable({
   currencyCode,
 }: ChannelContributionTableProps) {
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
-      <div className="mt-4 overflow-x-auto">
-        <table className="dash-table min-w-[20rem]">
+        <div className="mt-4 overflow-x-auto">
+          <table className="dash-table min-w-0 md:min-w-[20rem]">
           <thead>
             <tr>
               <th>Channel</th>

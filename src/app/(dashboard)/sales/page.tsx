@@ -13,6 +13,7 @@ import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { matchesJourneyFilter } from "@/lib/shopify/compare";
 import { mismatchLabel } from "@/lib/shopify/journey";
+import { MetricReveal } from "@/components/dashboard/MetricReveal";
 import { SalesJourneyFilter } from "@/components/dashboard/SalesJourneyFilter";
 import { Suspense } from "react";
 
@@ -75,7 +76,7 @@ export default async function SalesPage({ searchParams }: PageProps) {
         title="Sales"
         description="Shopify orders with first-touch from storefront gn_* cart attributes — not Shopify session."
       />
-      <section className="flex flex-1 flex-col gap-5 p-6">
+      <section className="dash-page">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <TruncationNotice
           truncated={shopify.truncated}
@@ -141,6 +142,7 @@ export default async function SalesPage({ searchParams }: PageProps) {
             }
           />
         </div>
+        <MetricReveal>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Shopify orders"
@@ -211,6 +213,7 @@ export default async function SalesPage({ searchParams }: PageProps) {
             }
           />
         </div>
+        </MetricReveal>
         {unknown.orders > 0 ? (
           <p className="rounded-xl border border-border bg-surface px-4 py-3 text-sm leading-6 text-muted">
             {formatNumber(unknown.orders)} orders ({unknown.orderShare === null ? "—" : formatPercent(unknown.orderShare)})
@@ -235,7 +238,7 @@ export default async function SalesPage({ searchParams }: PageProps) {
             adSpend={ads.totalSpend}
           />
         ) : null}
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
           <Suspense fallback={null}>
             <SalesJourneyFilter filter={filter} />
           </Suspense>

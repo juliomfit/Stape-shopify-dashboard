@@ -89,15 +89,15 @@ export function MetricCard({
           : "text-muted";
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-      <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-5">
+      <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted lg:text-xs">
         <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent-soft text-accent">
           <MetricIcon label={label} />
         </span>
         {label}
       </p>
       <p
-        className={`mt-3 text-2xl font-semibold tracking-tight ${
+        className={`mt-2 text-xl font-semibold tracking-tight lg:mt-3 lg:text-2xl ${
           hasValue ? "text-foreground" : "text-slate-300"
         }`}
       >

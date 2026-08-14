@@ -17,13 +17,13 @@ export function TopProductsPanel({ products }: TopProductsPanelProps) {
   }
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">Top Products</h2>
       <ul className="mt-4 divide-y divide-border">
         {products.map((product) => (
           <li
             key={product.id}
-            className="flex items-center justify-between gap-4 py-3"
+            className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
           >
             <span className="text-sm text-foreground">{product.title}</span>
             <span className="shrink-0 text-sm text-muted">

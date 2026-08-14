@@ -57,7 +57,7 @@ export function RevenueBreakdown({
   const netProfit = adSpend === null ? null : netAfterFees - adSpend;
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">
         Shopify revenue breakdown
       </h2>
