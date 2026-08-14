@@ -84,12 +84,12 @@ export async function getShopifyAttributionPage(
   SHOW total_sales, orders, average_order_value
   GROUP BY referring_channel, traffic_type WITH ${modifier}, ${tz}
   ${dates}
-  ORDER BY ${salesMetric} DESC`),
+  ORDER BY total_sales DESC`),
     runShopifyql(`FROM sales
   SHOW total_sales, orders
   GROUP BY referring_channel, traffic_type, referrer_url WITH ${modifier}, ${tz}
   ${dates}
-  ORDER BY ${salesMetric} DESC`),
+  ORDER BY total_sales DESC`),
     runShopifyql(`FROM sessions
   SHOW sessions
   TIMESERIES hour WITH ${tz}
@@ -102,9 +102,10 @@ export async function getShopifyAttributionPage(
   ${dates}`),
   ]);
 
-  const qlError = [channels.error, referrers.error, sessions.error]
-    .filter(Boolean)
-    .join(" · ") || null;
+  const qlError =
+    [...new Set([channels.error, referrers.error, sessions.error].filter(Boolean))].join(
+      " · ",
+    ) || null;
 
   let channelRows: ShopifyqlChannelRow[] = channels.rows.map((row) => {
     const channel = shopifyqlString(row.referring_channel) || "Direct";

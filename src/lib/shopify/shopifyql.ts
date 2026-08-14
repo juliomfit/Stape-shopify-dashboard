@@ -24,7 +24,7 @@ type ShopifyqlResponse = {
 };
 
 export function shopifyqlDates(period: DashboardPeriod) {
-  return `SINCE date('${period.startDate}') UNTIL date('${period.endDate}')`;
+  return `SINCE ${period.startDate} UNTIL ${period.endDate}`;
 }
 
 export function shopifyqlTimezone() {
