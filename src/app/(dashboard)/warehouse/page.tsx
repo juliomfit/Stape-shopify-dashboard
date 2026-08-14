@@ -39,7 +39,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
     : DEFAULT_LOOKBACK;
   const [data, shopify] = await Promise.all([
     getWarehouseMetrics({ model, lookbackDays }),
-    getShopifyOverviewMetrics(),
+    getShopifyOverviewMetrics("kpis"),
   ]);
   const currency = shopify.revenue?.currencyCode || "USD";
   const modelLabel =

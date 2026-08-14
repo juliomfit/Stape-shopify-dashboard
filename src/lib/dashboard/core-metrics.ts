@@ -23,19 +23,20 @@ import {
 import {
   getShopifyOverviewForPeriod,
   getShopifyOverviewMetrics,
+  type ShopifyFetchDepth,
 } from "@/lib/shopify/get-overview-metrics";
 import {
   getStapeFunnelMetrics,
   getStapeFunnelMetricsForPeriod,
 } from "@/lib/stape/get-funnel-metrics";
 
-export async function getCoreDashboard() {
+export async function getCoreDashboard(depth: ShopifyFetchDepth = "catalog") {
   const period = await getAlignedPeriod();
   const previous = previousDashboardPeriod(period);
   const [shopify, previousShopify, funnel, previousFunnel, ads, metaPaste, googlePaste] =
     await Promise.all([
-      getShopifyOverviewMetrics(),
-      getShopifyOverviewForPeriod(previous),
+      getShopifyOverviewMetrics(depth),
+      getShopifyOverviewForPeriod(previous, "kpis"),
       getStapeFunnelMetrics(),
       getStapeFunnelMetricsForPeriod(previous),
       getPlatformReported(period),

@@ -23,6 +23,9 @@ import type {
 const ORDERS_PER_PAGE = 250;
 const MAX_PAGES = 20;
 
+/** How much Shopify Admin GraphQL to pull per order page. */
+export type ShopifyFetchDepth = "kpis" | "catalog" | "full";
+
 type MoneySet = {
   shopMoney: {
     amount: string;
@@ -70,7 +73,7 @@ type OrdersPage = {
           } | null;
           legacyResourceId: string | null;
           customAttributes: { key: string; value: string | null }[];
-          lineItems: {
+          lineItems?: {
           edges: {
             node: {
               title: string;
@@ -96,7 +99,28 @@ const MONEY_SET = `
   }
 `;
 
-const ORDERS_QUERY = `
+function ordersQuery(depth: ShopifyFetchDepth) {
+  const journey = depth === "full" ? JOURNEY_GRAPHQL : "";
+  const lineItems =
+    depth === "kpis"
+      ? ""
+      : `
+          lineItems(first: 250) {
+            edges {
+              node {
+                title
+                quantity
+                originalTotalSet { ${MONEY_SET} }
+                discountedTotalSet { ${MONEY_SET} }
+                product {
+                  id
+                  title
+                }
+              }
+            }
+          }`;
+
+  return `
   query OverviewOrders($query: String!, $cursor: String) {
     shop {
       name
@@ -141,26 +165,14 @@ const ORDERS_QUERY = `
             createdAt
             numberOfOrders
           }
-          ${JOURNEY_GRAPHQL}
-          lineItems(first: 250) {
-            edges {
-              node {
-                title
-                quantity
-                originalTotalSet { ${MONEY_SET} }
-                discountedTotalSet { ${MONEY_SET} }
-                product {
-                  id
-                  title
-                }
-              }
-            }
-          }
+          ${journey}
+          ${lineItems}
         }
       }
     }
   }
 `;
+}
 
 function emptyMetrics(periodLabel: string): ShopifyOverviewMetrics {
   return {
@@ -183,21 +195,25 @@ function emptyMetrics(periodLabel: string): ShopifyOverviewMetrics {
   };
 }
 
-export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetrics> {
-  return getShopifyOverviewForPeriod(await getSelectedPeriod());
+export async function getShopifyOverviewMetrics(
+  depth: ShopifyFetchDepth = "full",
+): Promise<ShopifyOverviewMetrics> {
+  return getShopifyOverviewForPeriod(await getSelectedPeriod(), depth);
 }
 
 export async function getShopifyOverviewForPeriod(
   period: DashboardPeriod,
+  depth: ShopifyFetchDepth = "full",
 ): Promise<ShopifyOverviewMetrics> {
   return rememberDashboard(
-    ["shopify-overview", String(period.startMs), String(period.endMs)],
-    () => loadShopifyOverview(period),
+    ["shopify-overview", String(period.startMs), String(period.endMs), depth],
+    () => loadShopifyOverview(period, depth),
   );
 }
 
 async function loadShopifyOverview(
   period: DashboardPeriod,
+  depth: ShopifyFetchDepth,
 ): Promise<ShopifyOverviewMetrics> {
   if (!isShopifyConfigured()) {
     return emptyMetrics(period.label);
@@ -229,8 +245,10 @@ async function loadShopifyOverview(
       { quantity: number; revenue: number }
     >();
 
+    const graphqlQuery = ordersQuery(depth);
+
     while (hasNextPage && pages < MAX_PAGES) {
-      const data: OrdersPage = await shopifyGraphql<OrdersPage>(ORDERS_QUERY, {
+      const data: OrdersPage = await shopifyGraphql<OrdersPage>(graphqlQuery, {
         query,
         cursor,
       });
@@ -246,11 +264,12 @@ async function loadShopifyOverview(
           continue;
         }
 
-        const itemCount = order.lineItems.edges.reduce(
+        const lineEdges = order.lineItems?.edges ?? [];
+        const itemCount = lineEdges.reduce(
           (total, item) => total + item.node.quantity,
           0,
         );
-        const gross = order.lineItems.edges.reduce(
+        const gross = lineEdges.reduce(
           (total, item) => total + shopMoneyAmount(item.node.originalTotalSet),
           0,
         );
@@ -343,7 +362,7 @@ async function loadShopifyOverview(
           journeyMismatch: mismatch,
         });
 
-        for (const lineItem of order.lineItems.edges) {
+        for (const lineItem of lineEdges) {
           const product = lineItem.node.product;
           const title = product?.title || lineItem.node.title;
           const id = product?.id || title;

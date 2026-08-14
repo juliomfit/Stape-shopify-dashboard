@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 export default async function DataQualityPage() {
   const [shopify, funnel, attribution, period, spendCoverage, warehouse] =
     await Promise.all([
-    getShopifyOverviewMetrics(),
+    getShopifyOverviewMetrics("full"),
     getStapeFunnelMetrics(),
     getAttributionMetrics(),
     getAlignedPeriod(),
@@ -47,7 +47,7 @@ export default async function DataQualityPage() {
   })();
   const notes = [
     shopify.truncated
-      ? `Shopify order fetch stopped at ${shopify.orderPoints.length} of ${shopify.reportedOrderCount ?? "unknown"} orders (100 × 20 pages). Narrow the header dates.`
+      ? `Shopify order fetch stopped at ${shopify.orderPoints.length} of ${shopify.reportedOrderCount ?? "unknown"} orders (250 × 20 pages). Narrow the header dates.`
       : "Shopify order pagination finished for this range (open + closed).",
     config
       ? `BigQuery source is ${config.projectId}.${config.dataset}.${config.table}. Live Stape must be stape_data.dashboard_events, not the 19-row test table.`

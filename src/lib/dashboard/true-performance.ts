@@ -112,7 +112,7 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     googlePaste,
     spendCoverage,
   ] = await Promise.all([
-    getShopifyOverviewMetrics(),
+    getShopifyOverviewMetrics("catalog"),
     getStapeFunnelMetrics(),
     getAttributionMetrics(),
     getPlatformReported(period),

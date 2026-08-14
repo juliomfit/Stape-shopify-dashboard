@@ -72,7 +72,7 @@ export async function getShopifyAttributionPage(
   const ordersMetric = salesField(model, "orders");
   const aovMetric = salesField(model, "average_order_value");
 
-  const shopify = await getShopifyOverviewForPeriod(period);
+  const shopify = await getShopifyOverviewForPeriod(period, "full");
   const inRange = shopify.orderPoints.filter((order) => {
     const created = new Date(order.createdAt).getTime();
     return created >= period.startMs && created < period.endMs;

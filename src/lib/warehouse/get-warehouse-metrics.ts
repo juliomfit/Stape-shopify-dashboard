@@ -195,7 +195,7 @@ export async function getWarehouseMetrics(options: {
     const queryOptions = { location: config.location, params };
 
     const [shopify, platform] = await Promise.all([
-      getShopifyOverviewForPeriod(period),
+      getShopifyOverviewForPeriod(period, "kpis"),
       getPlatformReported(period),
     ]);
     const aligned = shopifyMetricsSince(

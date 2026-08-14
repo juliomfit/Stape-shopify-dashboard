@@ -112,11 +112,10 @@ async function loadFunnelMetrics(
     const table = eventsFromSql(config);
     const queryOptions = { location: config.location };
     const params = { startMs: period.startMs, endMs: period.endMs };
-    const [[rows], [dailyRows]] = await Promise.all([
-      client.query({
-        ...queryOptions,
-        params,
-        query: `
+    const [rows] = await client.query({
+      ...queryOptions,
+      params,
+      query: `
         WITH events AS (
           SELECT
             CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) AS session_key,
@@ -164,6 +163,14 @@ async function loadFunnelMetrics(
           WHERE event_name = 'purchase'
             AND IFNULL(transaction_id, '') != ''
           GROUP BY transaction_id
+        ),
+        daily AS (
+          SELECT
+            FORMAT_DATE('%Y-%m-%d', DATE(TIMESTAMP_MILLIS(timestamp), 'America/Los_Angeles')) AS day,
+            COUNT(DISTINCT IF(session_key != '|', session_key, NULL)) AS sessions,
+            COUNTIF(event_name = 'page_view') AS pageviews
+          FROM events
+          GROUP BY 1
         )
         SELECT
           (SELECT COUNT(*) FROM session_channels) AS sessions,
@@ -174,34 +181,17 @@ async function loadFunnelMetrics(
           (SELECT COUNT(DISTINCT session_key) FROM events WHERE event_name = 'add_to_cart' AND session_key != '|') AS add_to_cart_sessions,
           (SELECT COUNT(DISTINCT session_key) FROM events WHERE event_name = 'begin_checkout' AND session_key != '|') AS checkout_sessions,
           (SELECT COUNT(*) FROM unique_orders) AS purchases,
-          (SELECT IFNULL(SUM(revenue), 0) FROM unique_orders) AS purchase_revenue
+          (SELECT IFNULL(SUM(revenue), 0) FROM unique_orders) AS purchase_revenue,
+          ARRAY(SELECT AS STRUCT day, sessions, pageviews FROM daily ORDER BY day) AS daily
       `,
-      }),
-      client.query({
-        ...queryOptions,
-        params,
-        query: `
-        WITH events AS (
-          SELECT
-            CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) AS session_key,
-            timestamp,
-            LOWER(IFNULL(event_name, '')) AS event_name
-          FROM ${table}
-          WHERE timestamp >= @startMs
-            AND timestamp < @endMs
-        )
-        SELECT
-          FORMAT_DATE('%Y-%m-%d', DATE(TIMESTAMP_MILLIS(timestamp), 'America/Los_Angeles')) AS day,
-          COUNT(DISTINCT IF(session_key != '|', session_key, NULL)) AS sessions,
-          COUNTIF(event_name = 'page_view') AS pageviews
-        FROM events
-        GROUP BY 1
-        ORDER BY 1
-      `,
-      }),
-    ]);
+    });
 
     const row = (rows[0] ?? {}) as Record<string, unknown>;
+    const dailyRows = (row.daily ?? []) as {
+      day?: string;
+      sessions?: unknown;
+      pageviews?: unknown;
+    }[];
     const sessions = toNumber(row.sessions);
     const users = toNumber(row.users);
     const pageviews = toNumber(row.pageviews);
@@ -232,7 +222,7 @@ async function loadFunnelMetrics(
         checkoutSessions,
         purchases,
       ),
-      daily: (dailyRows as { day?: string; sessions?: unknown; pageviews?: unknown }[]).map(
+      daily: dailyRows.map(
         (point) => ({
           date: String(point.day || ""),
           sessions: toNumber(point.sessions),

@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default async function TrafficPage() {
   const [shopify, stape, funnel] = await Promise.all([
-    getShopifyOverviewMetrics(),
+    getShopifyOverviewMetrics("kpis"),
     getStapeTrafficMetrics(),
     getStapeFunnelMetrics(),
   ]);

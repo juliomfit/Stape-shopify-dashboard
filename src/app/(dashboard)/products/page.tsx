@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export default async function ProductsPage() {
-  const shopify = await getShopifyOverviewMetrics();
+  const shopify = await getShopifyOverviewMetrics("catalog");
   const shopifySource =
     shopify.status.state === "connected"
       ? `Shopify · ${shopify.periodLabel}`

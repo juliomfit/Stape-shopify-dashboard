@@ -29,7 +29,7 @@ type PageProps = {
 export default async function SalesPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const filter = params.filter || "";
-  const data = await getCoreDashboard();
+  const data = await getCoreDashboard("full");
   const {
     period,
     shopify,
