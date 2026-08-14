@@ -23,30 +23,30 @@ export function CampaignSpendTable({
         until they match.
       </p>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[32rem] text-left text-sm">
+        <table className="dash-table min-w-[32rem]">
           <thead>
-            <tr className="border-b border-border text-xs text-muted">
-              <th className="pb-2 font-medium">Campaign</th>
-              <th className="pb-2 font-medium">Spend</th>
-              <th className="pb-2 font-medium">gn_* orders</th>
-              <th className="pb-2 font-medium">gn_* revenue</th>
-              <th className="pb-2 font-medium">ROAS</th>
+            <tr>
+              <th>Campaign</th>
+              <th className="num">Spend</th>
+              <th className="num">gn_* orders</th>
+              <th className="num">gn_* revenue</th>
+              <th className="num">ROAS</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.campaign} className="border-b border-border last:border-0">
-                <td className="py-2.5 text-foreground">{row.campaign}</td>
-                <td className="py-2.5 text-muted">
+              <tr key={row.campaign}>
+                <td className="text-foreground">{row.campaign}</td>
+                <td className="num text-muted">
                   {formatMoney({ amount: row.spend, currencyCode })}
                 </td>
-                <td className="py-2.5 text-muted">
+                <td className="num text-muted">
                   {formatNumber(row.shopifyOrders)}
                 </td>
-                <td className="py-2.5 text-muted">
+                <td className="num text-muted">
                   {formatMoney({ amount: row.shopifyRevenue, currencyCode })}
                 </td>
-                <td className="py-2.5 text-muted">
+                <td className="num text-muted">
                   {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
                 </td>
               </tr>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Calendar } from "lucide-react";
 import {
   setDashboardCustomRange,
   setDashboardRange,
@@ -39,7 +40,9 @@ export function DateRangeToggle({ period }: DateRangeToggleProps) {
 
   return (
     <div className="flex flex-col items-stretch gap-2 sm:items-end">
-      <div className="flex flex-wrap justify-end rounded-lg border border-border bg-background p-1">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Calendar className="h-4 w-4 text-muted" aria-hidden="true" />
+        <div className="flex flex-wrap justify-end rounded-lg border border-border bg-background p-1">
         {RANGE_OPTIONS.map((option) => {
           const active = period.key === option.key;
 
@@ -61,6 +64,7 @@ export function DateRangeToggle({ period }: DateRangeToggleProps) {
             </button>
           );
         })}
+        </div>
       </div>
       <form
         className="flex flex-wrap items-end justify-end gap-2"

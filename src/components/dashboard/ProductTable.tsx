@@ -38,22 +38,20 @@ export function ProductTable({
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[32rem] text-left text-sm">
-          <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
+        <table className="dash-table min-w-[32rem]">
+          <thead>
             <tr>
-              <th className="px-6 py-3 font-medium">Product</th>
-              <th className="px-6 py-3 text-right font-medium">Units sold</th>
-              <th className="px-6 py-3 text-right font-medium">Revenue</th>
+              <th>Product</th>
+              <th className="num">Units sold</th>
+              <th className="num">Revenue</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border">
+          <tbody>
             {products.map((product) => (
               <tr key={product.id}>
-                <td className="px-6 py-3 text-foreground">{product.title}</td>
-                <td className="px-6 py-3 text-right text-muted">
-                  {formatNumber(product.quantity)}
-                </td>
-                <td className="px-6 py-3 text-right text-foreground">
+                <td className="text-foreground">{product.title}</td>
+                <td className="num text-muted">{formatNumber(product.quantity)}</td>
+                <td className="num text-foreground">
                   {formatMoney(product.revenue)}
                 </td>
               </tr>

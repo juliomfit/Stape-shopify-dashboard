@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BrandMark } from "@/components/dashboard/BrandMark";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -19,9 +20,12 @@ export default async function LoginPage({
         action="/api/auth/login"
         className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-sm"
       >
-        <h1 className="text-lg font-semibold text-foreground">GoodsNova analytics</h1>
+        <div className="flex items-center gap-3">
+          <BrandMark size={36} />
+          <h1 className="text-lg font-semibold text-foreground">Goodsnova</h1>
+        </div>
         <p className="mt-2 text-sm leading-6 text-muted">
-          Enter the dashboard password from Vercel env DASHBOARD_PASSWORD.
+          Enter the dashboard password.
         </p>
         {params.error ? (
           <p className="mt-3 text-sm text-red-700">Wrong password.</p>

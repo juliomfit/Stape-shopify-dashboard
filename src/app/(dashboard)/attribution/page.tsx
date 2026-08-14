@@ -8,6 +8,7 @@ import { MetaSyncPanel } from "@/components/dashboard/MetaSyncPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { PlatformCompareTable } from "@/components/dashboard/PlatformCompareTable";
+import { AttributionAdminCompareTable } from "@/components/dashboard/AttributionAdminCompareTable";
 import { SpendCoveragePanel } from "@/components/dashboard/SpendCoveragePanel";
 import { TrackingHealth } from "@/components/dashboard/TrackingHealth";
 import { TrafficSourcesPanel } from "@/components/dashboard/TrafficSourcesPanel";
@@ -56,6 +57,7 @@ export default async function AttributionPage() {
     metaConnection,
     metaPaste,
     googlePaste,
+    adminCompare,
   } = data;
   const conversion = getConversionRate(
     shopify.status.state === "connected" ? alignedShopify.orders : null,
@@ -95,7 +97,7 @@ export default async function AttributionPage() {
         title="True Performance"
         description="First-touch is the gn_* cart attribute written on the Shopify order. Stape is a comparison only."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <ConnectionStatus
           shopify={shopify.status}
           stape={attribution.status}
@@ -281,6 +283,11 @@ export default async function AttributionPage() {
           byCampaign={shopifyCampaigns}
           sourceMediumSpendNote={sourceMediumSpendNote}
         />
+        <AttributionAdminCompareTable
+          data={adminCompare}
+          currencyCode={currency}
+          periodLabel={period.label}
+        />
         <PlatformCompareTable
           rows={compare}
           currencyCode={currency}
@@ -327,7 +334,7 @@ export default async function AttributionPage() {
           items={[
             "Trust Shopify gn_* first-touch. Source / medium is gn_utm_source and gn_utm_medium (click ids if UTM is empty).",
             "Unknown means the stitch did not write gn_*. Direct means gn_* ran with no source. They are not the same.",
-            "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
+            "Shopify Attribution (Admin) is a 30-day first-click compare, not gn_*. Totals must match; channels may not.",
             "ROAS = total revenue ÷ blended ad spend. MER is the inverse: blended ad spend ÷ total revenue (currentTotalPriceSet). They are not the same number.",
             "Row ROAS / CPA only when that row has real Meta or Google spend for these dates. Account spend is not split across multiple source/medium rows.",
             "Paste Meta Amount spent or upload an Ads Manager CSV for the same dates as the header toggle. Campaign ROAS needs campaign rows in the CSV.",

@@ -10,10 +10,10 @@ export async function Header({ title, description }: HeaderProps) {
   const period = await getSelectedPeriod();
 
   return (
-    <header className="border-b border-border bg-surface/90 px-8 py-6 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-border bg-surface/95 px-6 py-4 backdrop-blur">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
             {title}
           </h1>
           {description ? (

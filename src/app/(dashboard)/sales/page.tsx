@@ -11,6 +11,10 @@ import { Header } from "@/components/layout/Header";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
+import { matchesJourneyFilter } from "@/lib/shopify/compare";
+import { mismatchLabel } from "@/lib/shopify/journey";
+import { SalesJourneyFilter } from "@/components/dashboard/SalesJourneyFilter";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +22,14 @@ export const metadata: Metadata = {
   title: "Sales",
 };
 
-export default async function SalesPage() {
-  const data = await getCoreDashboard();
+type PageProps = {
+  searchParams?: Promise<{ filter?: string }>;
+};
+
+export default async function SalesPage({ searchParams }: PageProps) {
+  const params = (await searchParams) ?? {};
+  const filter = params.filter || "";
+  const data = await getCoreDashboard("full");
   const {
     period,
     shopify,
@@ -53,7 +63,7 @@ export default async function SalesPage() {
   const inRangeIds = new Set(inRange.map((order) => order.legacyId));
   const tableOrders = shopify.recentOrders.filter((order) =>
     inRangeIds.has(order.legacyId),
-  );
+  ).filter((order) => matchesJourneyFilter(order.journeyMismatch, filter));
   const spendSource =
     totalSpend === null
       ? "No ad spend saved for these dates"
@@ -65,7 +75,7 @@ export default async function SalesPage() {
         title="Sales"
         description="Shopify orders with first-touch from storefront gn_* cart attributes — not Shopify session."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <TruncationNotice
           truncated={shopify.truncated}
@@ -225,14 +235,19 @@ export default async function SalesPage() {
             adSpend={ads.totalSpend}
           />
         ) : null}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-end gap-4">
+          <Suspense fallback={null}>
+            <SalesJourneyFilter filter={filter} />
+          </Suspense>
           <ExportCsvButton
             label="Export orders CSV"
             filename={`sales-orders-${period.startDate}-${period.endDate}.csv`}
             headers={[
               "Order",
               "Date",
-              "First-touch",
+              "gn_* first-touch",
+              "Shopify first-click",
+              "Mismatch",
               "Campaign",
               "Click ID",
               "Gross",
@@ -243,6 +258,8 @@ export default async function SalesPage() {
               order.name,
               order.createdAt,
               order.firstTouchChannel,
+              order.journey?.firstClick.label || "",
+              mismatchLabel(order.journeyMismatch),
               order.firstTouch.utmCampaign,
               clickIdLabel(order.firstTouch),
               order.gross.amount,

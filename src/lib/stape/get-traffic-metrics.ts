@@ -1,4 +1,5 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { getBigQueryClient } from "@/lib/stape/client";
 import {
   ATTRIBUTION_CHANNELS,
@@ -51,6 +52,15 @@ function withAllChannels(rows: SourceRow[]): TrafficSource[] {
 
 export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
   const period = await getAlignedPeriod();
+  return rememberDashboard(
+    ["stape-traffic", String(period.startMs), String(period.endMs)],
+    () => loadStapeTrafficMetrics(period),
+  );
+}
+
+async function loadStapeTrafficMetrics(
+  period: Awaited<ReturnType<typeof getAlignedPeriod>>,
+): Promise<StapeTrafficMetrics> {
 
   try {
     if (!getBigQueryConfig()) {

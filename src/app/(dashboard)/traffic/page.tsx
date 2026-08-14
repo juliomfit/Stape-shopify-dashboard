@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default async function TrafficPage() {
   const [shopify, stape, funnel] = await Promise.all([
-    getShopifyOverviewMetrics(),
+    getShopifyOverviewMetrics("kpis"),
     getStapeTrafficMetrics(),
     getStapeFunnelMetrics(),
   ]);
@@ -39,7 +39,7 @@ export default async function TrafficPage() {
         title="Traffic"
         description="Stape sessions from BigQuery. Channel names match gn_* (Google Ads, Facebook / Meta Ads, and so on). This is not first-touch truth."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard

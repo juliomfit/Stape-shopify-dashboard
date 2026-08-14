@@ -53,7 +53,7 @@ export default async function ConversionsPage() {
         title="Conversions"
         description="Clicks to purchase for the selected date range. Landing page views are page_view sessions, not product views."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="flex flex-1 flex-col gap-5 p-6">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <TruncationNotice
           truncated={shopify.truncated}

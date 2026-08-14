@@ -1,4 +1,5 @@
 import type { FirstTouch } from "@/lib/shopify/first-touch";
+import type { JourneyMismatch, ShopifyJourney } from "@/lib/shopify/journey";
 
 export type Money = {
   amount: number;
@@ -37,6 +38,8 @@ export type ShopifyOrder = {
   firstTouch: FirstTouch;
   firstTouchChannel: string;
   customAttributes: { key: string; value: string }[];
+  journey: ShopifyJourney | null;
+  journeyMismatch: JourneyMismatch;
 };
 
 export type CustomerPerformance = {
@@ -66,6 +69,8 @@ export type OrderPoint = {
   customerId: string | null;
   firstTouch: FirstTouch;
   firstTouchChannel: string;
+  journey: ShopifyJourney | null;
+  journeyMismatch: JourneyMismatch;
 };
 
 export type ShopifyOverviewMetrics = {
