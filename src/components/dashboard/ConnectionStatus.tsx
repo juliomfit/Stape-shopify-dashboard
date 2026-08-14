@@ -71,7 +71,10 @@ function StapePill({ status }: { status: StapeConnectionStatus }) {
   if (status.state === "error") {
     return (
       <p className="max-w-xl rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-        Stape error · {status.message}
+        Stape error ·{" "}
+        {status.message.length > 180
+          ? `${status.message.slice(0, 180)}…`
+          : status.message}
       </p>
     );
   }
