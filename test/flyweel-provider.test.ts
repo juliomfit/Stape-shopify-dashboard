@@ -13,7 +13,7 @@ import {
 } from "../src/lib/ads/providers/normalize.ts";
 import { midpointYmd, queryDateRangeChunked, SilentTruncationError } from "../src/lib/ads/providers/chunk.ts";
 import { FLYWEEL_WRITE_TOOLS, assertFlyweelReadOnly, FlyweelWriteRefusedError, resolveActiveMetaProviderId, sanitizeFlyweelApiKey, flyweelApiKeyProblem } from "../src/lib/ads/providers/config.ts";
-import { buildFlyweelAdsQuery } from "../src/lib/ads/providers/flyweel-query.ts";
+import { buildFlyweelAdsQuery, summarizeFlyweelSetup } from "../src/lib/ads/providers/flyweel-query.ts";
 import { cpc, ctr, platformCpa, platformRoas } from "../src/lib/metrics/formulas.ts";
 
 test("parseNumber handles nulls and string money", () => {
@@ -104,6 +104,18 @@ test("Flyweel ads query uses dataSource and dateRange", () => {
   assert.equal(query.dataSource, "ads");
   assert.deepEqual(query.dateRange, { start: "2026-08-08", end: "2026-08-15" });
   assert.deepEqual(query.filters, { channel: ["Meta"] });
+});
+
+test("setup summary detects Meta connected with nothing selected", () => {
+  const summary = summarizeFlyweelSetup({
+    status: {
+      google: { connected: false, totalAccounts: 0, selectedAccounts: 0 },
+      meta: { connected: true, totalAccounts: 4, selectedAccounts: 0, syncStatus: "never" },
+    },
+  });
+  assert.equal(summary.metaConnected, true);
+  assert.equal(summary.metaSelected, 0);
+  assert.match(summary.message, /no ad account is selected/i);
 });
 
 test("500-row chunking splits date ranges and refuses silent same-day truncation", async () => {

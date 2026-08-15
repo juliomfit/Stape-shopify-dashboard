@@ -6,7 +6,7 @@ import {
 } from "@/lib/ads/providers/config";
 import { FlyweelMcpClient } from "@/lib/ads/providers/flyweel-mcp";
 import { queryDateRangeChunked, SilentTruncationError } from "@/lib/ads/providers/chunk";
-import { buildFlyweelAdsQuery, FLYWEEL_ADS_DIMENSIONS } from "@/lib/ads/providers/flyweel-query";
+import { buildFlyweelAdsQuery, FLYWEEL_ADS_DIMENSIONS, summarizeFlyweelSetup } from "@/lib/ads/providers/flyweel-query";
 import {
   mergeInsightBatches,
   normalizeAccount,
@@ -80,21 +80,14 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   }
 
   lastDebug() {
-    return this.client.lastRawSnippet;
+    return this.lastQuerySnippet || this.client.lastRawSnippet;
   }
 
-  async describeSetup(): Promise<string> {
-    const parts: string[] = [];
-    for (const name of ["get_setup_status", "list_ad_accounts"]) {
-      try {
-        const payload = await this.callRead([name]);
-        const text = typeof payload === "string" ? payload : JSON.stringify(payload);
-        parts.push(`${name}:${text.slice(0, 240)}`);
-      } catch (error) {
-        parts.push(`${name}:${error instanceof Error ? error.message : "error"}`);
-      }
-    }
-    return parts.join(" | ");
+  private lastQuerySnippet = "";
+
+  async setupSummary() {
+    const payload = await this.callRead(["get_setup_status"]);
+    return { payload, ...summarizeFlyweelSetup(payload) };
   }
 
   private async ensureTools() {
@@ -254,6 +247,17 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
       {
         queries: [
           {
+            dataSource: "ads",
+            metrics,
+            dimensions: allowed.slice(0, 4),
+            dateRange: { start: params.startDate, end: params.endDate },
+            limit: 500,
+          },
+        ],
+      },
+      {
+        queries: [
+          {
             ...query,
             dateRange: { start_date: params.startDate, end_date: params.endDate },
           },
@@ -266,7 +270,6 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
             metrics,
             dimensions: allowed.slice(0, 3),
             dateRange: { preset: "last_7_days" },
-            filters: { channel: ["Meta"] },
             limit: 500,
           },
         ],
@@ -286,6 +289,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     for (const shape of shapes) {
       try {
         const payload = await this.callRead(["query_metrics", "queryMetrics"], shape);
+        this.lastQuerySnippet = this.client.lastRawSnippet;
         const errorText = payloadLooksLikeError(payload);
         if (errorText) {
           lastError = new Error(errorText);

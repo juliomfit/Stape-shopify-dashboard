@@ -230,20 +230,29 @@ export async function ingestMetaRange(input: {
       }
       if (provider.id === "flyweel" && campaign.rows.length === 0) {
         const flyweel = provider instanceof FlyweelMetaAdsProvider ? provider : null;
-        let setup = "";
+        const querySnippet = flyweel?.lastDebug() || "";
+        let setupMessage = "";
         try {
-          setup = flyweel ? await flyweel.describeSetup() : "";
+          if (flyweel) {
+            const setup = await flyweel.setupSummary();
+            if (setup.metaConnected && setup.metaSelected === 0) {
+              throw new Error(setup.message);
+            }
+            setupMessage = setup.message;
+          }
         } catch (error) {
-          setup = error instanceof Error ? error.message : "";
+          if (error instanceof Error && /no ad account is selected/i.test(error.message)) {
+            throw error;
+          }
+          setupMessage = error instanceof Error ? error.message : setupMessage;
         }
-        const snippet = flyweel?.lastDebug() || "";
         throw new Error(
           [
+            setupMessage,
             "Flyweel returned 0 campaign rows.",
-            snippet ? `Last MCP payload: ${snippet}` : "",
-            setup ? `Setup: ${setup}` : "",
-            "If that payload is a table/JSON we missed, refresh again after this deploy.",
-            "If it says Meta is disconnected: Flyweel Settings → Connections, connect Meta, select act=209273195421975, then Refresh Meta.",
+            "Open Flyweel → Settings → Connections (not the API key page).",
+            "Select the GoodsNova / FBSmash Meta account 209273195421975, then Refresh Meta.",
+            querySnippet ? `Last metrics payload: ${querySnippet.slice(0, 400)}` : "",
           ]
             .filter(Boolean)
             .join(" "),

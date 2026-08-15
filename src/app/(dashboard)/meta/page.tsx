@@ -100,7 +100,24 @@ async function renderMetaPage() {
             Last sync error: {lastAttempt.error_message}
           </p>
         ) : null}
-        <FlyweelKeyForm accountId={connection.adAccountId} keyHint={connection.tokenHint} />
+        {facts.length === 0 ? (
+          <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
+            <h2 className="font-semibold text-foreground">Select the Meta account in Flyweel</h2>
+            <p className="mt-2">
+              The Flyweel password is working. Meta is connected there, but GoodsNova still has no campaign rows.
+              That usually means the ad account is not selected.
+            </p>
+            <ol className="mt-3 list-decimal space-y-1 pl-5">
+              <li>Open Flyweel in the browser.</li>
+              <li>Go to <strong>Settings → Connections</strong>. Not the API key / “Connect your AI” page.</li>
+              <li>Select the Meta account <strong>209273195421975</strong> (FBSmash / GoodsNova).</li>
+              <li>Come back here and press <strong>Refresh Meta</strong>.</li>
+            </ol>
+          </article>
+        ) : null}
+        {/invalid api key|rejected the API key/i.test(lastAttempt?.error_message || "") ? (
+          <FlyweelKeyForm accountId={connection.adAccountId} keyHint={connection.tokenHint} />
+        ) : null}
         <p className="text-xs text-muted">
           Meta-attributed purchases are Ads Manager matching, not Shopify orders and not sGTM event delivery. Use 7d in the header, then press Refresh Meta.
         </p>
