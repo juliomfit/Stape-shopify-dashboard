@@ -1,5 +1,5 @@
 import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
-import { isPlatformBqReady, replaceAccountEntities, replaceDateWindow, runPlatformQuery } from "@/lib/platform/bq";
+import { platformWarehouseStatus, replaceAccountEntities, replaceDateWindow, runPlatformQuery, ensurePlatformTables } from "@/lib/platform/bq";
 import { platformTable } from "@/lib/platform/config";
 import type {
   MetaAccount,
@@ -154,9 +154,11 @@ export async function persistMetaWarehouse(input: {
     ads: mergeFacts(prev.ads, adFacts, (row) => `${row.date}|${row.ad_id}`),
   });
 
-  if (!isPlatformBqReady()) {
-    return { cached: true, inserted: campaignFacts.length + adsetFacts.length + adFacts.length };
+  const warehouse = await platformWarehouseStatus();
+  if (!warehouse.ready) {
+    throw new Error(warehouse.message);
   }
+  await ensurePlatformTables();
 
   const accountsTable = platformTable("meta_accounts");
   if (accountsTable) {

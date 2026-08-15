@@ -24,9 +24,66 @@ export async function runPlatformQuery<T extends Record<string, unknown>>(
   return rows as T[];
 }
 
+export async function platformWarehouseStatus(): Promise<{
+  ready: boolean;
+  projectId: string;
+  dataset: string;
+  serviceAccount: string;
+  message: string;
+}> {
+  const config = getBigQueryConfig();
+  const dataset = platformDataset();
+  const serviceAccount =
+    config?.credentials &&
+    typeof config.credentials === "object" &&
+    "client_email" in config.credentials
+      ? String((config.credentials as { client_email?: string }).client_email || "")
+      : "";
+  if (!config) {
+    return {
+      ready: false,
+      projectId: "",
+      dataset,
+      serviceAccount,
+      message: "BigQuery is not configured.",
+    };
+  }
+  try {
+    const { client } = getBigQueryClient();
+    const [exists] = await client
+      .dataset(dataset, { projectId: config.projectId })
+      .exists();
+    if (!exists) {
+      return {
+        ready: false,
+        projectId: config.projectId,
+        dataset,
+        serviceAccount,
+        message: `Dataset ${config.projectId}.${dataset} does not exist. The dashboard service account cannot create it.`,
+      };
+    }
+    return {
+      ready: true,
+      projectId: config.projectId,
+      dataset,
+      serviceAccount,
+      message: "Platform warehouse is ready.",
+    };
+  } catch (error) {
+    return {
+      ready: false,
+      projectId: config.projectId,
+      dataset,
+      serviceAccount,
+      message: error instanceof Error ? error.message : "Platform warehouse check failed.",
+    };
+  }
+}
+
 export async function ensurePlatformTables() {
+  const status = await platformWarehouseStatus();
   const table = platformTable("sync_runs");
-  if (!table) {
+  if (!table || !status.ready) {
     return;
   }
   await runPlatformQuery(`
@@ -47,6 +104,39 @@ export async function ensurePlatformTables() {
       metadata STRING
     )
   `);
+  const campaigns = platformTable("meta_campaign_insights_daily");
+  if (campaigns) {
+    await runPlatformQuery(`
+      CREATE TABLE IF NOT EXISTS ${campaigns} (
+        date DATE NOT NULL,
+        account_id STRING NOT NULL,
+        campaign_id STRING NOT NULL,
+        campaign_name STRING,
+        spend FLOAT64,
+        impressions INT64,
+        reach INT64,
+        frequency FLOAT64,
+        clicks INT64,
+        inline_link_clicks INT64,
+        unique_clicks INT64,
+        cpc FLOAT64,
+        cpm FLOAT64,
+        ctr FLOAT64,
+        purchases FLOAT64,
+        purchase_value FLOAT64,
+        add_to_cart FLOAT64,
+        initiate_checkout FLOAT64,
+        landing_page_views FLOAT64,
+        actions_json STRING,
+        action_values_json STRING,
+        provider STRING,
+        synced_at TIMESTAMP,
+        sync_run_id STRING
+      )
+      PARTITION BY date
+      CLUSTER BY account_id, campaign_id
+    `);
+  }
 }
 
 export async function replaceDateWindow(input: {

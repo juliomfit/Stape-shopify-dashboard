@@ -15,6 +15,7 @@ import {
   totalsFromFacts,
 } from "@/lib/ads/meta-query";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { platformWarehouseStatus } from "@/lib/platform/bq";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { pacificDaysInRange } from "@/lib/period";
 import { loadMetaCache } from "@/lib/ads/meta-query";
@@ -46,7 +47,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt, warehouse] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -61,6 +62,13 @@ async function renderMetaPage() {
     loadMetaCache().catch(() => ({ syncedAt: undefined })),
     latestSuccessfulSync("meta").catch(() => null),
     latestSync("meta").catch(() => null),
+    platformWarehouseStatus().catch(() => ({
+      ready: false,
+      projectId: "",
+      dataset: "goodsnova_platform",
+      serviceAccount: "",
+      message: "Warehouse check failed.",
+    })),
   ]);
   const totals = totalsFromFacts(facts);
   const campaigns = rollupCampaigns(facts);
@@ -94,11 +102,19 @@ async function renderMetaPage() {
         <p className="text-xs text-muted">
           Meta-attributed purchases are Ads Manager matching, not Shopify orders and not sGTM event delivery. Use 7d in the header, then press Refresh Meta.
         </p>
-        {connection.configured && facts.length === 0 ? (
-          <EmptyPanel
-            title="No warehouse rows for this date range"
-            description="Press Refresh Meta. First pull is the last 8 Pacific days at campaign level. Then switch the header to 7d — Today is often empty."
-          />
+        {!warehouse.ready ? (
+          <article className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-950">
+            <h2 className="font-semibold">This is why Meta is empty</h2>
+            <p className="mt-2">{warehouse.message}</p>
+            <p className="mt-3">
+              Open Google Cloud → BigQuery (project {warehouse.projectId || "stape-analytics-487802"}). Create dataset{" "}
+              <code className="rounded bg-white px-1">{warehouse.dataset}</code> in location US. Share it with{" "}
+              <code className="rounded bg-white px-1">
+                {warehouse.serviceAccount || "stape-shopify-dashboard-cursor@stape-analytics-487802.iam.gserviceaccount.com"}
+              </code>{" "}
+              as <strong>BigQuery Data Editor</strong>. Then press Refresh Meta.
+            </p>
+          </article>
         ) : null}
         {!connection.configured && facts.length === 0 ? (
           <EmptyPanel
