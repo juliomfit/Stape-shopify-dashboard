@@ -7,9 +7,15 @@ import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { TopProductsPanel } from "@/components/dashboard/TopProductsPanel";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
+import { DataHealthStrip } from "@/components/dashboard/DataHealthStrip";
+import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
+import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
+import { getDataHealth } from "@/lib/platform/health";
+import { detectAnomalies } from "@/lib/platform/anomalies";
+import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +28,7 @@ function roasLabel(value: number | null) {
 }
 
 export default async function OverviewPage() {
-  const data = await getCoreDashboard();
+  const [data, health] = await Promise.all([getCoreDashboard(), getDataHealth()]);
   const {
     period,
     deltaLabel,
@@ -50,6 +56,30 @@ export default async function OverviewPage() {
     ads,
     deltas,
   } = data;
+  const metaNow = totalsFromFacts(await getCampaignFacts(period));
+  const metaPrev = totalsFromFacts(await getCampaignFacts(data.previous));
+  const anomalies = await detectAnomalies({
+    revenue: shopifyConnected ? alignedShopify.revenue : null,
+    previousRevenue:
+      data.previousShopify.status.state === "connected"
+        ? data.previousAligned.revenue
+        : null,
+    orders: shopifyConnected ? alignedShopify.orders : null,
+    previousOrders:
+      data.previousShopify.status.state === "connected"
+        ? data.previousAligned.orders
+        : null,
+    spend: totalSpend,
+    previousSpend: null,
+    mer,
+    previousMer: null,
+    cpa,
+    previousCpa: null,
+    conversion: conversion.rate,
+    previousConversion: data.previousConversion.rate,
+    metaCpa: metaNow.cpa,
+    previousMetaCpa: metaPrev.cpa,
+  });
   const shopifySource = shopifyConnected
     ? `Shopify · ${period.label}`
     : "Shopify · no data yet";
@@ -73,6 +103,8 @@ export default async function OverviewPage() {
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
+        <DataHealthStrip sources={health} />
+        <NeedsAttention anomalies={anomalies} />
         <TruncationNotice
           truncated={shopify.truncated}
           fetched={alignedShopify.orders}
@@ -213,11 +245,11 @@ export default async function OverviewPage() {
             }
           />
           <MetricCard
-            label="Net profit"
+            label="Contribution profit"
             source={
               profit === null
-                ? "Needs ad spend for these dates · no COGS"
-                : `${period.label} · total − fees − ad spend · no COGS`
+                ? "Needs ad spend for these dates · COGS not subtracted"
+                : `${period.label} · total − fees − ad spend · not net profit (no COGS)`
             }
             value={
               profit === null
@@ -368,6 +400,7 @@ export default async function OverviewPage() {
           shopifyOrders={shopifyConnected ? alignedShopify.orders : null}
         />
         <TopProductsPanel products={shopify.topProducts} />
+        <AskAiPanel viewContext={`Overview · ${period.label}`} compact />
       </section>
     </>
   );

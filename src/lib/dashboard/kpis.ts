@@ -1,58 +1,38 @@
 import type { FirstTouchRollup } from "@/lib/shopify/first-touch";
+import { contributionProfit } from "@/lib/metrics/formulas";
 
-export function ratio(numerator: number, spend: number | null) {
-  if (spend === null || spend <= 0) {
-    return null;
-  }
+export {
+  aov,
+  blendedCpa,
+  contributionMargin,
+  coverageRatio,
+  cpc,
+  cpm,
+  ctr,
+  merRatio,
+  netAfterFees,
+  newCustomerCpa,
+  percentChange,
+  platformCpa,
+  platformRoas,
+  ratio,
+} from "@/lib/metrics/formulas";
 
-  return numerator / spend;
-}
+export { contributionProfit };
 
-/** MER = blended ad spend ÷ total revenue. Inverse of blended ROAS. */
-export function merRatio(spend: number | null, orderRevenue: number) {
-  if (spend === null || spend <= 0 || orderRevenue <= 0) {
-    return null;
-  }
-
-  return spend / orderRevenue;
-}
-
-/** Ad spend ÷ Shopify orders with total > $0. */
-export function blendedCpa(spend: number | null, paidOrders: number) {
-  if (spend === null || paidOrders <= 0) {
-    return null;
-  }
-
-  return spend / paidOrders;
-}
-
-export function netAfterFees(
-  totalRevenue: number,
-  processingFees: number | null,
-  refundFees: number | null,
-) {
-  return totalRevenue - (processingFees ?? 0) - (refundFees ?? 0);
-}
-
+/** @deprecated Use contributionProfit. Same formula without COGS. */
 export function netProfit(
   totalRevenue: number,
   processingFees: number | null,
   refundFees: number | null,
   adSpend: number | null,
 ) {
-  if (adSpend === null) {
-    return null;
-  }
-
-  return netAfterFees(totalRevenue, processingFees, refundFees) - adSpend;
-}
-
-export function percentChange(current: number | null, previous: number | null) {
-  if (current === null || previous === null || previous === 0) {
-    return null;
-  }
-
-  return (current - previous) / previous;
+  return contributionProfit({
+    totalRevenue,
+    processingFees,
+    refundFees,
+    adSpend,
+  });
 }
 
 export function unknownFirstTouch(orders: {

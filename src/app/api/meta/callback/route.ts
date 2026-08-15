@@ -12,7 +12,7 @@ import {
 
 function attributionUrl(query: string) {
   const origin = new URL(getMetaRedirectUri()).origin;
-  return new URL(`/attribution?${query}`, origin);
+  return new URL(`/integrations?${query}`, origin);
 }
 
 export async function GET(request: Request) {

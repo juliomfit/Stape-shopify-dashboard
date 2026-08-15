@@ -10,7 +10,7 @@ import {
 export async function GET(request: Request) {
   if (!isMetaOAuthConfigured()) {
     return NextResponse.redirect(
-      new URL("/attribution?meta=error&reason=missing_app", request.url),
+      new URL("/integrations?meta=error&reason=missing_app", request.url),
     );
   }
 

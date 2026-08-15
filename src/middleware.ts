@@ -24,6 +24,8 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === "/login" ||
     pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/cron/") ||
+    pathname.startsWith("/api/shopify/webhooks") ||
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico"
   ) {

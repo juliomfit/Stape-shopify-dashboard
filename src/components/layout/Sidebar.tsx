@@ -31,7 +31,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3 pb-6">
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-6">
         {navItems.map((item) => {
           const active = isActivePath(pathname, item.href);
 

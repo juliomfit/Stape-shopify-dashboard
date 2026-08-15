@@ -144,6 +144,12 @@ Optional: `bigquery/create_stape_events.sql` and `bigquery/attribution_views.sql
 
 Never commit `.env.local` or `secrets/`.
 
+## Platform (Meta ingest, health, optional AI)
+
+See `docs/PLATFORM.md`. New pages: `/meta`, `/integrations`, `/health`, `/ai`.
+
+Hourly cron: `/api/cron/sync` (set `CRON_SECRET`). Semantic metrics live in `src/lib/metrics/formulas.ts`. GPT is optional.
+
 ## Project structure
 
 - `src/app/(dashboard)` — dashboard pages

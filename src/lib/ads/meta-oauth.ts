@@ -22,7 +22,9 @@ export function isMetaOAuthConfigured() {
 }
 
 export function getMetaRedirectUri() {
-  const explicit = process.env.META_OAUTH_REDIRECT_URI?.trim();
+  const explicit =
+    process.env.META_REDIRECT_URI?.trim() ||
+    process.env.META_OAUTH_REDIRECT_URI?.trim();
   if (explicit) {
     return explicit;
   }
