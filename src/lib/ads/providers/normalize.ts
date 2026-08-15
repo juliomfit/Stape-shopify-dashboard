@@ -67,7 +67,19 @@ export function pickString(row: Record<string, unknown>, aliases: string[]): str
 
 export function unwrapRows(payload: unknown): Record<string, unknown>[] {
   if (Array.isArray(payload)) {
-    return payload.map(asRecord).filter((row): row is Record<string, unknown> => Boolean(row));
+    if (payload.length === 0) {
+      return [];
+    }
+    if (payload.every((item) => item && typeof item === "object")) {
+      const objects = payload
+        .map(asRecord)
+        .filter((row): row is Record<string, unknown> => Boolean(row));
+      if (objects.some((row) => Array.isArray(row.rows) || Array.isArray(row.data))) {
+        return objects.flatMap((row) => unwrapRows(row));
+      }
+      return objects;
+    }
+    return [];
   }
   const root = asRecord(payload);
   if (!root) {
@@ -79,11 +91,13 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
     root.results,
     root.metrics,
     root.records,
+    root.table,
     asRecord(root.result)?.rows,
     asRecord(root.result)?.data,
+    asRecord(root.query)?.rows,
   ];
   for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
+    if (Array.isArray(candidate) && candidate.length > 0) {
       return unwrapRows(candidate);
     }
   }
@@ -94,7 +108,13 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
       return [];
     }
   }
-  if ("spend" in root || "campaign_id" in root || "campaignId" in root || "date" in root) {
+  if (
+    "spend" in root ||
+    "campaign_id" in root ||
+    "campaignId" in root ||
+    "date" in root ||
+    "impressions" in root
+  ) {
     return [root];
   }
   return [];

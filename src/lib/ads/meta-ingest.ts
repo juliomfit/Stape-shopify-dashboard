@@ -6,7 +6,7 @@ import { preferredFlyweelAccount } from "@/lib/ads/providers/flyweel";
 import type { MetaAccount, MetaAdsProvider, MetaInsightResult, MetaInsightRow } from "@/lib/ads/providers/types";
 import { isPlatformBqReady } from "@/lib/platform/bq";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/platform/lock";
-import { finishSyncRun, latestSuccessfulSync, startSyncRun, type SyncRun } from "@/lib/platform/sync-runs";
+import { finishSyncRun, startSyncRun, type SyncRun } from "@/lib/platform/sync-runs";
 import { getDashboardPeriod, pacificDaysInRange } from "@/lib/period";
 import { addDaysYmd } from "@/lib/ads/providers/chunk";
 
@@ -39,15 +39,30 @@ function dateWindows(startDate: string, endDate: string, size: number) {
 }
 
 async function resolveAccount(provider: MetaAdsProvider): Promise<MetaAccount> {
-  const accounts = await provider.getAccounts();
   const stored = await readDurableJson<AccountStore>("flyweel-account");
   const configured = flyweelMetaAccountId();
+  let accounts: MetaAccount[] = [];
+  try {
+    accounts = await provider.getAccounts();
+  } catch {
+    accounts = [];
+  }
   const match =
     accounts.find((row) => row.accountId.replace(/^act_/, "") === configured) ||
     accounts.find((row) => stored && row.accountId.replace(/^act_/, "") === stored.accountId) ||
-    preferredFlyweelAccount(accounts);
+    preferredFlyweelAccount(accounts) ||
+    (configured
+      ? {
+          accountId: configured,
+          accountName: stored?.accountName || "GoodsNova Meta",
+          platform: "meta" as const,
+          provider: provider.id,
+        }
+      : null);
   if (!match) {
-    throw new Error("No Meta ad account available from the active provider.");
+    throw new Error(
+      "No Meta ad account. Set FLYWEEL_META_ACCOUNT_ID to the Ads Manager act= number (209273195421975).",
+    );
   }
   await writeDurableJson("flyweel-account", {
     accountId: match.accountId.replace(/^act_/, ""),
@@ -181,27 +196,37 @@ export async function ingestMetaRange(input: {
       requests += campaign.requests;
       let adset: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
       let ad: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
-      try {
-        adset = await provider.getInsights({
-          accountId,
-          startDate: window.startDate,
-          endDate: window.endDate,
-          level: "adset",
-        });
-        requests += adset.requests;
-      } catch (error) {
-        steps.push(`adset-skip:${error instanceof Error ? error.message : "error"}`);
+      const deep = provider.id !== "flyweel" || process.env.FLYWEEL_INGEST_LEVELS === "all";
+      if (deep) {
+        try {
+          adset = await provider.getInsights({
+            accountId,
+            startDate: window.startDate,
+            endDate: window.endDate,
+            level: "adset",
+          });
+          requests += adset.requests;
+        } catch (error) {
+          steps.push(`adset-skip:${error instanceof Error ? error.message : "error"}`);
+        }
+        try {
+          ad = await provider.getInsights({
+            accountId,
+            startDate: window.startDate,
+            endDate: window.endDate,
+            level: "ad",
+          });
+          requests += ad.requests;
+        } catch (error) {
+          steps.push(`ad-skip:${error instanceof Error ? error.message : "error"}`);
+        }
+      } else {
+        steps.push("flyweel-campaign-only");
       }
-      try {
-        ad = await provider.getInsights({
-          accountId,
-          startDate: window.startDate,
-          endDate: window.endDate,
-          level: "ad",
-        });
-        requests += ad.requests;
-      } catch (error) {
-        steps.push(`ad-skip:${error instanceof Error ? error.message : "error"}`);
+      if (provider.id === "flyweel" && campaign.rows.length === 0) {
+        throw new Error(
+          "Flyweel returned 0 campaign rows. In Flyweel: Settings → Connections, connect Meta, select this ad account, then Refresh Meta again.",
+        );
       }
 
       const derived = entitiesFromInsights(account, [...campaign.rows, ...adset.rows, ...ad.rows]);
@@ -287,15 +312,6 @@ export async function ingestMetaRange(input: {
 }
 
 export async function syncMetaIncremental() {
-  const success = await latestSuccessfulSync("meta");
-  if (!success) {
-    const window = lookbackWindow(90);
-    return ingestMetaRange({
-      ...window,
-      includeEntities: true,
-      syncType: "backfill",
-    });
-  }
   const window = lookbackWindow(8);
   return ingestMetaRange({
     ...window,

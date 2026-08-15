@@ -17,12 +17,15 @@ export class FlyweelMcpClient {
   private nextId = 1;
   private initialized = false;
   requestCount = 0;
-  readonly url: string;
+  url: string;
   private readonly apiKey: string;
+  private readonly urls: string[];
 
   constructor(url = flyweelMcpUrl(), apiKey = flyweelApiKey()) {
-    this.url = url;
     this.apiKey = apiKey;
+    const extra = url.endsWith("/mcp") ? url.slice(0, -4) : `${url.replace(/\/$/, "")}/mcp`;
+    this.urls = [...new Set([url, extra])];
+    this.url = this.urls[0];
   }
 
   configured() {
@@ -35,6 +38,7 @@ export class FlyweelMcpClient {
       accept: "application/json, text/event-stream",
       authorization: `Bearer ${this.apiKey}`,
       "x-api-key": this.apiKey,
+      "mcp-protocol-version": "2024-11-05",
     };
     if (this.sessionId) {
       headers["mcp-session-id"] = this.sessionId;
@@ -72,45 +76,52 @@ export class FlyweelMcpClient {
       params,
     };
     this.requestCount += 1;
-    const response = await fetch(this.url, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify(body),
-    });
-    const session = response.headers.get("mcp-session-id");
-    if (session) {
-      this.sessionId = session;
+    let lastError: Error | null = null;
+    for (const url of this.urls) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      });
+      const session = response.headers.get("mcp-session-id");
+      if (session) {
+        this.sessionId = session;
+      }
+      const text = await response.text();
+      if (!response.ok) {
+        lastError = new Error(`Flyweel MCP HTTP ${response.status}: ${text.slice(0, 400)}`);
+        continue;
+      }
+      this.url = url;
+      let parsed: unknown;
+      try {
+        parsed = this.parseBody(text, response.headers.get("content-type") || "");
+      } catch {
+        lastError = new Error(`Flyweel MCP returned non-JSON: ${text.slice(0, 400)}`);
+        continue;
+      }
+      const root = parsed as { error?: { message?: string; code?: number }; result?: unknown };
+      if (root?.error?.message) {
+        lastError = new Error(root.error.message);
+        continue;
+      }
+      return root?.result ?? parsed;
     }
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(`Flyweel MCP HTTP ${response.status}: ${text.slice(0, 400)}`);
-    }
-    let parsed: unknown;
-    try {
-      parsed = this.parseBody(text, response.headers.get("content-type") || "");
-    } catch {
-      throw new Error(`Flyweel MCP returned non-JSON: ${text.slice(0, 400)}`);
-    }
-    const root = parsed as { error?: { message?: string }; result?: unknown };
-    if (root?.error?.message) {
-      throw new Error(root.error.message);
-    }
-    return root?.result ?? parsed;
+    throw lastError || new Error("Flyweel MCP request failed");
   }
 
   async initialize() {
     if (this.initialized) {
       return;
     }
-    await this.rpc("initialize", {
-      protocolVersion: "2024-11-05",
-      capabilities: {},
-      clientInfo: { name: "goodsnova-analytics", version: "0.1.0" },
-    });
     try {
-      await this.rpc("notifications/initialized", {});
+      await this.rpc("initialize", {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "goodsnova-analytics", version: "0.1.0" },
+      });
     } catch {
-      // Some servers do not accept notifications as JSON-RPC requests.
+      await this.rpc("initialize");
     }
     this.initialized = true;
   }

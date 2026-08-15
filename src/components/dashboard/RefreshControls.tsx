@@ -1,39 +1,49 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import {
-  backfillMetaAction,
-  refreshSourceAction,
-} from "@/lib/platform/actions";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function RefreshControls() {
+  const router = useRouter();
   const [message, setMessage] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, setPending] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  function run(source: string) {
-    start(async () => {
-      setMessage(source === "meta" ? "Syncing Meta..." : "Refreshing…");
-      const result = await refreshSourceAction(source);
-      setMessage(
-        source === "meta" && result.ok
-          ? `Meta updated. ${result.message}`
-          : result.message,
-      );
-    });
+  async function post(payload: Record<string, string>) {
+    setPending(true);
+    setMessage(payload.source === "meta" || payload.startDate ? "Syncing Meta..." : "Refreshing…");
+    try {
+      const response = await fetch("/api/meta/sync", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = (await response.json()) as {
+        ok?: boolean;
+        message?: string;
+        error?: string;
+      };
+      const text = result.message || result.error || `HTTP ${response.status}`;
+      setMessage(result.ok ? `Meta updated. ${text}` : text);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Sync request failed.");
+    } finally {
+      setPending(false);
+      router.refresh();
+    }
   }
 
   return (
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <h2 className="text-sm font-semibold text-foreground">Refresh data</h2>
       <p className="mt-1 text-xs text-muted">
-        Uses the same importers as hourly cron. Overlapping Meta jobs are blocked.
+        Pulls Meta from Flyweel on the server (up to 60s), then reads BigQuery. Charts never call Flyweel live.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {[
-          ["all", "Refresh all"],
           ["meta", "Refresh Meta"],
+          ["all", "Refresh all"],
           ["shopify", "Refresh Shopify"],
           ["google_ads", "Refresh Google Ads"],
           ["ga4", "Refresh GA4"],
@@ -42,7 +52,7 @@ export function RefreshControls() {
             key={source}
             type="button"
             disabled={pending}
-            onClick={() => run(source)}
+            onClick={() => post({ source })}
             className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50"
           >
             {label}
@@ -53,11 +63,7 @@ export function RefreshControls() {
         className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end"
         onSubmit={(event) => {
           event.preventDefault();
-          start(async () => {
-            setMessage("Backfilling Meta…");
-            const result = await backfillMetaAction(startDate, endDate);
-            setMessage(result.message);
-          });
+          void post({ startDate, endDate });
         }}
       >
         <label className="grid gap-1 text-sm">
@@ -88,7 +94,7 @@ export function RefreshControls() {
           Backfill Meta
         </button>
       </form>
-      {message ? <p className="mt-3 text-sm text-muted">{message}</p> : null}
+      {message ? <p className="mt-3 text-sm text-foreground">{message}</p> : null}
     </article>
   );
 }

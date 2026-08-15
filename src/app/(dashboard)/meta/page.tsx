@@ -18,7 +18,7 @@ import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { pacificDaysInRange } from "@/lib/period";
 import { loadMetaCache } from "@/lib/ads/meta-query";
-import { latestSuccessfulSync } from "@/lib/platform/sync-runs";
+import { latestSuccessfulSync, latestSync } from "@/lib/platform/sync-runs";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -60,6 +60,7 @@ async function renderMetaPage() {
     getCampaignFacts(period).catch(() => []),
     loadMetaCache().catch(() => ({ syncedAt: undefined })),
     latestSuccessfulSync("meta").catch(() => null),
+    latestSync("meta").catch(() => null),
   ]);
   const totals = totalsFromFacts(facts);
   const campaigns = rollupCampaigns(facts);
@@ -85,13 +86,18 @@ async function renderMetaPage() {
               ? `Local cache ${cache.syncedAt}`
               : "No Meta platform sync yet"}
         </p>
+        {lastAttempt?.error_message ? (
+          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">
+            Last sync error: {lastAttempt.error_message}
+          </p>
+        ) : null}
         <p className="text-xs text-muted">
-          Meta-attributed purchases are Ads Manager matching, not Shopify orders and not sGTM event delivery.
+          Meta-attributed purchases are Ads Manager matching, not Shopify orders and not sGTM event delivery. Use 7d in the header, then press Refresh Meta.
         </p>
         {connection.configured && facts.length === 0 ? (
           <EmptyPanel
-            title="Meta is connected but not synced yet"
-            description="Press Refresh Meta below. First import pulls ~90 days. Header is Today — switch to 7d after sync if today has no spend yet."
+            title="No warehouse rows for this date range"
+            description="Press Refresh Meta. First pull is the last 8 Pacific days at campaign level. Then switch the header to 7d — Today is often empty."
           />
         ) : null}
         {!connection.configured && facts.length === 0 ? (

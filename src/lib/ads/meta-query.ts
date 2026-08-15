@@ -1,6 +1,4 @@
 import { readDurableJson } from "@/lib/durable-json";
-import { getMetaCredentials } from "@/lib/ads/meta-credentials";
-import { flyweelMetaAccountId } from "@/lib/ads/providers/config";
 import { isPlatformBqReady, runPlatformQuery } from "@/lib/platform/bq";
 import { platformTable } from "@/lib/platform/config";
 import { cpc, cpm, ctr, platformCpa, platformRoas } from "@/lib/metrics/formulas";
@@ -91,13 +89,6 @@ async function queryFacts(
     return [];
   }
   try {
-    const { credentials } = await getMetaCredentials();
-    const stored = await readDurableJson<{ accountId?: string }>("flyweel-account");
-    const accountId =
-      flyweelMetaAccountId() ||
-      stored?.accountId ||
-      credentials?.adAccountId.replace(/^act_/, "") ||
-      "";
     const select =
       table === "meta_campaign_insights_daily"
         ? "date, account_id, campaign_id, campaign_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value, ctr, cpc, cpm"
@@ -107,12 +98,10 @@ async function queryFacts(
     const rows = await runPlatformQuery<MetaInsightFact>(
       `SELECT ${select} FROM ${fq}
        WHERE date BETWEEN @startDate AND @endDate
-         ${accountId ? "AND account_id = @accountId" : ""}
          ${extra}`,
       {
         startDate: period.startDate,
         endDate: period.endDate,
-        accountId,
         ...extraParams,
       },
     );

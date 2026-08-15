@@ -107,15 +107,29 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   }
 
   async getAccounts(): Promise<MetaAccount[]> {
-    const payload = await this.callRead(["list_ad_accounts", "listAdAccounts"]);
-    const rows = unwrapRows(payload).length ? unwrapRows(payload) : this.accountsFromSetup(payload);
-    return rows
+    const configured = flyweelMetaAccountId();
+    let rows: Record<string, unknown>[] = [];
+    try {
+      const payload = await this.callRead(["list_ad_accounts", "listAdAccounts", "get_setup_status"]);
+      rows = unwrapRows(payload).length ? unwrapRows(payload) : this.accountsFromSetup(payload);
+    } catch {
+      rows = [];
+    }
+    const parsed = rows
       .map((row) => normalizeAccount(row, this.id))
-      .filter((row) => {
-        const platform = String(row.raw?.platform || row.raw?.provider || row.raw?.channel || "meta").toLowerCase();
-        return platform.includes("meta") || platform.includes("facebook") || !row.raw?.platform;
-      })
       .filter((row) => row.accountId);
+    if (configured && !parsed.some((row) => row.accountId.replace(/^act_/, "") === configured)) {
+      parsed.unshift({
+        accountId: configured,
+        accountName: "GoodsNova Meta",
+        currency: undefined,
+        timezone: undefined,
+        platform: "meta",
+        provider: this.id,
+        raw: { account_id: configured },
+      });
+    }
+    return parsed;
   }
 
   private accountsFromSetup(payload: unknown): Record<string, unknown>[] {
@@ -229,6 +243,8 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
       end_date: params.endDate,
       date_from: params.startDate,
       date_to: params.endDate,
+      date_range: { start: params.startDate, end: params.endDate, start_date: params.startDate, end_date: params.endDate },
+      date_preset: "last_7_days",
       metrics,
       dimensions,
       campaign_id: params.campaignId,
