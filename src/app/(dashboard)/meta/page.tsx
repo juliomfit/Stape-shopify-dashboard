@@ -38,7 +38,7 @@ export default async function MetaPage() {
           title="Meta Ads"
           description="Platform-attributed Meta reporting. Warehouse-backed; not a live Flyweel request."
         />
-        <section className="flex flex-1 flex-col gap-6 p-8">
+        <section className="dash-page gap-6">
           <EmptyPanel title="Meta page hit a server error" description={message} />
           <RefreshControls />
         </section>
@@ -102,7 +102,7 @@ async function renderMetaPage() {
         title="Meta Ads"
         description="Platform-attributed Meta reporting (Ads Manager matching). Not Shopify gn_* first-touch. Timezone America/Los_Angeles."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         <p className="text-xs text-muted">
           Provider: {connection.provider === "flyweel" ? "Flyweel" : connection.provider === "meta_graph" ? "Meta Graph" : "none"}
           {" · "}

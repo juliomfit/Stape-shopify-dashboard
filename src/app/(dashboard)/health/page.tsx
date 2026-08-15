@@ -56,7 +56,7 @@ export default async function HealthPage() {
         title="Data health"
         description="Sync freshness and tracking reconciliation. Attribution numbers are not event-delivery coverage."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         <DataHealthStrip sources={sources} />
         <RefreshControls />
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">

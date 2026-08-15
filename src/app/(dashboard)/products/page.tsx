@@ -35,7 +35,7 @@ export default async function ProductsPage() {
         title="Products"
         description="Shopify product sales for the selected date range."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} />
         <TruncationNotice
           truncated={shopify.truncated}

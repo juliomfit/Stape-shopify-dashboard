@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChannelMark } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { FirstTouchGroupBy, FirstTouchRollup } from "@/lib/shopify/first-touch";
 
@@ -160,7 +161,10 @@ export function AttributionSourceTable({
               {rows.map((row) => (
                 <tr key={row.label} className="border-b border-border">
                   <td className="py-2 pr-3 font-medium text-foreground">
-                    {row.source}
+                    <span className="inline-flex items-center gap-2">
+                      <ChannelMark name={row.source} />
+                      {row.source}
+                    </span>
                   </td>
                   <td className="py-2 pr-3 text-muted">{row.medium}</td>
                   <td className="py-2 pr-3 text-muted">{formatNumber(row.orders)}</td>

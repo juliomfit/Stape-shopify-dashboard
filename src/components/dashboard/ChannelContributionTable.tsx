@@ -1,3 +1,4 @@
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { ChannelContribution } from "@/lib/stape/attribution-types";
 
@@ -30,7 +31,9 @@ export function ChannelContributionTable({
           <tbody>
             {rows.map((row) => (
               <tr key={row.source} className="border-b border-border last:border-0">
-                <td className="py-2.5 text-foreground">{row.source}</td>
+                <td className="py-2.5 text-foreground">
+                  <ChannelLabel name={row.source} />
+                </td>
                 <td className="py-2.5 text-muted">{formatNumber(row.orders)}</td>
                 <td className="py-2.5 text-muted">
                   {formatMoney({ amount: row.revenue, currencyCode })}

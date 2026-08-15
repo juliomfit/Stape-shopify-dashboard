@@ -1,3 +1,4 @@
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { WarehouseChannelRow } from "@/lib/warehouse/types";
 
@@ -40,7 +41,9 @@ export function WarehouseChannelTable({
                   key={row.channel}
                   className="border-b border-border last:border-0"
                 >
-                  <td className="py-2.5 text-foreground">{row.channel}</td>
+                  <td className="py-2.5 text-foreground">
+                    <ChannelLabel name={row.channel} />
+                  </td>
                   <td className="py-2.5 text-muted">
                     {formatNumber(row.orders)}
                   </td>
