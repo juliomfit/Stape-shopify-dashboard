@@ -178,7 +178,7 @@ export async function ingestMetaRange(input: {
       }
     }
 
-    if (provider.id === "flyweel" && process.env.FLYWEEL_TRIGGER_SYNC === "1" && provider.sync) {
+    if (provider instanceof FlyweelMetaAdsProvider && provider.sync) {
       const sync = await provider.sync({ startDate: input.startDate, endDate: input.endDate });
       requests += sync.requests;
       steps.push(sync.ok ? "flyweel-refresh" : "flyweel-refresh-skipped");
@@ -372,7 +372,7 @@ export async function ingestMetaRange(input: {
 }
 
 export async function syncMetaIncremental() {
-  const window = lookbackWindow(7);
+  const window = lookbackWindow(2);
   return ingestMetaRange({
     ...window,
     includeEntities: true,
