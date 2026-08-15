@@ -16,11 +16,11 @@ function money(amount: number, currency: string) {
 
 export function MetaEntityTable({
   rows,
-  hrefFor,
+  hrefPrefix,
   currency = "USD",
 }: {
   rows: EntityRollup[];
-  hrefFor?: (row: EntityRollup) => string;
+  hrefPrefix?: string;
   currency?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -104,8 +104,9 @@ export function MetaEntityTable({
           </thead>
           <tbody>
             {filtered.map((row) => {
-              const name = hrefFor ? (
-                <Link href={hrefFor(row)} className="font-medium text-foreground underline">
+              const href = hrefPrefix ? `${hrefPrefix.replace(/\/$/, "")}/${row.id}` : null;
+              const name = href ? (
+                <Link href={href} className="font-medium text-foreground underline">
                   {row.name}
                 </Link>
               ) : (

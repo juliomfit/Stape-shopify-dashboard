@@ -46,18 +46,29 @@ function asDate(value: unknown) {
   return String(value ?? "").slice(0, 10);
 }
 
+function asNumber(value: unknown): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (value && typeof value === "object" && "value" in (value as { value?: unknown })) {
+    return asNumber((value as { value: unknown }).value);
+  }
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
 function normalizeFacts(rows: MetaInsightFact[]): MetaInsightFact[] {
   return rows.map((row) => ({
     ...row,
     date: asDate(row.date),
-    spend: Number(row.spend || 0),
-    impressions: Number(row.impressions || 0),
-    reach: Number(row.reach || 0),
-    frequency: Number(row.frequency || 0),
-    clicks: Number(row.clicks || 0),
-    inline_link_clicks: Number(row.inline_link_clicks || 0),
-    purchases: Number(row.purchases || 0),
-    purchase_value: Number(row.purchase_value || 0),
+    spend: asNumber(row.spend),
+    impressions: asNumber(row.impressions),
+    reach: asNumber(row.reach),
+    frequency: asNumber(row.frequency),
+    clicks: asNumber(row.clicks),
+    inline_link_clicks: asNumber(row.inline_link_clicks),
+    purchases: asNumber(row.purchases),
+    purchase_value: asNumber(row.purchase_value),
   }));
 }
 
@@ -301,7 +312,7 @@ export function dailyMetricSeries(
     const totals = totalsFromFacts(slice);
     if (metric === "purchase_value") return totals.purchaseValue;
     const value = totals[metric];
-    return typeof value === "number" ? value : 0;
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
   });
 }
 

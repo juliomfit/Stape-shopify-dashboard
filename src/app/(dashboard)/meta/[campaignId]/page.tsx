@@ -25,8 +25,8 @@ export default async function MetaCampaignPage({
   const { campaignId } = await params;
   const period = await getSelectedPeriod();
   const [campaignFacts, adsetFacts] = await Promise.all([
-    getCampaignFacts(period),
-    getAdsetFacts(period, campaignId),
+    getCampaignFacts(period).catch(() => []),
+    getAdsetFacts(period, campaignId).catch(() => []),
   ]);
   const campaign = rollupCampaigns(campaignFacts).find((row) => row.id === campaignId);
   const adsets = rollupAdsets(adsetFacts);
@@ -71,7 +71,7 @@ export default async function MetaCampaignPage({
           <div className="mt-4">
             <MetaEntityTable
               rows={adsets}
-              hrefFor={(row) => `/meta/${campaignId}/${row.id}`}
+              hrefPrefix={`/meta/${campaignId}`}
             />
           </div>
         </article>

@@ -16,7 +16,7 @@ export default async function MetaAdsetPage({
 }) {
   const { campaignId, adsetId } = await params;
   const period = await getSelectedPeriod();
-  const ads = rollupAds(await getAdFacts(period, { campaignId, adsetId }));
+  const ads = rollupAds(await getAdFacts(period, { campaignId, adsetId }).catch(() => []));
 
   return (
     <>

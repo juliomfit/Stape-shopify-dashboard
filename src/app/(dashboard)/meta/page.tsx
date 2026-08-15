@@ -25,6 +25,26 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Meta Ads" };
 
 export default async function MetaPage() {
+  try {
+    return await renderMetaPage();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Meta page failed to load.";
+    return (
+      <>
+        <Header
+          title="Meta Ads"
+          description="Platform-attributed Meta reporting. Warehouse-backed; not a live Flyweel request."
+        />
+        <section className="flex flex-1 flex-col gap-6 p-8">
+          <EmptyPanel title="Meta page hit a server error" description={message} />
+          <RefreshControls />
+        </section>
+      </>
+    );
+  }
+}
+
+async function renderMetaPage() {
   const period = await getSelectedPeriod();
   const [connection, facts, cache, lastSync] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
@@ -173,7 +193,7 @@ export default async function MetaPage() {
             <MetaEntityTable
               rows={campaigns}
               currency={currency}
-              hrefFor={(row) => `/meta/${row.id}`}
+              hrefPrefix="/meta"
             />
           </div>
         </article>
