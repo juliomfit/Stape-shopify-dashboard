@@ -139,6 +139,22 @@ export async function ensurePlatformTables() {
   }
 }
 
+function isStreamingBufferError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /streaming buffer/i.test(message);
+}
+
+async function deleteIfPossible(sql: string, params?: Record<string, unknown>) {
+  try {
+    await runPlatformQuery(sql, params);
+  } catch (error) {
+    if (isStreamingBufferError(error)) {
+      return;
+    }
+    throw error;
+  }
+}
+
 export async function replaceDateWindow(input: {
   table: string;
   accountId: string;
@@ -151,25 +167,7 @@ export async function replaceDateWindow(input: {
   if (!fq) {
     throw new Error("BigQuery is not configured.");
   }
-  if (input.rows.length === 0) {
-    await runPlatformQuery(
-      `DELETE FROM ${fq}
-       WHERE account_id = @accountId
-         AND date BETWEEN @startDate AND @endDate
-         ${input.extraWhere || ""}`,
-      {
-        accountId: input.accountId,
-        startDate: input.startDate,
-        endDate: input.endDate,
-      },
-    );
-    return;
-  }
-
-  const { client, config } = getBigQueryClient();
-  const dataset = client.dataset(platformDataset(), { projectId: config.projectId });
-  const table = dataset.table(input.table);
-  await runPlatformQuery(
+  await deleteIfPossible(
     `DELETE FROM ${fq}
      WHERE account_id = @accountId
        AND date BETWEEN @startDate AND @endDate
@@ -180,6 +178,13 @@ export async function replaceDateWindow(input: {
       endDate: input.endDate,
     },
   );
+  if (input.rows.length === 0) {
+    return;
+  }
+
+  const { client, config } = getBigQueryClient();
+  const dataset = client.dataset(platformDataset(), { projectId: config.projectId });
+  const table = dataset.table(input.table);
   const chunkSize = 400;
   for (let i = 0; i < input.rows.length; i += chunkSize) {
     const chunk = input.rows.slice(i, i + chunkSize);
@@ -196,7 +201,7 @@ export async function replaceAccountEntities(input: {
   if (!fq) {
     throw new Error("BigQuery is not configured.");
   }
-  await runPlatformQuery(`DELETE FROM ${fq} WHERE account_id = @accountId`, {
+  await deleteIfPossible(`DELETE FROM ${fq} WHERE account_id = @accountId`, {
     accountId: input.accountId,
   });
   if (input.rows.length === 0) {
