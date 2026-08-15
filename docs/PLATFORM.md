@@ -36,7 +36,8 @@ Cursor's Flyweel MCP OAuth session is **not** production auth. Vercel must have 
 
 1. In Flyweel, connect Meta Ads (Facebook OAuth) and select the GoodsNova ad account.
 2. Settings → API & MCP → generate `fwl_…` key.
-3. Set on Vercel (server only, never `NEXT_PUBLIC_`):
+   Ignore Claude / Cursor / VS Code mcp.json. That is editor chat, not GoodsNova.
+3. Set on Vercel (server only, never `NEXT_PUBLIC_`, never commit to git):
    - `FLYWEEL_API_KEY`
    - `FLYWEEL_META_ACCOUNT_ID` (numeric act id, not the display name)
    - optional `FLYWEEL_MCP_URL` (default `https://api.flyweel.co/functions/v1/mcp-server/mcp`)

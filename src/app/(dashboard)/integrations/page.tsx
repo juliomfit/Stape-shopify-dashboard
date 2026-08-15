@@ -75,6 +75,21 @@ export default async function IntegrationsPage({
           <p className="mt-1 text-xs text-muted">
             Production ingest uses Flyweel when FLYWEEL_API_KEY is set. Dashboard reads BigQuery, never Flyweel on page load.
           </p>
+          <div className="mt-3 rounded-xl bg-amber-50 px-3 py-3 text-sm text-amber-950">
+            <p className="font-medium">Skip Flyweel’s Cursor / Claude / VS Code JSON.</p>
+            <p className="mt-1 text-xs leading-5">
+              That mcp.json block is only for chatting with Flyweel inside an editor. GoodsNova does not use it. Do not commit it to GitHub.
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-5">
+              <li>In Flyweel, connect Meta Ads and copy the fwl_ key now (it will not show again).</li>
+              <li>
+                Vercel → Project → Settings → Environment Variables. Add{" "}
+                <code className="rounded bg-white px-1">FLYWEEL_API_KEY</code> (the full fwl_ token) and{" "}
+                <code className="rounded bg-white px-1">FLYWEEL_META_ACCOUNT_ID</code> (numbers only, not the account name). Apply to Production + Preview.
+              </li>
+              <li>Redeploy, then press Refresh Meta on this page. Charts stay on BigQuery.</li>
+            </ol>
+          </div>
           {connection.configured ? (
             <div className="mt-3 space-y-1 text-sm">
               <p>Connected ✓</p>
@@ -86,7 +101,7 @@ export default async function IntegrationsPage({
             </div>
           ) : (
             <p className="mt-3 text-sm text-muted">
-              Not connected. Set FLYWEEL_API_KEY on Vercel (Settings → API & MCP → fwl_ token) or use Facebook OAuth below.
+              Not connected yet. After the Vercel env vars are set, this card should show Provider: Flyweel.
             </p>
           )}
         </article>
