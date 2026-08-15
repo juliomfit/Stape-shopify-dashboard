@@ -30,14 +30,15 @@ or a cookie payload (Vercel, size-limited) and records `sync_runs` locally.
    (also `META_REDIRECT_URI` / `META_OAUTH_REDIRECT_URI`).
 3. Permissions: `ads_read` (and `ads_management` if the app already requested it).
 4. Set `META_APP_ID`, `META_APP_SECRET` on Vercel.
-5. Set `CRON_SECRET`. Vercel Cron calls `/api/cron/sync?source=all` hourly with
-   `Authorization: Bearer CRON_SECRET`.
+5. Set `CRON_SECRET`. Vercel Cron calls `/api/cron/sync` daily at 15:00 UTC
+   (Hobby cannot run hourly crons). Pro can change `vercel.json` to `0 * * * *`.
+   Vercel sends `Authorization: Bearer CRON_SECRET`.
 6. Integrations → Log in with Facebook → pick ad account → **Refresh Meta**.
 7. First backfill: Integrations date pickers, max 93 Pacific days.
 
-Hourly Meta refresh upserts **today + previous 7 days** (8 Pacific days) because
-attribution can change retroactively. Reach is stored at each level and is **not**
-summed from ads up to campaigns.
+Hourly Meta refresh upserts **today + previous 7 days** (8 Pacific days) when you
+press Refresh or when cron runs. Vercel **Hobby** cron is **once per day**
+(`0 15 * * *` UTC). Use Refresh Meta anytime.
 
 Paste/CSV on True Performance still wins for **blended** Overview spend when present.
 
