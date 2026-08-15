@@ -1,7 +1,7 @@
 import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
 import { persistMetaWarehouse } from "@/lib/ads/meta-persist";
 import { getMetaAdsProvider } from "@/lib/ads/providers";
-import { flyweelMetaAccountId } from "@/lib/ads/providers/config";
+import { flyweelMetaAccountId, flyweelApiKeyProblem } from "@/lib/ads/providers/config";
 import { FlyweelMetaAdsProvider, preferredFlyweelAccount } from "@/lib/ads/providers/flyweel";
 import type { MetaAccount, MetaAdsProvider, MetaInsightResult, MetaInsightRow } from "@/lib/ads/providers/types";
 import { isPlatformBqReady } from "@/lib/platform/bq";
@@ -145,6 +145,10 @@ export async function ingestMetaRange(input: {
   const now = new Date().toISOString();
 
   try {
+    const keyProblem = provider.id === "flyweel" ? flyweelApiKeyProblem() : null;
+    if (keyProblem) {
+      throw new Error(keyProblem);
+    }
     const account = await resolveAccount(provider);
     const accountId = account.accountId.replace(/^act_/, "");
     steps.push(`provider:${provider.id}`, `account:${accountId}`);

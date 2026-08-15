@@ -12,7 +12,7 @@ import {
   unwrapRows,
 } from "../src/lib/ads/providers/normalize.ts";
 import { midpointYmd, queryDateRangeChunked, SilentTruncationError } from "../src/lib/ads/providers/chunk.ts";
-import { FLYWEEL_WRITE_TOOLS, assertFlyweelReadOnly, FlyweelWriteRefusedError, resolveActiveMetaProviderId } from "../src/lib/ads/providers/config.ts";
+import { FLYWEEL_WRITE_TOOLS, assertFlyweelReadOnly, FlyweelWriteRefusedError, resolveActiveMetaProviderId, sanitizeFlyweelApiKey, flyweelApiKeyProblem } from "../src/lib/ads/providers/config.ts";
 import { buildFlyweelAdsQuery } from "../src/lib/ads/providers/flyweel-query.ts";
 import { cpc, ctr, platformCpa, platformRoas } from "../src/lib/metrics/formulas.ts";
 
@@ -158,6 +158,14 @@ test("write tools are refused", () => {
   assert.throws(() => assertFlyweelReadOnly("connect_ad_platform"), FlyweelWriteRefusedError);
   assert.throws(() => assertFlyweelReadOnly("select_ad_accounts"), FlyweelWriteRefusedError);
   assert.doesNotThrow(() => assertFlyweelReadOnly("query_metrics"));
+});
+
+test("Flyweel API key sanitizes quotes and rejects prefixes", () => {
+  assert.equal(sanitizeFlyweelApiKey('Bearer fwl_abc'), "fwl_abc");
+  assert.equal(sanitizeFlyweelApiKey('"fwl_abc"'), "fwl_abc");
+  assert.match(flyweelApiKeyProblem("fwl_79d4...") || "", /masked prefix/);
+  assert.match(flyweelApiKeyProblem("fwl_short") || "", /too short/);
+  assert.equal(flyweelApiKeyProblem(`fwl_${"a".repeat(64)}`), null);
 });
 
 test("active provider prefers Flyweel when key would be set via resolver inputs", () => {

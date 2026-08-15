@@ -27,8 +27,33 @@ export const FLYWEEL_DIMENSION_LIMIT = 5;
 export const FLYWEEL_QUERY_BATCH_LIMIT = 5;
 export const FLYWEEL_STALE_MINUTES = 15;
 
+export function sanitizeFlyweelApiKey(raw: string) {
+  return raw
+    .trim()
+    .replace(/^Bearer\s+/i, "")
+    .replace(/^["']+|["']+$/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
 export function flyweelApiKey() {
-  return process.env.FLYWEEL_API_KEY?.trim() || "";
+  return sanitizeFlyweelApiKey(process.env.FLYWEEL_API_KEY || "");
+}
+
+export function flyweelApiKeyProblem(key = flyweelApiKey()): string | null {
+  if (!key) {
+    return "FLYWEEL_API_KEY is missing on Vercel Production.";
+  }
+  if (key.includes("...") || key.includes("…")) {
+    return "FLYWEEL_API_KEY looks like the masked prefix from Flyweel (fwl_abcd…). Create a new key and paste the full secret shown once.";
+  }
+  if (!key.startsWith("fwl_")) {
+    return "FLYWEEL_API_KEY must start with fwl_. Do not paste the Cursor mcp.json block.";
+  }
+  if (key.length < 40) {
+    return "FLYWEEL_API_KEY is too short. Flyweel only shows the full key once when you generate it.";
+  }
+  return null;
 }
 
 export function flyweelMcpUrl() {

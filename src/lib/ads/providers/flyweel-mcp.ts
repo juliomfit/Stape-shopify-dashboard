@@ -127,7 +127,12 @@ export class FlyweelMcpClient {
       }
       const text = await response.text();
       if (!response.ok) {
-        lastError = new Error(`Flyweel MCP HTTP ${response.status}: ${text.slice(0, 400)}`);
+        const invalidKey = /invalid api key|unauthorized|401/i.test(text);
+        lastError = new Error(
+          invalidKey
+            ? "Flyweel rejected FLYWEEL_API_KEY (Invalid API key). In Flyweel Settings → API & MCP generate a new key, copy the full fwl_ value immediately, paste it into Vercel Production FLYWEEL_API_KEY, redeploy, then Refresh Meta. The list page only shows a prefix like fwl_abcd… — that prefix is not the key."
+            : `Flyweel MCP HTTP ${response.status}: ${text.slice(0, 400)}`,
+        );
         continue;
       }
       this.url = url;
@@ -141,7 +146,12 @@ export class FlyweelMcpClient {
       }
       const root = parsed as { error?: { message?: string; code?: number }; result?: unknown };
       if (root?.error?.message) {
-        lastError = new Error(root.error.message);
+        const message = root.error.message;
+        lastError = new Error(
+          /invalid api key/i.test(message)
+            ? "Flyweel rejected FLYWEEL_API_KEY (Invalid API key). Generate a new full fwl_ key, paste it into Vercel Production FLYWEEL_API_KEY, redeploy, then Refresh Meta. The token list prefix is not the key."
+            : message,
+        );
         continue;
       }
       const result = root?.result ?? parsed;
