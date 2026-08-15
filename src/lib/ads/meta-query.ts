@@ -336,6 +336,33 @@ export type CreativeRow = {
 };
 
 export async function getCreativePerformance(period: DashboardPeriod): Promise<CreativeRow[]> {
+  const fromWarehouse = await queryCreativeWarehouse(period);
+  const withActivity = fromWarehouse.filter(
+    (row) => row.spend > 0 || row.purchases > 0 || (row.ctr !== null && row.ctr > 0),
+  );
+  if (withActivity.length) {
+    return withActivity.sort((a, b) => b.spend - a.spend);
+  }
+  const campaigns = rollupCampaigns(await getCampaignFacts(period));
+  return campaigns
+    .filter((row) => row.spend > 0)
+    .map((row) => ({
+      creativeId: row.id,
+      name: row.name,
+      thumbnailUrl: null,
+      adName: null,
+      spend: row.spend,
+      purchases: row.purchases,
+      cpa: row.cpa,
+      roas: row.roas,
+      ctr: row.ctr,
+      frequency: row.frequency,
+      firstSeen: period.startDate,
+      lastSeen: period.endDate,
+    }));
+}
+
+async function queryCreativeWarehouse(period: DashboardPeriod): Promise<CreativeRow[]> {
   const fqCreatives = platformTable("meta_creatives");
   const fqAds = platformTable("meta_ad_insights_daily");
   const fqEntities = platformTable("meta_ads");

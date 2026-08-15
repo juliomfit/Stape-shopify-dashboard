@@ -49,7 +49,7 @@ export const AI_TOOLS: AiTool[] = [
   },
   {
     name: "get_creative_performance",
-    description: "Meta creative warehouse rollup for the selected period. Thumbnails only if Graph entity sync stored them.",
+    description: "Meta campaign or creative warehouse rollup for the selected period. Flyweel fills campaign rows; thumbnails only if Graph stored them.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
