@@ -6,6 +6,7 @@ import { addChangeLog } from "@/lib/platform/change-log";
 import { saveBusinessContext } from "@/lib/platform/business-context";
 import { parseYmd } from "@/lib/period";
 import { selectMetaAdAccount } from "@/lib/ads/meta-actions";
+import { saveFlyweelCredentials } from "@/lib/ads/providers/flyweel-credentials";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -24,6 +25,13 @@ export async function backfillMetaAction(startDate: string, endDate: string) {
   const result = await syncMetaBackfill(startDate, endDate);
   refresh();
   return result;
+}
+
+export async function saveFlyweelKeyForm(formData: FormData) {
+  const apiKey = String(formData.get("apiKey") || "");
+  const accountId = String(formData.get("accountId") || "209273195421975");
+  await saveFlyweelCredentials({ apiKey, accountId });
+  refresh();
 }
 
 export async function pickMetaAdAccountAction(formData: FormData) {

@@ -85,18 +85,20 @@ export class FlyweelMcpClient {
     return Boolean(this.apiKey);
   }
 
-  private headers(): Record<string, string> {
-    const headers: Record<string, string> = {
+  private headerSets() {
+    const base: Record<string, string> = {
       "content-type": "application/json",
       accept: "application/json, text/event-stream",
-      authorization: `Bearer ${this.apiKey}`,
-      "x-api-key": this.apiKey,
       "mcp-protocol-version": "2024-11-05",
     };
     if (this.sessionId) {
-      headers["mcp-session-id"] = this.sessionId;
+      base["mcp-session-id"] = this.sessionId;
     }
-    return headers;
+    return [
+      { ...base, authorization: `Bearer ${this.apiKey}`, "x-api-key": this.apiKey },
+      { ...base, "x-api-key": this.apiKey },
+      { ...base, authorization: `Bearer ${this.apiKey}` },
+    ];
   }
 
   private parseBody(text: string, contentType: string): unknown {
@@ -116,47 +118,61 @@ export class FlyweelMcpClient {
     this.requestCount += 1;
     let lastError: Error | null = null;
     for (const url of this.urls) {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify(body),
-      });
-      const session = response.headers.get("mcp-session-id");
-      if (session) {
-        this.sessionId = session;
+      let auth401 = false;
+      for (const headers of this.headerSets()) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+        const session = response.headers.get("mcp-session-id");
+        if (session) {
+          this.sessionId = session;
+        }
+        const text = await response.text();
+        if (!response.ok) {
+          const invalidKey = /invalid api key|unauthorized|401/i.test(text) || response.status === 401;
+          lastError = new Error(
+            invalidKey
+              ? "Flyweel rejected the API key. Generate a new full fwl_ key in Flyweel → Settings → API & MCP, paste it on Integrations, then Refresh Meta. The fwl_abcd… prefix in the token list is not the key."
+              : `Flyweel MCP HTTP ${response.status}: ${text.slice(0, 400)}`,
+          );
+          if (!invalidKey) {
+            break;
+          }
+          auth401 = true;
+          continue;
+        }
+        this.url = url;
+        this.remember(text);
+        let parsed: unknown;
+        try {
+          parsed = this.parseBody(text, response.headers.get("content-type") || "");
+        } catch {
+          lastError = new Error(`Flyweel MCP returned non-JSON: ${text.slice(0, 400)}`);
+          break;
+        }
+        const root = parsed as { error?: { message?: string; code?: number }; result?: unknown };
+        if (root?.error?.message) {
+          const message = root.error.message;
+          lastError = new Error(
+            /invalid api key/i.test(message)
+              ? "Flyweel rejected the API key. Paste a new full fwl_ key on Integrations, then Refresh Meta."
+              : message,
+          );
+          if (/invalid api key/i.test(message)) {
+            auth401 = true;
+            continue;
+          }
+          break;
+        }
+        const result = root?.result ?? parsed;
+        this.remember(result);
+        return result;
       }
-      const text = await response.text();
-      if (!response.ok) {
-        const invalidKey = /invalid api key|unauthorized|401/i.test(text);
-        lastError = new Error(
-          invalidKey
-            ? "Flyweel rejected FLYWEEL_API_KEY (Invalid API key). In Flyweel Settings → API & MCP generate a new key, copy the full fwl_ value immediately, paste it into Vercel Production FLYWEEL_API_KEY, redeploy, then Refresh Meta. The list page only shows a prefix like fwl_abcd… — that prefix is not the key."
-            : `Flyweel MCP HTTP ${response.status}: ${text.slice(0, 400)}`,
-        );
+      if (!auth401) {
         continue;
       }
-      this.url = url;
-      this.remember(text);
-      let parsed: unknown;
-      try {
-        parsed = this.parseBody(text, response.headers.get("content-type") || "");
-      } catch {
-        lastError = new Error(`Flyweel MCP returned non-JSON: ${text.slice(0, 400)}`);
-        continue;
-      }
-      const root = parsed as { error?: { message?: string; code?: number }; result?: unknown };
-      if (root?.error?.message) {
-        const message = root.error.message;
-        lastError = new Error(
-          /invalid api key/i.test(message)
-            ? "Flyweel rejected FLYWEEL_API_KEY (Invalid API key). Generate a new full fwl_ key, paste it into Vercel Production FLYWEEL_API_KEY, redeploy, then Refresh Meta. The token list prefix is not the key."
-            : message,
-        );
-        continue;
-      }
-      const result = root?.result ?? parsed;
-      this.remember(result);
-      return result;
     }
     throw lastError || new Error("Flyweel MCP request failed");
   }
@@ -190,7 +206,7 @@ export class FlyweelMcpClient {
   private async notify(method: string) {
     const response = await fetch(this.url, {
       method: "POST",
-      headers: this.headers(),
+      headers: this.headerSets()[0],
       body: JSON.stringify({ jsonrpc: "2.0", method }),
     });
     const session = response.headers.get("mcp-session-id");

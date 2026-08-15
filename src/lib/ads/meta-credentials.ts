@@ -4,6 +4,7 @@ import {
   type MetaAdAccountOption,
 } from "@/lib/ads/meta-oauth";
 import { flyweelConfigured, flyweelMetaAccountId, resolveActiveMetaProviderId } from "@/lib/ads/providers/config";
+import { resolveFlyweelApiKey, resolveFlyweelAccountId, flyweelKeyHint } from "@/lib/ads/providers/flyweel-credentials";
 import { clearDurableJson, readDurableJson, writeDurableJson } from "@/lib/durable-json";
 
 export type MetaCredentials = {
@@ -78,16 +79,23 @@ export async function getMetaConnectionPublic(): Promise<MetaConnectionPublic> {
   const oauthReady = isMetaOAuthConfigured();
   const { credentials, source } = await getMetaCredentials();
   const storedFlyweel = await readDurableJson<{ accountId?: string }>("flyweel-account");
-  const provider = resolveActiveMetaProviderId(Boolean(credentials));
+  const flyweelKey = await resolveFlyweelApiKey();
+  const provider = flyweelKey
+    ? "flyweel"
+    : resolveActiveMetaProviderId(Boolean(credentials));
   if (provider === "flyweel") {
     const accountId =
-      flyweelMetaAccountId() || storedFlyweel?.accountId || credentials?.adAccountId.replace(/^act_/, "") || "";
+      (await resolveFlyweelAccountId()) ||
+      flyweelMetaAccountId() ||
+      storedFlyweel?.accountId ||
+      credentials?.adAccountId.replace(/^act_/, "") ||
+      "";
     return {
-      configured: flyweelConfigured(),
+      configured: Boolean(flyweelKey) || flyweelConfigured(),
       source: "flyweel",
       provider: "flyweel",
       adAccountId: accountId,
-      tokenHint: "Flyweel API key (server)",
+      tokenHint: flyweelKeyHint(flyweelKey) || "Flyweel API key (server)",
       canDisconnect: false,
       oauthReady,
       pendingAccounts: pending?.accounts ?? [],

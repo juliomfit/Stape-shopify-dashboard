@@ -1,8 +1,9 @@
 import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
 import { persistMetaWarehouse } from "@/lib/ads/meta-persist";
 import { getMetaAdsProvider } from "@/lib/ads/providers";
-import { flyweelMetaAccountId, flyweelApiKeyProblem } from "@/lib/ads/providers/config";
+import { flyweelApiKeyProblem } from "@/lib/ads/providers/config";
 import { FlyweelMetaAdsProvider, preferredFlyweelAccount } from "@/lib/ads/providers/flyweel";
+import { resolveFlyweelAccountId, resolveFlyweelApiKey } from "@/lib/ads/providers/flyweel-credentials";
 import type { MetaAccount, MetaAdsProvider, MetaInsightResult, MetaInsightRow } from "@/lib/ads/providers/types";
 import { isPlatformBqReady } from "@/lib/platform/bq";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/platform/lock";
@@ -40,7 +41,7 @@ function dateWindows(startDate: string, endDate: string, size: number) {
 
 async function resolveAccount(provider: MetaAdsProvider): Promise<MetaAccount> {
   const stored = await readDurableJson<AccountStore>("flyweel-account");
-  const configured = flyweelMetaAccountId();
+  const configured = await resolveFlyweelAccountId();
   let accounts: MetaAccount[] = [];
   try {
     accounts = await provider.getAccounts();
@@ -145,7 +146,7 @@ export async function ingestMetaRange(input: {
   const now = new Date().toISOString();
 
   try {
-    const keyProblem = provider.id === "flyweel" ? flyweelApiKeyProblem() : null;
+    const keyProblem = provider.id === "flyweel" ? flyweelApiKeyProblem(await resolveFlyweelApiKey()) : null;
     if (keyProblem) {
       throw new Error(keyProblem);
     }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
+import { FlyweelKeyForm } from "@/components/dashboard/FlyweelKeyForm";
 import { MetaEntityTable } from "@/components/dashboard/MetaEntityTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { MetaPerformanceChart } from "@/components/dashboard/MetaPerformanceChart";
@@ -99,18 +100,7 @@ async function renderMetaPage() {
             Last sync error: {lastAttempt.error_message}
           </p>
         ) : null}
-        {/invalid api key|FLYWEEL_API_KEY/i.test(lastAttempt?.error_message || "") ? (
-          <article className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-950">
-            <h2 className="font-semibold">The Flyweel key on Vercel is wrong</h2>
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>Open Flyweel → Settings → API &amp; MCP → Advanced: use an API key.</li>
-              <li>Generate a new key and copy the full <code className="rounded bg-white px-1">fwl_</code> string immediately. You cannot copy it later from the list.</li>
-              <li>Vercel → Project → Settings → Environment Variables → Production: set <code className="rounded bg-white px-1">FLYWEEL_API_KEY</code> to that full value. Redeploy Production.</li>
-              <li>Do not use Add to Cursor, mcp.json, or the <code className="rounded bg-white px-1">fwl_abcd…</code> prefix shown in the token list.</li>
-              <li>Come back here and press Refresh Meta.</li>
-            </ol>
-          </article>
-        ) : null}
+        <FlyweelKeyForm accountId={connection.adAccountId} keyHint={connection.tokenHint} />
         <p className="text-xs text-muted">
           Meta-attributed purchases are Ads Manager matching, not Shopify orders and not sGTM event delivery. Use 7d in the header, then press Refresh Meta.
         </p>
