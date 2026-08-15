@@ -154,6 +154,15 @@ export async function ingestMetaRange(input: {
     const accountId = account.accountId.replace(/^act_/, "");
     steps.push(`provider:${provider.id}`, `account:${accountId}`);
 
+    if (provider instanceof FlyweelMetaAdsProvider) {
+      try {
+        await provider.selectConfiguredMetaAccounts(accountId);
+        steps.push("flyweel-select-meta");
+      } catch (error) {
+        steps.push(`flyweel-select-skip:${error instanceof Error ? error.message : "error"}`);
+      }
+    }
+
     if (provider.id === "flyweel" && process.env.FLYWEEL_TRIGGER_SYNC === "1" && provider.sync) {
       const sync = await provider.sync({ startDate: input.startDate, endDate: input.endDate });
       requests += sync.requests;

@@ -3,10 +3,7 @@ export type ActiveMetaProviderId = "flyweel" | "meta_graph" | "none";
 export const FLYWEEL_DEFAULT_MCP_URL =
   "https://api.flyweel.co/functions/v1/mcp-server/mcp";
 
-export const FLYWEEL_WRITE_TOOLS = [
-  "connect_ad_platform",
-  "select_ad_accounts",
-] as const;
+export const FLYWEEL_WRITE_TOOLS = ["connect_ad_platform"] as const;
 
 export class FlyweelWriteRefusedError extends Error {
   constructor(tool: string) {

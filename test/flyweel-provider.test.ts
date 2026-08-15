@@ -168,7 +168,7 @@ test("idempotent merge uses date+ids", () => {
 test("write tools are refused", () => {
   assert.ok(FLYWEEL_WRITE_TOOLS.includes("connect_ad_platform"));
   assert.throws(() => assertFlyweelReadOnly("connect_ad_platform"), FlyweelWriteRefusedError);
-  assert.throws(() => assertFlyweelReadOnly("select_ad_accounts"), FlyweelWriteRefusedError);
+  assert.doesNotThrow(() => assertFlyweelReadOnly("select_ad_accounts"));
   assert.doesNotThrow(() => assertFlyweelReadOnly("query_metrics"));
 });
 

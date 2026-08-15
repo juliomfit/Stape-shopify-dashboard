@@ -155,6 +155,37 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     return unwrapRows(payload);
   }
 
+  async selectConfiguredMetaAccounts(accountId: string) {
+    const wanted = accountId.replace(/^act_/, "");
+    let ids = [wanted];
+    try {
+      const payload = await this.callRead(["list_ad_accounts"]);
+      const found = this.accountsFromSetup(payload)
+        .map((row) => String(row.account_id || row.accountId || row.id || "").replace(/^act_/, ""))
+        .filter(Boolean);
+      if (found.length) {
+        ids = [...new Set([wanted, ...found])];
+      }
+    } catch {
+      // Still select the configured Ads Manager id.
+    }
+    const account_ids = ids.map((id) => ({ accountId: id, isSelected: true }));
+    const shapes: Record<string, unknown>[] = [
+      { provider: "meta", account_ids },
+      { provider: "facebook", account_ids },
+      { account_ids },
+    ];
+    let lastError: unknown;
+    for (const shape of shapes) {
+      try {
+        return await this.client.callTool("select_ad_accounts", shape);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error("select_ad_accounts failed");
+  }
+
   async getCampaigns(accountId: string): Promise<MetaCampaign[]> {
     const insights = await this.getInsights({
       accountId,

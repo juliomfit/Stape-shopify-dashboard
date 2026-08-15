@@ -102,16 +102,15 @@ async function renderMetaPage() {
         ) : null}
         {facts.length === 0 ? (
           <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
-            <h2 className="font-semibold text-foreground">Select the Meta account in Flyweel</h2>
+            <h2 className="font-semibold text-foreground">Close the Flyweel “Connect your AI” tab</h2>
             <p className="mt-2">
-              The Flyweel password is working. Meta is connected there, but GoodsNova still has no campaign rows.
-              That usually means the ad account is not selected.
+              That page is for Cursor and ChatGPT. GoodsNova does not use it. The API key is already working.
+              Refresh Meta now selects account 209273195421975 in Flyweel, then pulls campaigns. That does not pause or edit ads.
             </p>
             <ol className="mt-3 list-decimal space-y-1 pl-5">
-              <li>Open Flyweel in the browser.</li>
-              <li>Go to <strong>Settings → Connections</strong>. Not the API key / “Connect your AI” page.</li>
-              <li>Select the Meta account <strong>209273195421975</strong> (FBSmash / GoodsNova).</li>
-              <li>Come back here and press <strong>Refresh Meta</strong>.</li>
+              <li>Wait until Vercel finishes deploying if a deploy is in progress.</li>
+              <li>Stay on this /meta page.</li>
+              <li>Press <strong>Refresh Meta</strong> once and wait up to a minute.</li>
             </ol>
           </article>
         ) : null}

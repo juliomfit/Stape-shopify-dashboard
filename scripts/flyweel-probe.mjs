@@ -36,7 +36,7 @@ async function rpc(method, params) {
   return JSON.parse(text.includes("data:") ? text.split("data:").pop() : text);
 }
 
-const forbidden = new Set(["connect_ad_platform", "select_ad_accounts"]);
+const forbidden = new Set(["connect_ad_platform"]);
 
 async function main() {
   await rpc("initialize", {
