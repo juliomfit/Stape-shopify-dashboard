@@ -2,7 +2,7 @@ import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
 import { persistMetaWarehouse } from "@/lib/ads/meta-persist";
 import { getMetaAdsProvider } from "@/lib/ads/providers";
 import { flyweelMetaAccountId } from "@/lib/ads/providers/config";
-import { preferredFlyweelAccount } from "@/lib/ads/providers/flyweel";
+import { FlyweelMetaAdsProvider, preferredFlyweelAccount } from "@/lib/ads/providers/flyweel";
 import type { MetaAccount, MetaAdsProvider, MetaInsightResult, MetaInsightRow } from "@/lib/ads/providers/types";
 import { isPlatformBqReady } from "@/lib/platform/bq";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/platform/lock";
@@ -224,8 +224,24 @@ export async function ingestMetaRange(input: {
         steps.push("flyweel-campaign-only");
       }
       if (provider.id === "flyweel" && campaign.rows.length === 0) {
+        const flyweel = provider instanceof FlyweelMetaAdsProvider ? provider : null;
+        let setup = "";
+        try {
+          setup = flyweel ? await flyweel.describeSetup() : "";
+        } catch (error) {
+          setup = error instanceof Error ? error.message : "";
+        }
+        const snippet = flyweel?.lastDebug() || "";
         throw new Error(
-          "Flyweel returned 0 campaign rows. In Flyweel: Settings → Connections, connect Meta, select this ad account, then Refresh Meta again.",
+          [
+            "Flyweel returned 0 campaign rows.",
+            snippet ? `Last MCP payload: ${snippet}` : "",
+            setup ? `Setup: ${setup}` : "",
+            "If that payload is a table/JSON we missed, refresh again after this deploy.",
+            "If it says Meta is disconnected: Flyweel Settings → Connections, connect Meta, select act=209273195421975, then Refresh Meta.",
+          ]
+            .filter(Boolean)
+            .join(" "),
         );
       }
 

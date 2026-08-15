@@ -4,13 +4,14 @@ import {
   FLYWEEL_ROW_LIMIT,
   flyweelMetaAccountId,
 } from "@/lib/ads/providers/config";
-import { FlyweelMcpClient } from "@/lib/ads/providers/flyweel-mcp";
+import { FlyweelMcpClient, type McpTool } from "@/lib/ads/providers/flyweel-mcp";
 import { queryDateRangeChunked, SilentTruncationError } from "@/lib/ads/providers/chunk";
 import {
   mergeInsightBatches,
   normalizeAccount,
   normalizeInsightRow,
   unwrapRows,
+  payloadLooksLikeError,
 } from "@/lib/ads/providers/normalize";
 import type {
   InsightQuery,
@@ -49,9 +50,21 @@ const META_EXTENDED = [
   "initiate_checkout",
 ];
 
-const CAMPAIGN_DIMENSIONS = ["date", "campaign_id", "campaign", "campaign_status", "objective"];
-const ADSET_DIMENSIONS = ["date", "campaign_id", "campaign", "adset_id", "adset"];
-const AD_DIMENSIONS = ["date", "campaign_id", "adset_id", "ad_id", "ad"];
+const CAMPAIGN_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
+const ADSET_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
+const AD_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
+const FLYWEEL_ADS_DIMENSIONS = new Set([
+  "channel",
+  "account",
+  "campaign",
+  "campaign_id",
+  "campaign_status",
+  "objective",
+  "currency",
+  "date",
+  "week",
+  "month",
+]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -78,6 +91,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   readonly label = "Flyweel";
   private client: FlyweelMcpClient;
   private tools: Set<string> | null = null;
+  private listedTools: McpTool[] | null = null;
   private lastMetrics: string[] | null = null;
 
   constructor(client = new FlyweelMcpClient()) {
@@ -88,11 +102,30 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     return this.client.configured();
   }
 
+  lastDebug() {
+    return this.client.lastRawSnippet;
+  }
+
+  async describeSetup(): Promise<string> {
+    const parts: string[] = [];
+    for (const name of ["get_setup_status", "list_ad_accounts"]) {
+      try {
+        const payload = await this.callRead([name]);
+        const text = typeof payload === "string" ? payload : JSON.stringify(payload);
+        parts.push(`${name}:${text.slice(0, 240)}`);
+      } catch (error) {
+        parts.push(`${name}:${error instanceof Error ? error.message : "error"}`);
+      }
+    }
+    return parts.join(" | ");
+  }
+
   private async ensureTools() {
     if (this.tools) {
       return this.tools;
     }
     const listed = await this.client.listTools();
+    this.listedTools = listed;
     this.tools = toolNames(listed);
     return this.tools;
   }
@@ -229,27 +262,95 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     return unique.slice(0, FLYWEEL_METRIC_LIMIT);
   }
 
-  private queryArgs(
+  private querySchema() {
+    const listed = this.listedTools || [];
+    return listed.find((tool) => /query_metrics/i.test(tool.name))?.inputSchema;
+  }
+
+  private schemaPropertyKeys(schema: McpTool["inputSchema"], nested?: string) {
+    const properties = schema?.properties || {};
+    if (!nested) {
+      return Object.keys(properties);
+    }
+    const node = asRecord(properties[nested]);
+    const items = asRecord(node?.items);
+    const itemProps = asRecord(items?.properties) || asRecord(node?.properties);
+    return itemProps ? Object.keys(itemProps) : [];
+  }
+
+  private queryInner(
     params: InsightQuery,
     metrics: string[],
     dimensions: string[],
+    keys: string[],
   ): Record<string, unknown> {
-    return {
-      platform: "meta",
-      channel: "meta",
-      account_id: params.accountId,
-      accountId: params.accountId,
+    const allowed = dimensions.filter((name) => FLYWEEL_ADS_DIMENSIONS.has(name));
+    const inner: Record<string, unknown> = {
+      metrics,
+      dimensions: allowed.length ? allowed : ["date", "campaign", "channel"],
       start_date: params.startDate,
       end_date: params.endDate,
-      date_from: params.startDate,
-      date_to: params.endDate,
-      date_range: { start: params.startDate, end: params.endDate, start_date: params.startDate, end_date: params.endDate },
-      date_preset: "last_7_days",
-      metrics,
-      dimensions,
-      campaign_id: params.campaignId,
-      adset_id: params.adsetId,
     };
+    if (params.campaignId) {
+      inner.campaign_id = params.campaignId;
+    }
+    if (!keys.length) {
+      return inner;
+    }
+    const lower = keys.map((key) => key.toLowerCase());
+    const pick = (...candidates: string[]) =>
+      keys.find((_, index) => candidates.includes(lower[index])) || null;
+    const out: Record<string, unknown> = {};
+    const assign = (candidates: string[], value: unknown) => {
+      const key = pick(...candidates);
+      if (key && value !== undefined && value !== null && value !== "") {
+        out[key] = value;
+      }
+    };
+    assign(["metrics"], inner.metrics);
+    assign(["dimensions", "group_by", "groupby"], inner.dimensions);
+    assign(["start_date", "startdate", "from", "since"], params.startDate);
+    assign(["end_date", "enddate", "to", "until"], params.endDate);
+    assign(["channel", "platform"], "meta");
+    assign(["account_id", "accountid", "ad_account_id"], params.accountId);
+    assign(["campaign_id", "campaignid"], params.campaignId);
+    return Object.keys(out).length ? out : inner;
+  }
+
+  private queryShapes(
+    params: InsightQuery,
+    metrics: string[],
+    dimensions: string[],
+  ): Record<string, unknown>[] {
+    const schema = this.querySchema();
+    const topKeys = this.schemaPropertyKeys(schema);
+    const nestedQueries = this.schemaPropertyKeys(schema, "queries");
+    const nestedQuery = this.schemaPropertyKeys(schema, "query");
+    const queryKeys = nestedQueries.length
+      ? nestedQueries
+      : nestedQuery.length
+        ? nestedQuery
+        : topKeys.filter((key) => !["queries", "query", "org"].includes(key.toLowerCase()));
+    const inner = this.queryInner(params, metrics, dimensions, queryKeys);
+    const shapes: Record<string, unknown>[] = [];
+    const wantsQueries = !topKeys.length || topKeys.some((key) => key.toLowerCase() === "queries");
+    const wantsQuery = !topKeys.length || topKeys.some((key) => key.toLowerCase() === "query");
+    if (wantsQueries) {
+      shapes.push({ queries: [inner] });
+    }
+    if (wantsQuery) {
+      shapes.push({ query: inner });
+    }
+    shapes.push(inner);
+    const seen = new Set<string>();
+    return shapes.filter((shape) => {
+      const key = JSON.stringify(shape);
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
   }
 
   private async queryOnce(
@@ -257,24 +358,36 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     metrics: string[],
     dimensions: string[],
   ): Promise<Record<string, unknown>[]> {
-    const args = this.queryArgs(params, metrics, dimensions);
-    const shapes: Record<string, unknown>[] = [
-      { queries: [args] },
-      args,
-      {
-        query: args,
-      },
-    ];
+    await this.ensureTools();
+    const shapes = this.queryShapes(params, metrics, dimensions);
     let lastError: unknown;
+    let best: Record<string, unknown>[] = [];
     for (const shape of shapes) {
       try {
         const payload = await this.callRead(["query_metrics", "queryMetrics"], shape);
-        return unwrapRows(payload);
+        const errorText = payloadLooksLikeError(payload);
+        if (errorText) {
+          lastError = new Error(errorText);
+          continue;
+        }
+        const rows = unwrapRows(payload);
+        if (rows.length > best.length) {
+          best = rows;
+        }
+        if (best.length) {
+          return best;
+        }
       } catch (error) {
         lastError = error;
       }
     }
-    throw lastError instanceof Error ? lastError : new Error("query_metrics failed");
+    if (best.length) {
+      return best;
+    }
+    if (lastError && /metric|unknown|invalid|dimension/i.test(String(lastError))) {
+      throw lastError instanceof Error ? lastError : new Error("query_metrics failed");
+    }
+    return best;
   }
 
   private async queryWithMetricFallback(

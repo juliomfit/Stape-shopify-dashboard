@@ -5,6 +5,16 @@ import {
 } from "./config";
 import { unwrapMcpToolResult } from "./normalize";
 
+export type McpTool = {
+  name: string;
+  description?: string;
+  inputSchema?: {
+    type?: string;
+    properties?: Record<string, unknown>;
+    required?: string[];
+  };
+};
+
 type JsonRpc = {
   jsonrpc: "2.0";
   id: number;
@@ -17,6 +27,7 @@ export class FlyweelMcpClient {
   private nextId = 1;
   private initialized = false;
   requestCount = 0;
+  lastRawSnippet = "";
   url: string;
   private readonly apiKey: string;
   private readonly urls: string[];
@@ -93,6 +104,7 @@ export class FlyweelMcpClient {
         continue;
       }
       this.url = url;
+      this.remember(text);
       let parsed: unknown;
       try {
         parsed = this.parseBody(text, response.headers.get("content-type") || "");
@@ -105,9 +117,16 @@ export class FlyweelMcpClient {
         lastError = new Error(root.error.message);
         continue;
       }
-      return root?.result ?? parsed;
+      const result = root?.result ?? parsed;
+      this.remember(result);
+      return result;
     }
     throw lastError || new Error("Flyweel MCP request failed");
+  }
+
+  private remember(value: unknown) {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+    this.lastRawSnippet = text.replace(/fwl_[A-Za-z0-9_-]+/g, "fwl_***").slice(0, 800);
   }
 
   async initialize() {
@@ -126,10 +145,10 @@ export class FlyweelMcpClient {
     this.initialized = true;
   }
 
-  async listTools(): Promise<{ name: string; description?: string }[]> {
+  async listTools(): Promise<McpTool[]> {
     await this.initialize();
     const result = (await this.rpc("tools/list", {})) as {
-      tools?: { name: string; description?: string }[];
+      tools?: McpTool[];
     };
     return result?.tools || [];
   }
@@ -142,13 +161,16 @@ export class FlyweelMcpClient {
       arguments: args,
     });
     const unwrapped = unwrapMcpToolResult(result);
+    this.remember(unwrapped);
     if (
       unwrapped &&
       typeof unwrapped === "object" &&
       "isError" in unwrapped &&
       (unwrapped as { isError?: boolean }).isError
     ) {
-      throw new Error(`Flyweel tool ${name} returned isError`);
+      throw new Error(
+        `Flyweel tool ${name} returned isError: ${String((unwrapped as { message?: unknown }).message || this.lastRawSnippet).slice(0, 400)}`,
+      );
     }
     return unwrapped;
   }

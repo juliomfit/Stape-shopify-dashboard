@@ -5,6 +5,7 @@ import {
   mergeInsightBatches,
   normalizeAccount,
   normalizeInsightRow,
+  parseMarkdownTable,
   parseNumber,
   parseYmdLoose,
   unwrapMcpToolResult,
@@ -52,6 +53,37 @@ test("mcp text content unwraps json", () => {
     content: [{ type: "text", text: '{"rows":[{"spend":1}]}' }],
   });
   assert.deepEqual(unwrapRows(parsed), [{ spend: 1 }]);
+});
+
+test("mcp markdown table unwraps to insight rows", () => {
+  const markdown = `
+| date | campaign_id | campaign | spend | impressions |
+| --- | --- | --- | --- | --- |
+| 2026-08-14 | 111 | ASC Scaling | 40.5 | 1000 |
+`.trim();
+  const parsed = unwrapMcpToolResult({
+    content: [{ type: "text", text: markdown }],
+  });
+  const rows = unwrapRows(parsed);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].campaign, "ASC Scaling");
+  assert.equal(rows[0].spend, "40.5");
+  const table = parseMarkdownTable(markdown);
+  assert.equal(table.length, 1);
+});
+
+test("mcp fenced json and column matrix unwrap", () => {
+  const fenced = unwrapMcpToolResult({
+    content: [{ type: "text", text: '```json\n[{"date":"2026-08-14","spend":9}]\n```' }],
+  });
+  assert.deepEqual(unwrapRows(fenced), [{ date: "2026-08-14", spend: 9 }]);
+  assert.deepEqual(
+    unwrapRows({
+      columns: ["date", "spend"],
+      rows: [["2026-08-14", 12]],
+    }),
+    [{ date: "2026-08-14", spend: 12 }],
+  );
 });
 
 test("500-row chunking splits date ranges and refuses silent same-day truncation", async () => {

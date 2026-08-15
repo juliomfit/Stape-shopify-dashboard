@@ -65,7 +65,146 @@ export function pickString(row: Record<string, unknown>, aliases: string[]): str
   return String(value).replace(/^act_/, "").trim();
 }
 
+export function parseMarkdownTable(text: string): Record<string, unknown>[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.includes("|"));
+  if (lines.length < 2) {
+    return [];
+  }
+
+  const splitRow = (line: string) =>
+    line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((cell) => cell.trim());
+
+  const isSeparator = (cells: string[]) =>
+    cells.length > 0 &&
+    cells.every((cell) => {
+      const compact = cell.replace(/\s/g, "");
+      return !compact || /^:?-{2,}:?$/.test(compact);
+    });
+
+  let header: string[] | null = null;
+  const rows: Record<string, unknown>[] = [];
+  for (const line of lines) {
+    const cells = splitRow(line);
+    if (!header) {
+      if (isSeparator(cells)) {
+        continue;
+      }
+      header = cells.map((cell) => cell.replace(/\s+/g, "_").toLowerCase());
+      continue;
+    }
+    if (isSeparator(cells)) {
+      continue;
+    }
+    const row: Record<string, unknown> = {};
+    header.forEach((key, index) => {
+      if (!key) {
+        return;
+      }
+      row[key] = cells[index] ?? "";
+    });
+    if (Object.values(row).some((value) => String(value).trim() !== "")) {
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+export function parseJsonOrTable(text: string): unknown {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) {
+    const inner = fence[1].trim();
+    try {
+      return JSON.parse(inner);
+    } catch {
+      const table = parseMarkdownTable(inner);
+      if (table.length) {
+        return table;
+      }
+    }
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const table = parseMarkdownTable(trimmed);
+    if (table.length) {
+      return table;
+    }
+    return trimmed;
+  }
+}
+
+export function payloadLooksLikeError(payload: unknown): string | null {
+  if (typeof payload === "string") {
+    const text = payload.trim();
+    if (
+      /^(error|failed|unknown|invalid)/i.test(text) ||
+      /not connected|no ad account|no accounts? selected|isError|tool error/i.test(text)
+    ) {
+      return text.slice(0, 600);
+    }
+  }
+  const root = asRecord(payload);
+  if (!root) {
+    return null;
+  }
+  if (root.isError && (root.message || root.text || root.error)) {
+    return String(root.message || root.text || root.error).slice(0, 600);
+  }
+  if (typeof root.error === "string") {
+    return root.error.slice(0, 600);
+  }
+  return null;
+}
+
+function columnsAndMatrix(root: Record<string, unknown>): Record<string, unknown>[] | null {
+  const columns = root.columns ?? root.headers ?? root.fields;
+  const matrix = root.rows ?? root.data ?? root.values;
+  if (!Array.isArray(columns) || !Array.isArray(matrix) || matrix.length === 0) {
+    return null;
+  }
+  if (!matrix.every((row) => Array.isArray(row))) {
+    return null;
+  }
+  const names = columns.map((column) => {
+    if (typeof column === "string") {
+      return column;
+    }
+    const rec = asRecord(column);
+    return String(rec?.name || rec?.key || rec?.id || "");
+  });
+  if (!names.some(Boolean)) {
+    return null;
+  }
+  return matrix.map((row) => {
+    const object: Record<string, unknown> = {};
+    names.forEach((name, index) => {
+      if (name) {
+        object[name] = (row as unknown[])[index];
+      }
+    });
+    return object;
+  });
+}
+
 export function unwrapRows(payload: unknown): Record<string, unknown>[] {
+  if (typeof payload === "string") {
+    const parsed = parseJsonOrTable(payload);
+    if (parsed === payload) {
+      return parseMarkdownTable(payload);
+    }
+    return unwrapRows(parsed);
+  }
   if (Array.isArray(payload)) {
     if (payload.length === 0) {
       return [];
@@ -79,11 +218,18 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
       }
       return objects;
     }
+    if (payload.every((item) => typeof item === "string")) {
+      return payload.flatMap((item) => unwrapRows(item));
+    }
     return [];
   }
   const root = asRecord(payload);
   if (!root) {
     return [];
+  }
+  const matrix = columnsAndMatrix(root);
+  if (matrix?.length) {
+    return matrix;
   }
   const candidates = [
     root.rows,
@@ -102,18 +248,15 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
     }
   }
   if (typeof root.text === "string") {
-    try {
-      return unwrapRows(JSON.parse(root.text));
-    } catch {
-      return [];
-    }
+    return unwrapRows(parseJsonOrTable(root.text));
   }
   if (
     "spend" in root ||
     "campaign_id" in root ||
     "campaignId" in root ||
     "date" in root ||
-    "impressions" in root
+    "impressions" in root ||
+    "campaign" in root
   ) {
     return [root];
   }
@@ -136,18 +279,16 @@ export function unwrapMcpToolResult(payload: unknown): unknown {
       .filter((item) => item.type === "text" || typeof item.text === "string")
       .map((item) => String(item.text || ""));
     if (texts.length === 1) {
-      try {
-        return JSON.parse(texts[0]);
-      } catch {
-        return texts[0];
-      }
+      return parseJsonOrTable(texts[0]);
     }
     if (texts.length > 1) {
-      try {
-        return JSON.parse(texts.join(""));
-      } catch {
-        return texts;
+      const joined = texts.join("\n");
+      const parsed = parseJsonOrTable(joined);
+      if (parsed !== joined) {
+        return parsed;
       }
+      const table = parseMarkdownTable(joined);
+      return table.length ? table : texts;
     }
   }
   if (root.result !== undefined) {
