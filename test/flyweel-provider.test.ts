@@ -93,6 +93,35 @@ test("mcp fenced json and column matrix unwrap", () => {
   );
 });
 
+test("Flyweel results[].data.rows unwraps campaign insights", () => {
+  const payload = {
+    organization: { id: "org", name: "goodsnova" },
+    results: [
+      {
+        queryIndex: 0,
+        success: true,
+        data: {
+          summary: "Data source: ads\nShowing: 500 of 2814 rows",
+          rows: [
+            {
+              date: "2026-08-14",
+              campaign_id: "111",
+              campaign: "ASC Scaling",
+              channel: "Meta",
+              spend: 40.5,
+              impressions: 1000,
+            },
+          ],
+        },
+      },
+    ],
+  };
+  const rows = unwrapRows(payload);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].campaign, "ASC Scaling");
+  assert.equal(rows[0].spend, 40.5);
+});
+
 test("Flyweel ads query uses dataSource and dateRange", () => {
   const body = buildFlyweelAdsQuery({
     startDate: "2026-08-08",

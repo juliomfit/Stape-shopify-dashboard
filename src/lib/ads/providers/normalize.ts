@@ -197,6 +197,21 @@ function columnsAndMatrix(root: Record<string, unknown>): Record<string, unknown
   });
 }
 
+function isInsightish(row: Record<string, unknown>) {
+  return (
+    "spend" in row ||
+    "campaign_id" in row ||
+    "campaignId" in row ||
+    "date" in row ||
+    "impressions" in row ||
+    "campaign" in row
+  );
+}
+
+function isQueryWrapper(row: Record<string, unknown>) {
+  return "queryIndex" in row || (row.success !== undefined && row.data !== undefined);
+}
+
 export function unwrapRows(payload: unknown): Record<string, unknown>[] {
   if (typeof payload === "string") {
     const parsed = parseJsonOrTable(payload);
@@ -213,13 +228,16 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
       const objects = payload
         .map(asRecord)
         .filter((row): row is Record<string, unknown> => Boolean(row));
+      if (objects.some(isQueryWrapper)) {
+        return objects.flatMap((row) => unwrapRows(row.data !== undefined ? row.data : row));
+      }
       if (objects.some((row) => Array.isArray(row.rows) || Array.isArray(row.data) || Array.isArray(row.results))) {
         return objects.flatMap((row) => unwrapRows(row));
       }
       if (objects.every((row) => "dataSource" in row || ("metrics" in row && "dimensions" in row))) {
         return objects.flatMap((row) => unwrapRows(row));
       }
-      return objects;
+      return objects.filter(isInsightish);
     }
     if (payload.every((item) => typeof item === "string")) {
       return payload.flatMap((item) => unwrapRows(item));
@@ -230,17 +248,29 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
   if (!root) {
     return [];
   }
+  if (Array.isArray(root.results) && root.results.length) {
+    const nested = unwrapRows(root.results);
+    if (nested.length) {
+      return nested;
+    }
+  }
+  if (root.data !== undefined && !Array.isArray(root.data)) {
+    const nested = unwrapRows(root.data);
+    if (nested.length) {
+      return nested;
+    }
+  }
   const matrix = columnsAndMatrix(root);
   if (matrix?.length) {
     return matrix;
   }
   const candidates = [
     root.rows,
-    root.data,
-    root.results,
+    Array.isArray(root.data) ? root.data : undefined,
     root.metrics,
     root.records,
     root.table,
+    root.values,
     asRecord(root.result)?.rows,
     asRecord(root.result)?.data,
     asRecord(root.query)?.rows,
@@ -249,20 +279,32 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
   ];
   for (const candidate of candidates) {
     if (Array.isArray(candidate) && candidate.length > 0) {
-      return unwrapRows(candidate);
+      const nested = unwrapRows(candidate);
+      if (nested.length) {
+        return nested;
+      }
+    }
+  }
+  if (typeof root.summary === "string") {
+    const table = parseMarkdownTable(root.summary);
+    if (table.length) {
+      return table;
+    }
+    const parsed = parseJsonOrTable(root.summary);
+    if (parsed !== root.summary) {
+      const nested = unwrapRows(parsed);
+      if (nested.length) {
+        return nested;
+      }
     }
   }
   if (typeof root.text === "string") {
     return unwrapRows(parseJsonOrTable(root.text));
   }
-  if (
-    "spend" in root ||
-    "campaign_id" in root ||
-    "campaignId" in root ||
-    "date" in root ||
-    "impressions" in root ||
-    "campaign" in root
-  ) {
+  if (typeof root.markdown === "string") {
+    return unwrapRows(root.markdown);
+  }
+  if (isInsightish(root)) {
     return [root];
   }
   return [];
