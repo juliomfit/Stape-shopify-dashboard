@@ -1,4 +1,5 @@
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
+import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getBigQueryClient } from "@/lib/stape/client";
@@ -87,6 +88,10 @@ function emptyMetrics(
     avgSessionsToPurchase: null,
     quality: emptyQuality(),
     gaps: [],
+    metaSpend: null,
+    googleSpend: null,
+    totalSpend: null,
+    spendSource: "No ad spend for this range",
   };
 }
 
@@ -461,8 +466,17 @@ export async function getWarehouseMetrics(options: {
       "gclid/gbraid/wbraid columns are often empty; Meta is mostly URL UTMs plus fbclid when present.",
       "raw_events_full partitions expire after 60 days, so 90-day lookbacks will under-count until retention is extended.",
     ];
-    if (platform.facebook.state !== "connected" && platform.google.state !== "connected") {
-      gaps.push("Platform-reported conversions stay blank until Meta/Google spend paste or API is present for these dates.");
+    if (platform.facebook.spend === null && platform.google.spend === null) {
+      gaps.push(
+        "Platform Meta/Google spend is — for this header range. Overview blended cards stay — until warehouse or paste fills.",
+      );
+    } else {
+      gaps.push(blendedAdSpendSource(platform, period.label));
+    }
+    if (platform.facebook.claimKind === "warehouse" && platform.facebook.spend === 0) {
+      gaps.push(
+        "Meta warehouse spend is $0 for this day (Flyweel often lags Today). Click Yesterday or 7d. This is not gn_* True Performance.",
+      );
     }
 
     return {
@@ -498,6 +512,10 @@ export async function getWarehouseMetrics(options: {
       avgSessionsToPurchase: timing.avg_sessions == null ? null : toNumber(timing.avg_sessions),
       quality,
       gaps,
+      metaSpend: platform.facebook.spend,
+      googleSpend: platform.google.spend,
+      totalSpend: platform.totalSpend,
+      spendSource: blendedAdSpendSource(platform, period.label),
     };
   } catch (error) {
     const message =

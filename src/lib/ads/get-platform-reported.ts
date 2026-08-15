@@ -35,6 +35,7 @@ function mergeClaim(
   return {
     ...live,
     state: "connected",
+    claimKind: "file",
     spend: file.spend ?? null,
     purchases: file.purchases ?? null,
     revenue: file.revenue ?? null,

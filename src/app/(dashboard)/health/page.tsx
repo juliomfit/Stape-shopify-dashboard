@@ -6,22 +6,34 @@ import { getDataHealth } from "@/lib/platform/health";
 import { listSyncRuns } from "@/lib/platform/sync-runs";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { coverageRatio } from "@/lib/metrics/formulas";
-import { formatNumber, formatPercent } from "@/lib/format";
+import { getSelectedPeriod } from "@/lib/period-server";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
+import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
+import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
+import { EmptyTable } from "@/components/dashboard/EmptyTable";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Data health" };
 
 export default async function HealthPage() {
-  const [sources, runs, data, attribution] = await Promise.all([
+  const period = await getSelectedPeriod();
+  const [sources, runs, data, attribution, metaFacts] = await Promise.all([
     getDataHealth().catch(() => []),
     listSyncRuns().catch(() => []),
     getCoreDashboard(),
     getAttributionMetrics().catch(() => ({ tracking: [] as { label: string; filled: number; total: number }[] })),
+    getCampaignFacts(period).catch(() => []),
   ]);
   const shopifyOrders = data.shopifyConnected ? data.alignedShopify.orders : null;
   const stapePurchases = data.stapeConnected ? data.funnel.purchases : null;
+  const warehouseMeta = totalsFromFacts(metaFacts);
+  const overviewMeta = data.ads.facebook.spend;
+  const spendMismatch =
+    metaFacts.length > 0 &&
+    overviewMeta !== null &&
+    Math.abs(warehouseMeta.spend - overviewMeta) > 0.01;
   const ga4Note = "GA4 purchases are not in this table unless GA4_PROPERTY_ID sync succeeded.";
   const rows = [
     { label: "Shopify orders", value: shopifyOrders, kind: "capture" },
@@ -47,6 +59,52 @@ export default async function HealthPage() {
       <section className="flex flex-1 flex-col gap-6 p-8">
         <DataHealthStrip sources={sources} />
         <RefreshControls />
+        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-sm font-semibold text-foreground">Spend correlation</h2>
+          <p className="mt-1 text-xs text-muted">{blendedAdSpendSource(data.ads, data.period.label)}</p>
+          <ul className="mt-4 divide-y divide-border text-sm">
+            <li className="flex justify-between py-3">
+              <span>Overview Meta (same resolver as cards)</span>
+              <span>
+                {overviewMeta === null
+                  ? "—"
+                  : formatMoney({ amount: overviewMeta, currencyCode: "USD" })}
+              </span>
+            </li>
+            <li className="flex justify-between py-3">
+              <span>Warehouse campaign facts (/meta)</span>
+              <span>
+                {metaFacts.length === 0
+                  ? "—"
+                  : formatMoney({ amount: warehouseMeta.spend, currencyCode: "USD" })}
+              </span>
+            </li>
+            <li className="flex justify-between py-3">
+              <span>Google paste</span>
+              <span>
+                {data.ads.google.spend === null
+                  ? "—"
+                  : formatMoney({ amount: data.ads.google.spend, currencyCode: "USD" })}
+              </span>
+            </li>
+          </ul>
+          {spendMismatch ? (
+            <p className="mt-3 text-sm text-red-800">
+              Overview Meta spend does not match warehouse campaign facts. File a bug — they share one resolver now.
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-muted">
+              Today $0 with Yesterday spend is Flyweel lag, not a missing BigQuery dataset. True Performance stays gn_*.
+            </p>
+          )}
+        </article>
+        {runs.length === 0 ? (
+          <EmptyTable
+            title="No sync runs recorded"
+            why="Refresh Meta writes sync_runs after Flyweel ingest. Charts never call Flyweel on page load."
+            next={[{ kind: "href", href: "/meta", label: "Refresh Meta" }]}
+          />
+        ) : null}
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Tracking reconciliation</h2>
           <p className="mt-1 text-xs text-muted">{ga4Note}</p>

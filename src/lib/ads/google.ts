@@ -33,6 +33,7 @@ export async function getGoogleClaimed(
       source: "google",
       label: "Google Ads",
       state: "not_configured",
+      claimKind: "missing",
       message:
         "Paste Google Ads spend on True Performance for this date range",
       spend: null,
@@ -45,6 +46,7 @@ export async function getGoogleClaimed(
     source: "google",
     label: "Google Ads",
     state: "connected",
+    claimKind: "env",
     spend,
     purchases,
     revenue,

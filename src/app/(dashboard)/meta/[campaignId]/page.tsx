@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { MetaEntityTable } from "@/components/dashboard/MetaEntityTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
@@ -30,7 +31,17 @@ export default async function MetaCampaignPage({
   ]);
   const campaign = rollupCampaigns(campaignFacts).find((row) => row.id === campaignId);
   const adsets = rollupAdsets(adsetFacts);
-  const totals = totalsFromFacts(adsetFacts);
+  const totals = adsets.length
+    ? totalsFromFacts(adsetFacts)
+    : campaign
+      ? {
+          spend: campaign.spend,
+          purchases: campaign.purchases,
+          purchaseValue: campaign.purchaseValue,
+          roas: campaign.roas,
+          cpa: campaign.cpa,
+        }
+      : totalsFromFacts(adsetFacts);
   const currency = "USD";
 
   return (
@@ -40,11 +51,28 @@ export default async function MetaCampaignPage({
         description={`Ad sets for campaign ${campaignId}. Platform-attributed. ${period.label}.`}
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
+        <p className="text-sm text-muted">
+          <Link href="/meta" className="text-accent hover:underline">
+            ← Meta Ads
+          </Link>
+          {" · "}
+          <Link href="/meta/creatives" className="text-accent hover:underline">
+            Creatives
+          </Link>
+        </p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Spend"
-            source="Ad set insights"
-            value={formatMoney({ amount: totals.spend, currencyCode: currency })}
+            source={
+              adsets.length
+                ? "Ad set insights · platform"
+                : "Campaign warehouse · Flyweel does not ingest ad sets"
+            }
+            value={
+              campaign || adsets.length
+                ? formatMoney({ amount: totals.spend, currencyCode: currency })
+                : null
+            }
           />
           <MetricCard
             label="Purchases"
@@ -72,6 +100,13 @@ export default async function MetaCampaignPage({
             <MetaEntityTable
               rows={adsets}
               hrefPrefix={`/meta/${campaignId}`}
+              emptyTitle="No ad sets in the warehouse"
+              emptyWhy="Flyweel Refresh Meta writes campaign rows. Ad sets stay empty unless Graph stored them. Campaign spend above is still the platform total for this ID and header period."
+              emptyNext={[
+                { kind: "href", href: "/meta/creatives", label: "Creatives" },
+                { kind: "href", href: "/meta", label: "All campaigns" },
+                { kind: "range", range: "7d", label: "7d" },
+              ]}
             />
           </div>
         </article>

@@ -1,6 +1,6 @@
 import type { TrafficSource } from "@/lib/stape/types";
 import { formatNumber } from "@/lib/format";
-import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
+import { EmptyTable } from "@/components/dashboard/EmptyTable";
 
 type TrafficSourcesPanelProps = {
   sources: TrafficSource[];
@@ -17,9 +17,14 @@ export function TrafficSourcesPanel({
 }: TrafficSourcesPanelProps) {
   if (sources.length === 0) {
     return (
-      <EmptyPanel
-        title="Traffic sources"
-        description="Facebook, Google, and other first-party sources will appear here after Stape is writing to BigQuery."
+      <EmptyTable
+        title={title}
+        why={`No Stape sessions in ${periodLabel}. Same session definition as Overview. Check Data quality if other pages also show —.`}
+        next={[
+          { kind: "range", range: "7d", label: "7d" },
+          { kind: "href", href: "/data-quality", label: "Data quality" },
+          { kind: "href", href: "/", label: "Overview" },
+        ]}
       />
     );
   }

@@ -9,6 +9,7 @@ import { MetaPerformanceChart } from "@/components/dashboard/MetaPerformanceChar
 import { RefreshControls } from "@/components/dashboard/RefreshControls";
 import { Header } from "@/components/layout/Header";
 import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
+import { resolveMetaClaim } from "@/lib/ads/resolve-meta-claim";
 import {
   dailyMetricSeries,
   getCampaignFacts,
@@ -72,6 +73,21 @@ async function renderMetaPage() {
     })),
   ]);
   const totals = totalsFromFacts(facts);
+  const claimed = resolveMetaClaim({
+    warehouse: facts.length
+      ? {
+          spend: totals.spend,
+          purchases: totals.purchases,
+          purchaseValue: totals.purchaseValue,
+        }
+      : null,
+    lastSuccessfulSync: Boolean(lastSync),
+    periodDayCount: period.dayCount,
+    periodLabel: period.label,
+    paste: null,
+    flyweelConfigured: connection.provider === "flyweel",
+    graph: null,
+  });
   const weekFacts =
     totals.spend > 0 ? [] : await getCampaignFacts(getDashboardPeriod("7d")).catch(() => []);
   const weekTotals = totalsFromFacts(weekFacts);
@@ -158,18 +174,28 @@ async function renderMetaPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Spend"
-            source="Meta insights · platform"
-            value={facts.length ? formatMoney({ amount: totals.spend, currencyCode: currency }) : null}
+            source={claimed.message || "Meta insights · platform warehouse"}
+            value={
+              claimed.spend === null
+                ? null
+                : formatMoney({ amount: claimed.spend, currencyCode: currency })
+            }
           />
           <MetricCard
             label="Purchase value"
-            source="Meta actions purchase value"
-            value={facts.length ? formatMoney({ amount: totals.purchaseValue, currencyCode: currency }) : null}
+            source="Meta actions purchase value · platform"
+            value={
+              claimed.revenue === null
+                ? null
+                : formatMoney({ amount: claimed.revenue, currencyCode: currency })
+            }
           />
           <MetricCard
             label="Purchases"
-            source="Meta attributed purchases"
-            value={facts.length ? formatNumber(totals.purchases) : null}
+            source="Meta attributed purchases · not Shopify gn_*"
+            value={
+              claimed.purchases === null ? null : formatNumber(claimed.purchases)
+            }
           />
           <MetricCard
             label="ROAS"
@@ -215,17 +241,17 @@ async function renderMetaPage() {
           <MetricCard
             label="Reach"
             source="Do not sum reach across ads"
-            value={facts.length ? formatNumber(totals.reach) : null}
+            value={facts.length || claimed.spend === 0 ? formatNumber(totals.reach) : null}
           />
           <MetricCard
             label="Impressions"
             source="Campaign-level insights"
-            value={facts.length ? formatNumber(totals.impressions) : null}
+            value={facts.length || claimed.spend === 0 ? formatNumber(totals.impressions) : null}
           />
           <MetricCard
             label="Frequency"
             source="Reach / impressions at campaign grain"
-            value={facts.length ? totals.frequency.toFixed(2) : null}
+            value={facts.length || claimed.spend === 0 ? totals.frequency.toFixed(2) : null}
           />
         </div>
         <MetaPerformanceChart

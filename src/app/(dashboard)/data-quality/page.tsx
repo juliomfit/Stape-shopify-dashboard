@@ -48,8 +48,10 @@ export default async function DataQualityPage() {
       ? "dashboard_events is a view over raw_events_full. If the view is dropped or expires, this dashboard will error until BIGQUERY_TABLE is pointed at a live table."
       : "Using a raw table, not the dashboard_events view.",
     spendCoverage.length === 0
-      ? "No Meta or Google spend is saved for any date range. Overview MER/ROAS/CPA/net profit stay — until you paste or import for the header dates."
-      : `${spendCoverage.length} saved spend range(s). Changing the header to dates without a matching paste shows “No ad spend saved for these dates.”`,
+      ? "No Google paste and no Meta warehouse rows for any saved range. Overview MER/ROAS/CPA/net profit stay — until warehouse or paste covers the header dates."
+      : `${spendCoverage.length} saved spend range(s). Changing the header to dates without warehouse Meta or a matching Google paste shows —.`,
+    "Overview Meta spend prefers goodsnova_platform campaign facts (Flyweel ingest). Paste no longer overrides warehouse. Google Ads is still paste.",
+    "Today (Pacific) often has $0 in Flyweel while yesterday has spend. That is shown as $0 after a successful sync, not invented, and not hidden as a broken dashboard.",
     "Missing gn_* is Unknown, not Direct. Shop Pay Express often has no storefront script.",
     "Device, country, bounce rate, session duration, and COGS are omitted because those fields are not in Shopify or dashboard_events.",
     "Warehouse attribution reads raw_events_full. X-Stape-User-Id, gn_uid, and hashed_email are not BigQuery columns until the sGTM writer is appended.",
@@ -60,7 +62,7 @@ export default async function DataQualityPage() {
     <>
       <Header
         title="Data quality"
-        description="Truncation, tracking fill, BigQuery source, and which date ranges have ad spend saved."
+        description="Truncation, tracking fill, BigQuery source, and why other pages show —."
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <ConnectionStatus

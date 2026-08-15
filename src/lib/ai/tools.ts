@@ -1,5 +1,6 @@
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { getCampaignFacts, getAdFacts, getAdsetFacts, getCreativePerformance, rollupAds, rollupAdsets, rollupCampaigns, totalsFromFacts } from "@/lib/ads/meta-query";
+import { getMetaClaimed } from "@/lib/ads/meta";
 import { getDataHealth } from "@/lib/platform/health";
 import { getBusinessContext } from "@/lib/platform/business-context";
 import { listChangeLog } from "@/lib/platform/change-log";
@@ -91,7 +92,7 @@ export const AI_TOOLS: AiTool[] = [
   },
   {
     name: "sync_meta",
-    description: "Run the production Meta incremental importer (last 8 Pacific days).",
+    description: "Run the production Meta incremental importer (Pacific today + yesterday). Does not call Flyweel from dashboard GET.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -173,6 +174,10 @@ export async function executeAiTool(
           ? data.alignedShopify.newCustomerOrders
           : null,
         ad_spend: data.totalSpend,
+        facebook_spend: data.ads.facebook.spend,
+        facebook_spend_kind: data.ads.facebook.claimKind ?? null,
+        google_spend: data.ads.google.spend,
+        google_spend_kind: data.ads.google.claimKind ?? null,
         mer: data.mer,
         blended_roas: data.blendedRoas,
         blended_cpa: data.cpa,
@@ -182,17 +187,25 @@ export async function executeAiTool(
         ),
         contribution_profit: profit,
         contribution_margin: contributionMargin(profit, data.alignedShopify.revenue),
-        note: "Contribution profit excludes COGS unless configured. Blended metrics use Shopify revenue and pasted/API ad spend.",
+        note: "Blended cards use the same getPlatformReported as Overview. Meta is platform warehouse when Flyweel ingest exists; Google is paste. Contribution profit excludes COGS. Missing spend is null, not 0.",
       };
     }
     case "get_meta_summary": {
       const period = await getSelectedPeriod();
-      const facts = await getCampaignFacts(period);
+      const [claim, facts] = await Promise.all([
+        getMetaClaimed(period),
+        getCampaignFacts(period),
+      ]);
       return {
         label: "platform-attributed",
         period: period.label,
-        totals: totalsFromFacts(facts),
-        note: "Meta Ads Manager matching. Not Shopify gn_* first-touch.",
+        claimKind: claim.claimKind ?? null,
+        spend: claim.spend,
+        purchases: claim.purchases,
+        revenue: claim.revenue,
+        warehouse_totals: facts.length ? totalsFromFacts(facts) : null,
+        message: claim.message,
+        note: "Same resolver as Overview Meta spend and /meta. Ads Manager matching. Not Shopify gn_* first-touch. Missing spend is null. Today $0 after a successful sync is Flyweel lag.",
       };
     }
     case "get_campaign_performance": {
@@ -297,6 +310,8 @@ export async function aiSystemPrompt(viewContext?: string) {
     "You are GoodsNova analytics copilot. Use tools. Do not invent spend, COGS, or orders.",
     "Distinguish observed fact, calculated metric, inference, and recommendation.",
     "Never claim causation from correlation. Never pause ads or change budgets.",
+    "Meta platform spend and blended Meta spend must match the Overview/Meta cards. First-touch / True Performance is gn_* only.",
+    "Missing spend is null (—), never invent $0 CPA. Today $0 after a warehouse sync is real Flyweel lag — say so.",
     `Business: ${context.business}. Product: ${context.primaryProduct}.`,
     `Timezone: ${context.timezone}. Currency: ${context.currency}.`,
     `Targets: CPA ${context.targetCpa ?? "unset"}, MER ${context.targetMer ?? "unset"}, contribution margin ${context.targetContributionMargin ?? "unset"}.`,

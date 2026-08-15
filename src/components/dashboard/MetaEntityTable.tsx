@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import type { EntityRollup } from "@/lib/ads/meta-query";
+import { EmptyTable, type EmptyNext } from "@/components/dashboard/EmptyTable";
 
 type SortKey = keyof Pick<
   EntityRollup,
@@ -18,10 +19,20 @@ export function MetaEntityTable({
   rows,
   hrefPrefix,
   currency = "USD",
+  emptyTitle = "No Meta rows",
+  emptyWhy = "No Meta insights for this period. Flyweel ingest is campaign-level; Today is often $0 until Ads Manager closes the day.",
+  emptyNext = [
+    { kind: "range", range: "yesterday", label: "Yesterday" },
+    { kind: "range", range: "7d", label: "7d" },
+    { kind: "href", href: "/meta", label: "Refresh Meta" },
+  ],
 }: {
   rows: EntityRollup[];
   hrefPrefix?: string;
   currency?: string;
+  emptyTitle?: string;
+  emptyWhy?: string;
+  emptyNext?: EmptyNext[];
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("spend");
@@ -68,11 +79,7 @@ export function MetaEntityTable({
   }
 
   if (rows.length === 0) {
-    return (
-      <p className="text-sm text-muted">
-        No Meta insights for this period. Connect a provider and press Refresh Meta.
-      </p>
-    );
+    return <EmptyTable title={emptyTitle} why={emptyWhy} next={emptyNext} />;
   }
 
   return (

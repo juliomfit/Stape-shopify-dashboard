@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
+import { EmptyTable } from "@/components/dashboard/EmptyTable";
 import { getCreativePerformance } from "@/lib/ads/meta-query";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { getDashboardPeriod } from "@/lib/period";
@@ -31,9 +33,15 @@ export default async function MetaCreativesPage() {
       <section className="flex flex-1 flex-col gap-6 p-8">
         {rangeNote ? <p className="text-sm text-amber-900">{rangeNote}</p> : null}
         {rows.length === 0 ? (
-          <p className="text-sm text-muted">
-            No creative thumbnails in BigQuery (Flyweel does not send those). Campaign spend still fills this table after Refresh Meta — use <strong>Yesterday</strong> or <strong>7d</strong> if Today is $0.
-          </p>
+          <EmptyTable
+            title="No campaign spend in this range"
+            why="Flyweel does not send creative thumbnails. This table falls back to campaign warehouse spend/CPA. Today is often $0 while Yesterday has spend — that is Flyweel lag, not a missing dataset."
+            next={[
+              { kind: "range", range: "yesterday", label: "Yesterday" },
+              { kind: "range", range: "7d", label: "7d" },
+              { kind: "href", href: "/meta", label: "Refresh Meta" },
+            ]}
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-left text-sm">
@@ -62,7 +70,9 @@ export default async function MetaCreativesPage() {
                         ) : (
                           <span className="inline-block h-10 w-10 rounded bg-slate-100" />
                         )}
-                        <span>{row.name}</span>
+                        <Link href={`/meta/${row.creativeId}`} className="hover:underline">
+                          {row.name}
+                        </Link>
                       </div>
                     </td>
                     <td className="py-2 pr-3 font-mono text-xs">{row.creativeId}</td>

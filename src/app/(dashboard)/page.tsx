@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
 import { DailyTrendChart } from "@/components/dashboard/DailyTrendChart";
@@ -16,6 +17,7 @@ import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { getDataHealth } from "@/lib/platform/health";
 import { computeAnomalies } from "@/lib/platform/anomalies";
 import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
+import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 
 export const dynamic = "force-dynamic";
 
@@ -107,10 +109,7 @@ export default async function OverviewPage() {
     conversion.rate === null
       ? conversion.note
       : `${conversion.note} · ${period.label}`;
-  const spendSource =
-    totalSpend === null
-      ? "No ad spend saved for these dates"
-      : `Meta + Google · ${period.label}`;
+  const spendSource = blendedAdSpendSource(ads, period.label);
 
   return (
     <>
@@ -251,6 +250,21 @@ export default async function OverviewPage() {
             }
           />
         </div>
+        <p className="text-xs leading-5 text-muted">
+          Meta platform spend is{" "}
+          {ads.facebook.spend === null
+            ? "—"
+            : formatMoney({ amount: ads.facebook.spend, currencyCode: currency })}
+          {" · "}
+          <Link className="underline" href="/meta">
+            Meta Ads
+          </Link>
+          {" · same warehouse numbers. True Performance stays "}
+          <Link className="underline" href="/attribution">
+            gn_*
+          </Link>
+          . Google is paste, not a live API.
+        </p>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Net after fees"

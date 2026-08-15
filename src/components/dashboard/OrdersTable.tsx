@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ShopifyOrder } from "@/lib/shopify/types";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
-import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
+import { EmptyTable } from "@/components/dashboard/EmptyTable";
 
 type OrdersTableProps = {
   orders: ShopifyOrder[];
@@ -25,12 +25,20 @@ export function OrdersTable({
 }: OrdersTableProps) {
   if (orders.length === 0) {
     return (
-      <EmptyPanel
+      <EmptyTable
         title="Orders"
-        description={
+        why={
           connected
-            ? "No Shopify orders in this date range."
+            ? `No Shopify orders in ${periodLabel}. This is an empty day, not a broken table.`
             : "Orders will appear here after Shopify is connected."
+        }
+        next={
+          connected
+            ? [
+                { kind: "range", range: "yesterday", label: "Yesterday" },
+                { kind: "range", range: "7d", label: "7d" },
+              ]
+            : [{ kind: "href", href: "/integrations", label: "Integrations" }]
         }
       />
     );
