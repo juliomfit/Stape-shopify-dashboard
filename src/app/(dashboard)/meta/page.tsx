@@ -88,12 +88,19 @@ async function renderMetaPage() {
         <p className="text-xs text-muted">
           Meta-attributed purchases are Ads Manager matching, not Shopify orders and not sGTM event delivery.
         </p>
-        {!connection.configured && facts.length === 0 ? (
+        {connection.configured && facts.length === 0 ? (
           <EmptyPanel
-            title="No Meta account connected"
-            description="Open Integrations → Connect Meta Ads, or paste Ads Manager totals on True Performance for blended spend."
+            title="Meta is connected but not synced yet"
+            description="Press Refresh Meta below. First import pulls ~90 days. Header is Today — switch to 7d after sync if today has no spend yet."
           />
         ) : null}
+        {!connection.configured && facts.length === 0 ? (
+          <EmptyPanel
+            title="Flyweel is not on this deploy yet"
+            description="Set FLYWEEL_API_KEY and FLYWEEL_META_ACCOUNT_ID on Vercel Production, wait for the latest deploy, then Refresh Meta. Ignore Cursor mcp.json."
+          />
+        ) : null}
+        <RefreshControls />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Spend"
@@ -197,7 +204,6 @@ async function renderMetaPage() {
             />
           </div>
         </article>
-        <RefreshControls />
         <AskAiPanel viewContext={viewContext} />
       </section>
     </>
