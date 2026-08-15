@@ -8,6 +8,7 @@ import { FlyweelMcpClient } from "@/lib/ads/providers/flyweel-mcp";
 import { queryDateRangeChunked, SilentTruncationError } from "@/lib/ads/providers/chunk";
 import { buildFlyweelAdsQuery, FLYWEEL_ADS_DIMENSIONS, summarizeFlyweelSetup } from "@/lib/ads/providers/flyweel-query";
 import {
+  describeFlyweelPayload,
   mergeInsightBatches,
   normalizeAccount,
   normalizeInsightRow,
@@ -80,10 +81,13 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   }
 
   lastDebug() {
-    return this.lastQuerySnippet || this.client.lastRawSnippet;
+    return [this.lastParseDebug, this.lastQuerySnippet || this.client.lastRawSnippet]
+      .filter(Boolean)
+      .join(" ");
   }
 
   private lastQuerySnippet = "";
+  private lastParseDebug = "";
 
   async setupSummary() {
     const payload = await this.callRead(["get_setup_status"]);
@@ -279,7 +283,16 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     const query = (documented.queries as Record<string, unknown>[])[0];
     const unfiltered = { ...query };
     delete unfiltered.filters;
+    const compact = {
+      dataSource: "ads",
+      metrics: ["spend", "impressions", "clicks", "conversions"],
+      dimensions: ["date", "campaign_id", "campaign"],
+      dateRange: { start: params.startDate, end: params.endDate },
+      filters: { channel: ["Meta"] },
+      limit: FLYWEEL_ROW_LIMIT,
+    };
     return [
+      { queries: [compact] },
       {
         queries: [
           {
@@ -287,7 +300,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
             metrics,
             dimensions: ["date", "campaign", "channel"].slice(0, FLYWEEL_DIMENSION_LIMIT),
             dateRange: { preset: "last_7_days" },
-            limit: 500,
+            limit: FLYWEEL_ROW_LIMIT,
           },
         ],
       },
@@ -308,6 +321,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
       try {
         const payload = await this.callRead(["query_metrics", "queryMetrics"], shape);
         this.lastQuerySnippet = this.client.lastRawSnippet;
+        this.lastParseDebug = describeFlyweelPayload(payload);
         const errorText = payloadLooksLikeError(payload);
         if (errorText) {
           lastError = new Error(errorText);
@@ -384,7 +398,11 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
           this.queryWithDimensionFallback({ ...params, accountId, startDate, endDate }),
       });
       const normalized = chunked.rows.map((row) =>
-        normalizeInsightRow(row, { accountId, provider: this.id }),
+        normalizeInsightRow(row, {
+          accountId,
+          provider: this.id,
+          date: params.startDate === params.endDate ? params.startDate : undefined,
+        }),
       );
       const rows = mergeInsightBatches([normalized]).filter((row) => row.date);
       return {
