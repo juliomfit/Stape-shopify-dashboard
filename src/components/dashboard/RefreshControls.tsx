@@ -19,18 +19,30 @@ export function RefreshControls() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = (await response.json()) as {
-        ok?: boolean;
-        message?: string;
-        error?: string;
-      };
+      const raw = await response.text();
+      let result: { ok?: boolean; message?: string; error?: string } = {};
+      try {
+        result = raw ? (JSON.parse(raw) as typeof result) : {};
+      } catch {
+        const clipped = raw.replace(/\s+/g, " ").trim().slice(0, 240);
+        setMessage(
+          response.status === 504 || /timeout|timed out/i.test(clipped)
+            ? "Meta sync timed out. Wait for the Vercel deploy to finish, then press Refresh Meta once."
+            : clipped
+              ? `Refresh failed (HTTP ${response.status}): ${clipped}`
+              : `Refresh failed (HTTP ${response.status}). Wait for deploy, then try again.`,
+        );
+        return;
+      }
       const text = result.message || result.error || `HTTP ${response.status}`;
       setMessage(result.ok ? `Meta updated. ${text}` : text);
+      if (result.ok) {
+        router.refresh();
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Sync request failed.");
     } finally {
       setPending(false);
-      router.refresh();
     }
   }
 
