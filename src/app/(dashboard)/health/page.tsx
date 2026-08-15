@@ -15,10 +15,10 @@ export const metadata: Metadata = { title: "Data health" };
 
 export default async function HealthPage() {
   const [sources, runs, data, attribution] = await Promise.all([
-    getDataHealth(),
-    listSyncRuns(),
+    getDataHealth().catch(() => []),
+    listSyncRuns().catch(() => []),
     getCoreDashboard(),
-    getAttributionMetrics(),
+    getAttributionMetrics().catch(() => ({ tracking: [] as { label: string; filled: number; total: number }[] })),
   ]);
   const shopifyOrders = data.shopifyConnected ? data.alignedShopify.orders : null;
   const stapePurchases = data.stapeConnected ? data.funnel.purchases : null;

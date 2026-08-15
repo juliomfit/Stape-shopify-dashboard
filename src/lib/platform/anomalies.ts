@@ -53,7 +53,7 @@ function check(
   };
 }
 
-export async function detectAnomalies(input: {
+export function computeAnomalies(input: {
   revenue: number | null;
   previousRevenue: number | null;
   orders: number | null;
@@ -68,8 +68,8 @@ export async function detectAnomalies(input: {
   previousConversion: number | null;
   metaCpa: number | null;
   previousMetaCpa: number | null;
-}): Promise<Anomaly[]> {
-  const found = [
+}): Anomaly[] {
+  return [
     check("revenue", input.revenue, input.previousRevenue, "Shopify total revenue", true),
     check("orders", input.orders, input.previousOrders, "Shopify orders", true),
     check("spend", input.spend, input.previousSpend, "Blended ad spend"),
@@ -84,8 +84,22 @@ export async function detectAnomalies(input: {
     ),
     check("meta_cpa", input.metaCpa, input.previousMetaCpa, "Meta platform CPA"),
   ].filter((row): row is Anomaly => row !== null);
+}
 
-  await writeDurableJson("analytics-anomalies", { rows: found });
+export async function detectAnomalies(
+  input: Parameters<typeof computeAnomalies>[0],
+  options?: { persist?: boolean },
+): Promise<Anomaly[]> {
+  const found = computeAnomalies(input);
+  if (options?.persist === false) {
+    return found;
+  }
+
+  try {
+    await writeDurableJson("analytics-anomalies", { rows: found });
+  } catch {
+    // ignore
+  }
   if (isPlatformBqReady() && found.length > 0) {
     try {
       await insertRows(

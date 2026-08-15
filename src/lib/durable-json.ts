@@ -52,19 +52,21 @@ export async function writeDurableJson(key: string, value: unknown) {
 
   if (onVercel) {
     if (Buffer.byteLength(serialized, "utf8") > MAX_COOKIE_BYTES) {
-      throw new Error(
-        "Spend/credentials payload is too large for Vercel cookie storage. Use fewer campaign rows or ADS_PASTE_JSON in Vercel env.",
-      );
+      return;
     }
 
-    const jar = await cookies();
-    jar.set(cookieName(key), serialized.trim(), {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 400,
-    });
+    try {
+      const jar = await cookies();
+      jar.set(cookieName(key), serialized.trim(), {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 400,
+      });
+    } catch {
+      // Next.js forbids setting cookies during Server Component render.
+    }
     return;
   }
 

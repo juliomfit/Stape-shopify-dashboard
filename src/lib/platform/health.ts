@@ -50,6 +50,26 @@ function delayed(iso: string | null) {
 }
 
 export async function getDataHealth(): Promise<SourceHealth[]> {
+  try {
+    return await loadDataHealth();
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Health check failed";
+    return [
+      {
+        source: "platform",
+        label: "Platform",
+        status: "error",
+        lastSuccessAt: null,
+        lastAttemptAt: null,
+        message,
+        href: "/data-quality",
+      },
+    ];
+  }
+}
+
+async function loadDataHealth(): Promise<SourceHealth[]> {
   const period = await getSelectedPeriod();
   const [
     metaCreds,

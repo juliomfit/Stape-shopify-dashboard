@@ -14,7 +14,7 @@ import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { getDataHealth } from "@/lib/platform/health";
-import { detectAnomalies } from "@/lib/platform/anomalies";
+import { computeAnomalies } from "@/lib/platform/anomalies";
 import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ function roasLabel(value: number | null) {
 }
 
 export default async function OverviewPage() {
-  const [data, health] = await Promise.all([getCoreDashboard(), getDataHealth()]);
+  const data = await getCoreDashboard();
   const {
     period,
     deltaLabel,
@@ -56,30 +56,47 @@ export default async function OverviewPage() {
     ads,
     deltas,
   } = data;
-  const metaNow = totalsFromFacts(await getCampaignFacts(period));
-  const metaPrev = totalsFromFacts(await getCampaignFacts(data.previous));
-  const anomalies = await detectAnomalies({
-    revenue: shopifyConnected ? alignedShopify.revenue : null,
-    previousRevenue:
-      data.previousShopify.status.state === "connected"
-        ? data.previousAligned.revenue
-        : null,
-    orders: shopifyConnected ? alignedShopify.orders : null,
-    previousOrders:
-      data.previousShopify.status.state === "connected"
-        ? data.previousAligned.orders
-        : null,
-    spend: totalSpend,
-    previousSpend: null,
-    mer,
-    previousMer: null,
-    cpa,
-    previousCpa: null,
-    conversion: conversion.rate,
-    previousConversion: data.previousConversion.rate,
-    metaCpa: metaNow.cpa,
-    previousMetaCpa: metaPrev.cpa,
-  });
+
+  let health: Awaited<ReturnType<typeof getDataHealth>> = [];
+  try {
+    health = await getDataHealth();
+  } catch {
+    health = [];
+  }
+
+  let anomalies: ReturnType<typeof computeAnomalies> = [];
+  try {
+    const [metaNowFacts, metaPrevFacts] = await Promise.all([
+      getCampaignFacts(period),
+      getCampaignFacts(data.previous),
+    ]);
+    const metaNow = totalsFromFacts(metaNowFacts);
+    const metaPrev = totalsFromFacts(metaPrevFacts);
+    anomalies = computeAnomalies({
+      revenue: shopifyConnected ? alignedShopify.revenue : null,
+      previousRevenue:
+        data.previousShopify.status.state === "connected"
+          ? data.previousAligned.revenue
+          : null,
+      orders: shopifyConnected ? alignedShopify.orders : null,
+      previousOrders:
+        data.previousShopify.status.state === "connected"
+          ? data.previousAligned.orders
+          : null,
+      spend: totalSpend,
+      previousSpend: null,
+      mer,
+      previousMer: null,
+      cpa,
+      previousCpa: null,
+      conversion: conversion.rate,
+      previousConversion: data.previousConversion.rate,
+      metaCpa: metaNow.cpa,
+      previousMetaCpa: metaPrev.cpa,
+    });
+  } catch {
+    anomalies = [];
+  }
   const shopifySource = shopifyConnected
     ? `Shopify · ${period.label}`
     : "Shopify · no data yet";

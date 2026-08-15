@@ -26,10 +26,18 @@ export const metadata: Metadata = { title: "Meta Ads" };
 export default async function MetaPage() {
   const period = await getSelectedPeriod();
   const [connection, facts, cache, lastSync] = await Promise.all([
-    getMetaConnectionPublic(),
-    getCampaignFacts(period),
-    loadMetaCache(),
-    latestSuccessfulSync("meta"),
+    getMetaConnectionPublic().catch(() => ({
+      configured: false,
+      source: "none" as const,
+      adAccountId: "",
+      tokenHint: "",
+      canDisconnect: false,
+      oauthReady: false,
+      pendingAccounts: [],
+    })),
+    getCampaignFacts(period).catch(() => []),
+    loadMetaCache().catch(() => ({ syncedAt: undefined })),
+    latestSuccessfulSync("meta").catch(() => null),
   ]);
   const totals = totalsFromFacts(facts);
   const campaigns = rollupCampaigns(facts);
