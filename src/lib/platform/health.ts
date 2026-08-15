@@ -189,7 +189,7 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
       lastSuccessAt: metaFromRun.lastSuccessAt,
       lastAttemptAt: metaFromRun.lastAttemptAt,
       message: metaMessage,
-      href: "/integrations",
+      href: "/meta",
       provider: metaProvider,
     },
     google,

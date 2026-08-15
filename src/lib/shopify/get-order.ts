@@ -37,6 +37,7 @@ type OrderNode = {
         originalTotalSet?: {
           shopMoney: { amount: string; currencyCode: string };
         };
+        title?: string | null;
       };
     }[];
   };
@@ -69,6 +70,8 @@ export type ShopifyLastTouch = {
 export type ShopifyOrderDetail = ShopifyOrder & {
   isNew: boolean | null;
   shopifyLastTouch: ShopifyLastTouch | null;
+  customerId: string | null;
+  lineItems: { title: string; quantity: number }[];
 };
 
 const ORDER_FIELDS = `
@@ -95,6 +98,7 @@ const ORDER_FIELDS = `
     edges {
       node {
         quantity
+        title
         originalTotalSet { shopMoney { amount currencyCode } }
       }
     }
@@ -152,6 +156,11 @@ function mapOrder(node: OrderNode): ShopifyOrderDetail {
           utmCampaign: lastVisit.utmParameters?.campaign || "",
         }
       : null,
+    customerId: node.customer?.id.split("/").pop() || null,
+    lineItems: node.lineItems.edges.map((item) => ({
+      title: item.node.title || "Line item",
+      quantity: item.node.quantity,
+    })),
   };
 }
 

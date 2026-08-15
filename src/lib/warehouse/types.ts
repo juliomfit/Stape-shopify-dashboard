@@ -70,4 +70,8 @@ export type WarehouseMetrics = {
   avgSessionsToPurchase: number | null;
   quality: WarehouseQuality;
   gaps: string[];
+  metaSpend: number | null;
+  googleSpend: number | null;
+  totalSpend: number | null;
+  spendSource: string;
 };

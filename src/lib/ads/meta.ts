@@ -1,7 +1,11 @@
+import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
 import { getMetaCredentials } from "@/lib/ads/meta-credentials";
+import { resolveFlyweelApiKey } from "@/lib/ads/providers/flyweel-credentials";
+import { resolveMetaClaim } from "@/lib/ads/resolve-meta-claim";
 import { getMetaPaste, pasteToClaim } from "@/lib/ads/spend-paste";
 import type { PlatformClaim } from "@/lib/ads/types";
 import type { DashboardPeriod } from "@/lib/period";
+import { latestSuccessfulSync } from "@/lib/platform/sync-runs";
 
 function readNumber(name: string) {
   const raw = process.env[name]?.trim();
@@ -26,6 +30,7 @@ function pastedMetaClaim(): PlatformClaim | null {
     source: "facebook",
     label: "Meta Ads",
     state: "connected",
+    claimKind: "env",
     spend,
     purchases,
     revenue,
@@ -38,6 +43,7 @@ function empty(state: PlatformClaim["state"], message?: string): PlatformClaim {
     source: "facebook",
     label: "Meta Ads",
     state,
+    claimKind: state === "connected" ? "graph" : "missing",
     message,
     spend: null,
     purchases: null,
@@ -117,6 +123,7 @@ export async function fetchMetaInsights(
     source: "facebook",
     label: "Meta Ads",
     state: "connected",
+    claimKind: "graph",
     spend: Number(row.spend || 0),
     purchases: actionNumber(row.actions, purchaseTypes),
     revenue: actionNumber(row.action_values, purchaseTypes),
@@ -139,30 +146,54 @@ async function pastedForPeriod(period: DashboardPeriod): Promise<PlatformClaim |
 export async function getMetaClaimed(
   period: DashboardPeriod,
 ): Promise<PlatformClaim> {
-  const pasted = await pastedForPeriod(period);
-  // CSV / paste for this header range wins over a dead or empty Meta token.
-  if (pasted) {
-    return pasted;
+  const [facts, lastSync, pasted, flyweelKey] = await Promise.all([
+    getCampaignFacts(period),
+    latestSuccessfulSync("meta"),
+    pastedForPeriod(period),
+    resolveFlyweelApiKey(),
+  ]);
+  const warehouse = facts.length
+    ? (() => {
+        const totals = totalsFromFacts(facts);
+        return {
+          spend: totals.spend,
+          purchases: totals.purchases,
+          purchaseValue: totals.purchaseValue,
+        };
+      })()
+    : null;
+
+  let graph: PlatformClaim | null = null;
+  if (!warehouse && !lastSync && !pasted && !flyweelKey) {
+    const { credentials } = await getMetaCredentials();
+    if (!credentials) {
+      graph = empty(
+        "not_configured",
+        "Paste Ads Manager totals on True Performance for this date range",
+      );
+    } else {
+      try {
+        graph = await fetchMetaInsights(
+          period,
+          credentials.accessToken,
+          credentials.adAccountId,
+        );
+      } catch (error) {
+        graph = empty(
+          "error",
+          error instanceof Error ? error.message : "Meta API request failed",
+        );
+      }
+    }
   }
 
-  const { credentials } = await getMetaCredentials();
-  if (!credentials) {
-    return empty(
-      "not_configured",
-      "Paste Ads Manager totals on True Performance for this date range",
-    );
-  }
-
-  try {
-    return await fetchMetaInsights(
-      period,
-      credentials.accessToken,
-      credentials.adAccountId,
-    );
-  } catch (error) {
-    return empty(
-      "error",
-      error instanceof Error ? error.message : "Meta API request failed",
-    );
-  }
+  return resolveMetaClaim({
+    warehouse,
+    lastSuccessfulSync: Boolean(lastSync),
+    periodDayCount: period.dayCount,
+    periodLabel: period.label,
+    paste: pasted,
+    flyweelConfigured: Boolean(flyweelKey),
+    graph,
+  });
 }

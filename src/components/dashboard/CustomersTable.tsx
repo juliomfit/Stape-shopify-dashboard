@@ -1,6 +1,6 @@
 import type { CustomerPerformance } from "@/lib/shopify/types";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
-import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
+import { EmptyTable } from "@/components/dashboard/EmptyTable";
 
 type CustomersTableProps = {
   customers: CustomerPerformance[];
@@ -15,12 +15,20 @@ export function CustomersTable({
 }: CustomersTableProps) {
   if (customers.length === 0) {
     return (
-      <EmptyPanel
+      <EmptyTable
         title="Customers"
-        description={
+        why={
           connected
-            ? "No customers with orders in this date range."
+            ? `No customers with orders in ${periodLabel}.`
             : "Customer sales will appear here after Shopify is connected."
+        }
+        next={
+          connected
+            ? [
+                { kind: "range", range: "7d", label: "7d" },
+                { kind: "href", href: "/sales", label: "Sales" },
+              ]
+            : [{ kind: "href", href: "/integrations", label: "Integrations" }]
         }
       />
     );

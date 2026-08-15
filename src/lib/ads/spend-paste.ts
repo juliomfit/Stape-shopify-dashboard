@@ -333,6 +333,7 @@ export function pasteToClaim(
     source,
     label,
     state: "connected",
+    claimKind: "paste",
     spend: paste.spend,
     purchases: paste.purchases,
     revenue: paste.revenue,

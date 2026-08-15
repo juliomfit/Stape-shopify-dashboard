@@ -3,6 +3,8 @@
 Sources still stay labeled. This layer does **not** replace True Performance (`gn_*`),
 Shopify Attribution, or the Stape warehouse click models.
 
+Page-by-page sources: `docs/SOURCE_MATRIX.md`.
+
 ```
 Meta / Shopify / Google paste / GA4 Data API / Stape BQ
         → ingestion (cron + Refresh buttons)
@@ -46,11 +48,11 @@ Cursor's Flyweel MCP OAuth session is **not** production auth. Vercel must have 
 
 If `FLYWEEL_API_KEY` is missing, ingest falls back to Meta Graph OAuth/token when those exist.
 
-Read-only: GoodsNova never calls `connect_ad_platform` or `select_ad_accounts`.
+Read-only: GoodsNova never calls `connect_ad_platform`. `select_ad_accounts` runs only when `FLYWEEL_SELECT_ON_REFRESH=1` (off by default). Meta is never paused, edited, or created from this app.
 
-Query limits handled in `src/lib/ads/providers/chunk.ts` (500-row split). Do not silently truncate.
+Query limits: Flyweel `query_metrics` caps at 500 rows. Incremental Refresh Meta queries **today and yesterday as separate Flyweel days**, campaign grain, and keeps rows with spend. A 7-day date×campaign query hits the 500-row cap and fills with $0 campaigns — do not use that shape. `src/lib/ads/providers/chunk.ts` still splits long Graph ranges.
 
-Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand.
+Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. Vercel Hobby `maxDuration` is 60s (`POST /api/meta/sync`). Skip BigQuery DELETE while the streaming buffer is hot.
 
 ## Meta setup
 
@@ -67,11 +69,10 @@ Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand.
 6. Integrations → Log in with Facebook → pick ad account → **Refresh Meta**.
 7. First backfill: Integrations date pickers, max 93 Pacific days.
 
-Hourly Meta refresh upserts **today + previous 7 days** (8 Pacific days) when you
-press Refresh or when cron runs. Vercel **Hobby** cron is **once per day**
+Hourly Meta refresh is **not** an 8-day lookback. Incremental ingest is Pacific **today + yesterday**. Vercel **Hobby** cron is **once per day**
 (`0 15 * * *` UTC). Use Refresh Meta anytime.
 
-Paste/CSV on True Performance still wins for **blended** Overview spend when present.
+Overview / True Performance / Warehouse **Meta spend** reads `meta_campaign_insights_daily` (same as `/meta`) when warehouse rows or a successful sync exist. Google paste is labeled separately. Paste does **not** override warehouse Meta.
 
 ## Google Ads / GA4
 

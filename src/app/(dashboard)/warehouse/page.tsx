@@ -150,6 +150,24 @@ export default async function WarehousePage({ searchParams }: PageProps) {
                 : `${data.avgTouchesToPurchase.toFixed(1)} / ${data.avgSessionsToPurchase?.toFixed(1) ?? "—"}`
             }
           />
+          <MetricCard
+            label="Platform Meta spend"
+            source={data.spendSource}
+            value={
+              data.metaSpend === null
+                ? null
+                : formatMoney({ amount: data.metaSpend, currencyCode: currency })
+            }
+          />
+          <MetricCard
+            label="Google paste spend"
+            source={data.spendSource}
+            value={
+              data.googleSpend === null
+                ? null
+                : formatMoney({ amount: data.googleSpend, currencyCode: currency })
+            }
+          />
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <WarehouseChannelTable

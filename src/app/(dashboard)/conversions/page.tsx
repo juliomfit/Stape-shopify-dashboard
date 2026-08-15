@@ -7,6 +7,7 @@ import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,7 @@ export default async function ConversionsPage() {
     conversion.rate === null
       ? conversion.note
       : `${conversion.note} · ${period.label}`;
-  const spendSource =
-    totalSpend === null
-      ? "No ad spend saved for these dates"
-      : `Meta + Google · ${period.label}`;
+  const spendSource = blendedAdSpendSource(data.ads, period.label);
 
   return (
     <>

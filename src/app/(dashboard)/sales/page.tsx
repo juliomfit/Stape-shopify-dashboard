@@ -11,6 +11,7 @@ import { Header } from "@/components/layout/Header";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
+import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 
 export const dynamic = "force-dynamic";
 
@@ -54,10 +55,7 @@ export default async function SalesPage() {
   const tableOrders = shopify.recentOrders.filter((order) =>
     inRangeIds.has(order.legacyId),
   );
-  const spendSource =
-    totalSpend === null
-      ? "No ad spend saved for these dates"
-      : `Meta + Google · ${period.label}`;
+  const spendSource = blendedAdSpendSource(ads, period.label);
 
   return (
     <>

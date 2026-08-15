@@ -86,6 +86,21 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
                       : "Guest / unknown"
                 }
               />
+              {order.customerId ? (
+                <p className="pt-3 text-sm">
+                  <Link href="/customers" className="text-accent hover:underline">
+                    Customers
+                  </Link>
+                  <span className="text-muted"> · Shopify customer {order.customerId}</span>
+                </p>
+              ) : (
+                <p className="pt-3 text-sm">
+                  <Link href="/customers" className="text-accent hover:underline">
+                    Customers
+                  </Link>
+                  <span className="text-muted"> · guest / no customer id</span>
+                </p>
+              )}
             </div>
           </article>
           <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
@@ -110,6 +125,40 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
             </div>
           </article>
         </div>
+        <p className="text-sm text-muted">
+          Same header period on{" "}
+          <Link href="/products" className="text-accent hover:underline">
+            Products
+          </Link>
+          ,{" "}
+          <Link href="/attribution" className="text-accent hover:underline">
+            True Performance
+          </Link>
+          , and{" "}
+          <Link href="/meta" className="text-accent hover:underline">
+            Meta Ads
+          </Link>
+          . First-touch is gn_*, not Ads Manager.
+        </p>
+        {order.lineItems.length > 0 ? (
+          <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+            <h2 className="text-sm font-semibold text-foreground">Line items</h2>
+            <ul className="mt-3 divide-y divide-border text-sm">
+              {order.lineItems.map((item, index) => (
+                <li key={`${item.title}-${index}`} className="flex justify-between py-2">
+                  <span>{item.title}</span>
+                  <span className="text-muted">{formatNumber(item.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-muted">
+              <Link href="/products" className="underline">
+                Products
+              </Link>{" "}
+              uses the same Shopify order range as Sales.
+            </p>
+          </article>
+        ) : null}
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">
             Shopify last-touch / session

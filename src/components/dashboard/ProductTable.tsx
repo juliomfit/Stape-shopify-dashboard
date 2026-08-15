@@ -1,6 +1,6 @@
 import type { TopProduct } from "@/lib/shopify/types";
 import { formatMoney, formatNumber } from "@/lib/format";
-import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
+import { EmptyTable } from "@/components/dashboard/EmptyTable";
 
 type ProductTableProps = {
   products: TopProduct[];
@@ -15,12 +15,20 @@ export function ProductTable({
 }: ProductTableProps) {
   if (products.length === 0) {
     return (
-      <EmptyPanel
+      <EmptyTable
         title="Products"
-        description={
+        why={
           connected
-            ? "No product line items in this date range."
+            ? `No product line items in ${periodLabel}.`
             : "Product sales will appear here after Shopify is connected."
+        }
+        next={
+          connected
+            ? [
+                { kind: "range", range: "7d", label: "7d" },
+                { kind: "href", href: "/sales", label: "Sales" },
+              ]
+            : [{ kind: "href", href: "/integrations", label: "Integrations" }]
         }
       />
     );

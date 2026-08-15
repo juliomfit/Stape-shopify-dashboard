@@ -17,6 +17,7 @@ import { getTruePerformance } from "@/lib/dashboard/true-performance";
 import { getConversionRate } from "@/lib/dashboard/conversion";
 import { shopifyStapeMismatch, unknownFirstTouch } from "@/lib/dashboard/kpis";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { blendedAdSpendSource, firstTouchSourceLine } from "@/lib/metrics/source-lines";
 
 export const dynamic = "force-dynamic";
 
@@ -64,12 +65,13 @@ export default async function AttributionPage() {
   const currency = shopify.revenue?.currencyCode || "USD";
   const shopifySource =
     shopify.status.state === "connected"
-      ? `Shopify gn_* · ${period.label}`
+      ? firstTouchSourceLine(period.label)
       : "Shopify · no data yet";
   const spendMissing =
     totalSpend === null
-      ? "Paste ad spend for this date range — we will not guess"
+      ? blendedAdSpendSource(platform, period.label)
       : null;
+  const spendSource = blendedAdSpendSource(platform, period.label);
   const roasNote =
     spendMissing ?? `${period.label} · total revenue ÷ blended ad spend`;
   const merNote =
@@ -164,6 +166,15 @@ export default async function AttributionPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
+            label="Ad spend"
+            source={spendSource}
+            value={
+              totalSpend === null
+                ? null
+                : formatMoney({ amount: totalSpend, currencyCode: currency })
+            }
+          />
+          <MetricCard
             label="Blended ROAS"
             source={roasNote}
             value={roasLabel(blendedRoas)}
@@ -190,8 +201,8 @@ export default async function AttributionPage() {
             label="Meta ROAS"
             source={
               facebookRoas === null
-                ? "Needs Meta spend + gn_* Facebook first-touch"
-                : "gn_* Facebook revenue ÷ Meta spend"
+                ? `Needs Meta ${spendSource} plus gn_* Facebook first-touch`
+                : `gn_* Facebook revenue ÷ Meta platform spend · not Ads Manager ROAS`
             }
             value={roasLabel(facebookRoas)}
           />
