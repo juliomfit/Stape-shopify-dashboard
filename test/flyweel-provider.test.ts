@@ -41,6 +41,7 @@ test("normalizeInsightRow maps aliases and does not invent purchases", () => {
   assert.equal(row.purchases, 0);
   assert.equal(row.date, "2026-08-01");
   assert.equal(parseYmdLoose("2026-08-01T12:00:00Z"), "2026-08-01");
+  assert.equal(parseYmdLoose("08/14/2026"), "2026-08-14");
 });
 
 test("invalid payload unwraps to empty", () => {
@@ -93,8 +94,8 @@ test("mcp fenced json and column matrix unwrap", () => {
   );
 });
 
-test("Flyweel results[].data.rows unwraps campaign insights", () => {
-  const payload = {
+test("Flyweel title-case rows, CSV summary, and MCP content beat empty structuredContent", () => {
+  const titled = unwrapRows({
     organization: { id: "org", name: "goodsnova" },
     results: [
       {
@@ -104,22 +105,61 @@ test("Flyweel results[].data.rows unwraps campaign insights", () => {
           summary: "Data source: ads\nShowing: 500 of 2814 rows",
           rows: [
             {
-              date: "2026-08-14",
-              campaign_id: "111",
-              campaign: "ASC Scaling",
-              channel: "Meta",
-              spend: 40.5,
-              impressions: 1000,
+              Date: "08/14/2026",
+              "Campaign ID": "111",
+              Campaign: "ASC Scaling",
+              Spend: 40.5,
+              Impressions: 1000,
             },
           ],
         },
       },
     ],
-  };
-  const rows = unwrapRows(payload);
+  });
+  assert.equal(titled.length, 1);
+  const normalized = normalizeInsightRow(titled[0], { accountId: "209273195421975", provider: "flyweel" });
+  assert.equal(normalized.date, "2026-08-14");
+  assert.equal(normalized.campaignId, "111");
+  assert.equal(normalized.spend, 40.5);
+
+  const csvOnly = unwrapRows({
+    results: [
+      {
+        queryIndex: 0,
+        success: true,
+        data: {
+          summary:
+            "Data source: ads\nShowing: 2 of 2 rows\ndate,campaign_id,campaign,spend\n2026-08-14,111,ASC,12.5\n2026-08-13,111,ASC,8",
+        },
+      },
+    ],
+  });
+  assert.equal(csvOnly.length, 2);
+  assert.equal(csvOnly[0].spend, "12.5");
+
+  const mcp = unwrapMcpToolResult({
+    structuredContent: {
+      organization: { name: "goodsnova" },
+      results: [{ queryIndex: 0, success: true, data: { summary: "Showing: 500 of 2814 rows" } }],
+    },
+    content: [
+      {
+        type: "text",
+        text: "| date | campaign | spend |\n| --- | --- | --- |\n| 2026-08-14 | ASC | 9 |",
+      },
+    ],
+  });
+  const fromMcp = unwrapRows(mcp);
+  assert.equal(fromMcp.length, 1);
+  assert.equal(fromMcp[0].campaign, "ASC");
+});
+
+test("truncated JSON still yields complete row objects", () => {
+  const rows = unwrapRows(
+    '{"results":[{"data":{"rows":[{"date":"2026-08-14","campaign":"ASC","spend":9},{"date":"2026-08-13","campaign":"ASC","spend":',
+  );
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].campaign, "ASC Scaling");
-  assert.equal(rows[0].spend, 40.5);
+  assert.equal(rows[0].spend, 9);
 });
 
 test("Flyweel ads query uses dataSource and dateRange", () => {

@@ -258,10 +258,9 @@ export async function ingestMetaRange(input: {
         throw new Error(
           [
             setupMessage,
-            "Flyweel returned 0 campaign rows.",
-            "Open Flyweel → Settings → Connections (not the API key page).",
-            "Select the GoodsNova / FBSmash Meta account 209273195421975, then Refresh Meta.",
-            querySnippet ? `Last metrics payload: ${querySnippet.slice(0, 400)}` : "",
+            "Flyweel returned 0 campaign rows after parsing.",
+            "Stay on /meta and press Refresh Meta once. This does not pause ads.",
+            querySnippet ? `Last metrics payload: ${querySnippet.slice(0, 700)}` : "",
           ]
             .filter(Boolean)
             .join(" "),

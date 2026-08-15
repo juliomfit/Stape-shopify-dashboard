@@ -33,6 +33,7 @@ export function parseMcpRpcBody(text: string, contentType = ""): unknown {
     /^data:/m.test(trimmed);
   if (sse) {
     const payloads: unknown[] = [];
+    const dataLines: string[] = [];
     for (const line of trimmed.split(/\r?\n/)) {
       if (!line.startsWith("data:")) {
         continue;
@@ -41,6 +42,7 @@ export function parseMcpRpcBody(text: string, contentType = ""): unknown {
       if (!data || data === "[DONE]") {
         continue;
       }
+      dataLines.push(data);
       try {
         payloads.push(JSON.parse(data));
       } catch {
@@ -59,6 +61,18 @@ export function parseMcpRpcBody(text: string, contentType = ""): unknown {
     }
     if (payloads.length) {
       return payloads[payloads.length - 1];
+    }
+    const joined = dataLines.join("");
+    if (joined) {
+      try {
+        return JSON.parse(joined);
+      } catch {
+        try {
+          return JSON.parse(dataLines.join("\n"));
+        } catch {
+          // fall through to whole-body JSON
+        }
+      }
     }
   }
   return JSON.parse(trimmed);
