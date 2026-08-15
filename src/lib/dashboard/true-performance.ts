@@ -21,6 +21,7 @@ import {
   sourceMediumSpendNote,
   type FirstTouchRollup,
 } from "@/lib/shopify/first-touch";
+import { buildAttributionCompare, type AttributionCompareTotals } from "@/lib/shopify/compare";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 
 export type PlatformCompareRow = {
@@ -67,6 +68,7 @@ export type TruePerformance = {
   metaConnection: MetaConnectionPublic;
   metaPaste: PeriodSpendPaste | null;
   googlePaste: PeriodSpendPaste | null;
+  adminCompare: AttributionCompareTotals;
 };
 
 function compareRow(
@@ -212,5 +214,6 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     metaConnection,
     metaPaste,
     googlePaste,
+    adminCompare: buildAttributionCompare(inRange),
   };
 }

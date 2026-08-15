@@ -7,6 +7,7 @@ import {
   firstTouchChannel,
   parseFirstTouch,
 } from "@/lib/shopify/first-touch";
+import { journeyMismatch, JOURNEY_GRAPHQL, parseShopifyJourney } from "@/lib/shopify/journey";
 import {
   shopMoneyAmount,
   transactionFees,
@@ -59,6 +60,13 @@ type OrdersPage = {
             id: string;
             createdAt: string;
             numberOfOrders: string | number | null;
+          } | null;
+          customerJourneySummary?: {
+            ready?: boolean | null;
+            daysToConversion?: number | null;
+            customerOrderIndex?: number | null;
+            firstVisit?: import("@/lib/shopify/journey").ShopifyVisitInput | null;
+            lastVisit?: import("@/lib/shopify/journey").ShopifyVisitInput | null;
           } | null;
           legacyResourceId: string | null;
           customAttributes: { key: string; value: string | null }[];
@@ -133,6 +141,7 @@ const ORDERS_QUERY = `
             createdAt
             numberOfOrders
           }
+          ${JOURNEY_GRAPHQL}
           lineItems(first: 250) {
             edges {
               node {
@@ -277,6 +286,8 @@ async function loadShopifyOverview(
         }));
         const firstTouch = parseFirstTouch(attributes);
         const channel = firstTouchChannel(firstTouch);
+        const journey = parseShopifyJourney(order.customerJourneySummary);
+        const mismatch = journeyMismatch(journey, channel);
 
         revenue += amount;
         orderPoints.push({
@@ -296,6 +307,8 @@ async function loadShopifyOverview(
           customerId,
           firstTouch,
           firstTouchChannel: channel,
+          journey,
+          journeyMismatch: mismatch,
         });
 
         if (isGuest) {
@@ -331,6 +344,8 @@ async function loadShopifyOverview(
           firstTouch,
           firstTouchChannel: channel,
           customAttributes: attributes,
+          journey,
+          journeyMismatch: mismatch,
         });
 
         for (const lineItem of order.lineItems.edges) {

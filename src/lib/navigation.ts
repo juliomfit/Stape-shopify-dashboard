@@ -11,6 +11,7 @@ export const navItems: NavItem[] = [
   { href: "/traffic", label: "Traffic" },
   { href: "/conversions", label: "Conversions" },
   { href: "/attribution", label: "True Performance" },
+  { href: "/shopify-attribution", label: "Shopify Attribution" },
   { href: "/warehouse", label: "Warehouse" },
   { href: "/products", label: "Products" },
   { href: "/customers", label: "Customers" },

@@ -19,8 +19,9 @@ You need a Shopify Admin API connection. Shopify no longer shows a copy-paste to
 2. Create an app named `Stape Shopify Dashboard`.
 3. Create a version:
    - App URL: `https://shopify.dev/apps/default-app-home`
-   - Scopes: `read_orders`, `read_products`, `read_customers`
+   - Scopes: `read_orders`, `read_products`, `read_customers`, `read_reports`, `read_analytics`, `read_marketing_events`, `read_all_orders`
    - Release the version
+   - `read_reports` plus protected customer data Level 2 is required for ShopifyQL (`shopifyqlQuery`) on **Shopify Attribution**
 4. Install the app on your store.
 5. Copy **Client ID** and **Client secret** from Settings.
 6. Add these to `.env.local`:
@@ -133,6 +134,10 @@ META_OAUTH_REDIRECT_URI
 Local BigQuery can keep `GOOGLE_APPLICATION_CREDENTIALS=secrets/gcp-service-account.json`.
 
 Never commit `.env.local` or `secrets/`.
+
+## Shopify Attribution (Admin compare)
+
+`/shopify-attribution` reads ShopifyQL (`shopifyqlQuery`, needs `read_reports`) with `TIMEZONE 'America/Los_Angeles'`. True Performance stays `gn_*`. The compare table on True Performance and Data quality is Admin first-click vs cart attributes. Totals must match; channels may not. Do not mix with warehouse models.
 
 ## Warehouse attribution
 
