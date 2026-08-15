@@ -5,8 +5,7 @@ import {
   flyweelMetaAccountId,
 } from "@/lib/ads/providers/config";
 import { FlyweelMcpClient } from "@/lib/ads/providers/flyweel-mcp";
-import { queryDateRangeChunked, SilentTruncationError } from "@/lib/ads/providers/chunk";
-import { buildFlyweelAdsQuery, FLYWEEL_ADS_DIMENSIONS, summarizeFlyweelSetup } from "@/lib/ads/providers/flyweel-query";
+import { summarizeFlyweelSetup } from "@/lib/ads/providers/flyweel-query";
 import {
   describeFlyweelPayload,
   mergeInsightBatches,
@@ -52,10 +51,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-function toolNames(tools: { name: string }[]) {
-  return new Set(tools.map((tool) => tool.name));
-}
-
 function pickTool(available: Set<string>, candidates: string[]) {
   for (const name of candidates) {
     if (available.has(name)) {
@@ -98,8 +93,14 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     if (this.tools) {
       return this.tools;
     }
-    const listed = await this.client.listTools();
-    this.tools = toolNames(listed);
+    this.tools = new Set([
+      "query_metrics",
+      "list_ad_accounts",
+      "select_ad_accounts",
+      "get_setup_status",
+      "trigger_sync",
+      "get_sync_status",
+    ]);
     return this.tools;
   }
 
@@ -268,43 +269,20 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     return BASELINE_METRICS.slice(0, FLYWEEL_METRIC_LIMIT);
   }
 
-  private queryShapes(
-    params: InsightQuery,
-    metrics: string[],
-    dimensions: string[],
-  ): Record<string, unknown>[] {
-    const allowed = dimensions.filter((name) => FLYWEEL_ADS_DIMENSIONS.has(name));
-    const documented = buildFlyweelAdsQuery({
-      startDate: params.startDate,
-      endDate: params.endDate,
-      metrics,
-      dimensions: allowed,
-    });
-    const query = (documented.queries as Record<string, unknown>[])[0];
-    const unfiltered = { ...query };
-    delete unfiltered.filters;
-    const compact = {
-      dataSource: "ads",
-      metrics: ["spend", "impressions", "clicks", "conversions"],
-      dimensions: ["date", "campaign_id", "campaign"],
-      dateRange: { start: params.startDate, end: params.endDate },
-      filters: { channel: ["Meta"] },
-      limit: FLYWEEL_ROW_LIMIT,
-    };
+  private queryShapes(params: InsightQuery): Record<string, unknown>[] {
     return [
-      { queries: [compact] },
       {
         queries: [
           {
             dataSource: "ads",
-            metrics,
-            dimensions: ["date", "campaign", "channel"].slice(0, FLYWEEL_DIMENSION_LIMIT),
-            dateRange: { preset: "last_7_days" },
+            metrics: ["spend", "impressions", "clicks", "conversions"],
+            dimensions: ["date", "campaign_id", "campaign"],
+            dateRange: { start: params.startDate, end: params.endDate },
+            filters: { channel: ["Meta"] },
             limit: FLYWEEL_ROW_LIMIT,
           },
         ],
       },
-      { queries: [unfiltered] },
     ];
   }
 
@@ -314,7 +292,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     dimensions: string[],
   ): Promise<Record<string, unknown>[]> {
     await this.ensureTools();
-    const shapes = this.queryShapes(params, metrics, dimensions);
+    const shapes = this.queryShapes(params);
     let lastError: unknown;
     let best: Record<string, unknown>[] = [];
     for (const shape of shapes) {
@@ -389,74 +367,22 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   async getInsights(params: InsightQuery): Promise<MetaInsightResult> {
     const accountId = params.accountId.replace(/^act_/, "");
     const requestsBefore = this.client.requestCount;
-    try {
-      const chunked = await queryDateRangeChunked({
-        startDate: params.startDate,
-        endDate: params.endDate,
-        rowLimit: FLYWEEL_ROW_LIMIT,
-        query: async (startDate, endDate) =>
-          this.queryWithDimensionFallback({ ...params, accountId, startDate, endDate }),
-      });
-      const normalized = chunked.rows.map((row) =>
-        normalizeInsightRow(row, {
-          accountId,
-          provider: this.id,
-          date: params.startDate === params.endDate ? params.startDate : undefined,
-        }),
-      );
-      const rows = mergeInsightBatches([normalized]).filter((row) => row.date);
-      return {
-        rows,
-        actions: this.actionsFromRows(rows, params.level),
-        truncated: chunked.truncated,
-        requests: this.client.requestCount - requestsBefore,
-        splits: chunked.splits,
-      };
-    } catch (error) {
-      if (!(error instanceof SilentTruncationError) || params.campaignId) {
-        throw error;
-      }
-      const campaigns = await this.queryWithDimensionFallback({
-        ...params,
-        startDate: params.startDate,
-        endDate: params.startDate,
-        level: "campaign",
-      });
-      const ids = [
-        ...new Set(
-          campaigns
-            .map((row) => normalizeInsightRow(row, { accountId, provider: this.id }).campaignId)
-            .filter((id): id is string => Boolean(id)),
-        ),
-      ];
-      const batches = [];
-      for (const campaignId of ids) {
-        const piece = await queryDateRangeChunked({
-          startDate: params.startDate,
-          endDate: params.endDate,
-          rowLimit: FLYWEEL_ROW_LIMIT,
-          query: async (startDate, endDate) =>
-            this.queryWithDimensionFallback({
-              ...params,
-              accountId,
-              startDate,
-              endDate,
-              campaignId,
-            }),
-        });
-        batches.push(
-          piece.rows.map((row) => normalizeInsightRow(row, { accountId, provider: this.id })),
-        );
-      }
-      const rows = mergeInsightBatches(batches).filter((row) => row.date);
-      return {
-        rows,
-        actions: this.actionsFromRows(rows, params.level),
-        truncated: false,
-        requests: this.client.requestCount - requestsBefore,
-        splits: ids.length,
-      };
-    }
+    const raw = await this.queryWithDimensionFallback({ ...params, accountId });
+    const normalized = raw.map((row) =>
+      normalizeInsightRow(row, {
+        accountId,
+        provider: this.id,
+        date: params.startDate === params.endDate ? params.startDate : undefined,
+      }),
+    );
+    const rows = mergeInsightBatches([normalized]).filter((row) => row.date);
+    return {
+      rows,
+      actions: this.actionsFromRows(rows, params.level),
+      truncated: raw.length >= FLYWEEL_ROW_LIMIT,
+      requests: this.client.requestCount - requestsBefore,
+      splits: 0,
+    };
   }
 
   private actionsFromRows(rows: MetaInsightResult["rows"], level: InsightQuery["level"]) {

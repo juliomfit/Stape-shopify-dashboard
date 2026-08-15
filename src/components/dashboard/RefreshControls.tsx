@@ -27,7 +27,7 @@ export function RefreshControls() {
         const clipped = raw.replace(/\s+/g, " ").trim().slice(0, 240);
         setMessage(
           response.status === 504 || /timeout|timed out/i.test(clipped)
-            ? "Meta sync timed out. Wait for the Vercel deploy to finish, then press Refresh Meta once."
+            ? "Meta sync timed out (Vercel 60s). Retry Refresh Meta once — it now does a single Flyweel query."
             : clipped
               ? `Refresh failed (HTTP ${response.status}): ${clipped}`
               : `Refresh failed (HTTP ${response.status}). Wait for deploy, then try again.`,
