@@ -4,8 +4,9 @@ import {
   FLYWEEL_ROW_LIMIT,
   flyweelMetaAccountId,
 } from "@/lib/ads/providers/config";
-import { FlyweelMcpClient, type McpTool } from "@/lib/ads/providers/flyweel-mcp";
+import { FlyweelMcpClient } from "@/lib/ads/providers/flyweel-mcp";
 import { queryDateRangeChunked, SilentTruncationError } from "@/lib/ads/providers/chunk";
+import { buildFlyweelAdsQuery, FLYWEEL_ADS_DIMENSIONS } from "@/lib/ads/providers/flyweel-query";
 import {
   mergeInsightBatches,
   normalizeAccount,
@@ -30,41 +31,18 @@ const BASELINE_METRICS = [
   "spend",
   "impressions",
   "clicks",
+  "conversions",
   "cpc",
   "cpm",
   "ctr",
   "reach",
-  "conversion",
   "cost_per_conversion",
   "conversion_rate",
-];
-
-const META_EXTENDED = [
-  "frequency",
-  "link_clicks",
-  "purchase_value",
-  "purchases",
-  "roas",
-  "landing_page_views",
-  "add_to_cart",
-  "initiate_checkout",
 ];
 
 const CAMPAIGN_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
 const ADSET_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
 const AD_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
-const FLYWEEL_ADS_DIMENSIONS = new Set([
-  "channel",
-  "account",
-  "campaign",
-  "campaign_id",
-  "campaign_status",
-  "objective",
-  "currency",
-  "date",
-  "week",
-  "month",
-]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -91,7 +69,6 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   readonly label = "Flyweel";
   private client: FlyweelMcpClient;
   private tools: Set<string> | null = null;
-  private listedTools: McpTool[] | null = null;
   private lastMetrics: string[] | null = null;
 
   constructor(client = new FlyweelMcpClient()) {
@@ -125,7 +102,6 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
       return this.tools;
     }
     const listed = await this.client.listTools();
-    this.listedTools = listed;
     this.tools = toolNames(listed);
     return this.tools;
   }
@@ -257,64 +233,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   }
 
   private metricsList() {
-    const combined = [...BASELINE_METRICS, ...META_EXTENDED];
-    const unique = [...new Set(combined)];
-    return unique.slice(0, FLYWEEL_METRIC_LIMIT);
-  }
-
-  private querySchema() {
-    const listed = this.listedTools || [];
-    return listed.find((tool) => /query_metrics/i.test(tool.name))?.inputSchema;
-  }
-
-  private schemaPropertyKeys(schema: McpTool["inputSchema"], nested?: string) {
-    const properties = schema?.properties || {};
-    if (!nested) {
-      return Object.keys(properties);
-    }
-    const node = asRecord(properties[nested]);
-    const items = asRecord(node?.items);
-    const itemProps = asRecord(items?.properties) || asRecord(node?.properties);
-    return itemProps ? Object.keys(itemProps) : [];
-  }
-
-  private queryInner(
-    params: InsightQuery,
-    metrics: string[],
-    dimensions: string[],
-    keys: string[],
-  ): Record<string, unknown> {
-    const allowed = dimensions.filter((name) => FLYWEEL_ADS_DIMENSIONS.has(name));
-    const inner: Record<string, unknown> = {
-      metrics,
-      dimensions: allowed.length ? allowed : ["date", "campaign", "channel"],
-      start_date: params.startDate,
-      end_date: params.endDate,
-    };
-    if (params.campaignId) {
-      inner.campaign_id = params.campaignId;
-    }
-    if (!keys.length) {
-      return inner;
-    }
-    const lower = keys.map((key) => key.toLowerCase());
-    const pick = (...candidates: string[]) =>
-      keys.find((_, index) => candidates.includes(lower[index])) || null;
-    const out: Record<string, unknown> = {};
-    const assign = (candidates: string[], value: unknown) => {
-      const key = pick(...candidates);
-      if (key && value !== undefined && value !== null && value !== "") {
-        out[key] = value;
-      }
-    };
-    assign(["metrics"], inner.metrics);
-    assign(["dimensions", "group_by", "groupby"], inner.dimensions);
-    assign(["start_date", "startdate", "from", "since"], params.startDate);
-    assign(["end_date", "enddate", "to", "until"], params.endDate);
-    assign(["channel", "platform"], "meta");
-    assign(["account_id", "accountid", "ad_account_id"], params.accountId);
-    assign(["campaign_id", "campaignid"], params.campaignId);
-    return Object.keys(out).length ? out : inner;
+    return BASELINE_METRICS.slice(0, FLYWEEL_METRIC_LIMIT);
   }
 
   private queryShapes(
@@ -322,35 +241,37 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     metrics: string[],
     dimensions: string[],
   ): Record<string, unknown>[] {
-    const schema = this.querySchema();
-    const topKeys = this.schemaPropertyKeys(schema);
-    const nestedQueries = this.schemaPropertyKeys(schema, "queries");
-    const nestedQuery = this.schemaPropertyKeys(schema, "query");
-    const queryKeys = nestedQueries.length
-      ? nestedQueries
-      : nestedQuery.length
-        ? nestedQuery
-        : topKeys.filter((key) => !["queries", "query", "org"].includes(key.toLowerCase()));
-    const inner = this.queryInner(params, metrics, dimensions, queryKeys);
-    const shapes: Record<string, unknown>[] = [];
-    const wantsQueries = !topKeys.length || topKeys.some((key) => key.toLowerCase() === "queries");
-    const wantsQuery = !topKeys.length || topKeys.some((key) => key.toLowerCase() === "query");
-    if (wantsQueries) {
-      shapes.push({ queries: [inner] });
-    }
-    if (wantsQuery) {
-      shapes.push({ query: inner });
-    }
-    shapes.push(inner);
-    const seen = new Set<string>();
-    return shapes.filter((shape) => {
-      const key = JSON.stringify(shape);
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
+    const allowed = dimensions.filter((name) => FLYWEEL_ADS_DIMENSIONS.has(name));
+    const documented = buildFlyweelAdsQuery({
+      startDate: params.startDate,
+      endDate: params.endDate,
+      metrics,
+      dimensions: allowed,
     });
+    const query = (documented.queries as Record<string, unknown>[])[0];
+    return [
+      documented,
+      {
+        queries: [
+          {
+            ...query,
+            dateRange: { start_date: params.startDate, end_date: params.endDate },
+          },
+        ],
+      },
+      {
+        queries: [
+          {
+            dataSource: "ads",
+            metrics,
+            dimensions: allowed.slice(0, 3),
+            dateRange: { preset: "last_7_days" },
+            filters: { channel: ["Meta"] },
+            limit: 500,
+          },
+        ],
+      },
+    ];
   }
 
   private async queryOnce(
@@ -605,7 +526,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
 
   private async pollSync(jobId: string) {
     const started = Date.now();
-    while (Date.now() - started < 45_000) {
+    while (Date.now() - started < 15_000) {
       const payload = await this.callRead(["get_sync_status", "getSyncStatus"], { jobId, job_id: jobId });
       const status = String(asRecord(payload)?.status || "").toLowerCase();
       if (["completed", "complete", "success", "ok"].includes(status)) {

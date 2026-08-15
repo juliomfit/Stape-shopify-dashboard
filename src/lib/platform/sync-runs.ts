@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
-import { insertRows, isPlatformBqReady } from "@/lib/platform/bq";
+import { insertRows, isPlatformBqReady, runPlatformQuery } from "@/lib/platform/bq";
+import { platformTable } from "@/lib/platform/config";
 
 export type SyncStatus = "queued" | "running" | "completed" | "partial" | "failed";
 
@@ -101,7 +102,64 @@ export async function finishSyncRun(
   return next;
 }
 
+function asIso(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "object" && value && "value" in value) {
+    return String((value as { value: string }).value);
+  }
+  return String(value);
+}
+
+function asInt(value: unknown): number {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function fromBq(row: Record<string, unknown>): SyncRun {
+  return {
+    id: String(row.id || ""),
+    source: String(row.source || ""),
+    sync_type: String(row.sync_type || ""),
+    started_at: asIso(row.started_at) || "",
+    completed_at: asIso(row.completed_at),
+    status: (String(row.status || "failed") as SyncRun["status"]),
+    records_requested: asInt(row.records_requested),
+    records_inserted: asInt(row.records_inserted),
+    records_updated: asInt(row.records_updated),
+    records_failed: asInt(row.records_failed),
+    lookback_start: asIso(row.lookback_start),
+    lookback_end: asIso(row.lookback_end),
+    error_message: row.error_message == null ? null : String(row.error_message),
+    metadata: row.metadata == null ? null : String(row.metadata),
+  };
+}
+
 export async function listSyncRuns(source?: string): Promise<SyncRun[]> {
+  const table = platformTable("sync_runs");
+  if (table && isPlatformBqReady()) {
+    try {
+      const rows = await runPlatformQuery<Record<string, unknown>>(
+        `SELECT id, source, sync_type, started_at, completed_at, status,
+                records_requested, records_inserted, records_updated, records_failed,
+                lookback_start, lookback_end, error_message, metadata
+         FROM ${table}
+         ${source ? "WHERE source = @source" : ""}
+         ORDER BY started_at DESC
+         LIMIT 40`,
+        source ? { source } : undefined,
+      );
+      if (rows.length) {
+        return rows.map(fromBq);
+      }
+    } catch {
+      // Fall through to the local cookie/file store.
+    }
+  }
   const store = await loadStore();
   if (!source) {
     return store.runs;

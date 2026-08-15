@@ -13,6 +13,7 @@ import {
 } from "../src/lib/ads/providers/normalize.ts";
 import { midpointYmd, queryDateRangeChunked, SilentTruncationError } from "../src/lib/ads/providers/chunk.ts";
 import { FLYWEEL_WRITE_TOOLS, assertFlyweelReadOnly, FlyweelWriteRefusedError, resolveActiveMetaProviderId } from "../src/lib/ads/providers/config.ts";
+import { buildFlyweelAdsQuery } from "../src/lib/ads/providers/flyweel-query.ts";
 import { cpc, ctr, platformCpa, platformRoas } from "../src/lib/metrics/formulas.ts";
 
 test("parseNumber handles nulls and string money", () => {
@@ -84,6 +85,25 @@ test("mcp fenced json and column matrix unwrap", () => {
     }),
     [{ date: "2026-08-14", spend: 12 }],
   );
+  assert.deepEqual(
+    unwrapRows({
+      queries: [{ rows: [{ date: "2026-08-14", campaign: "ASC", spend: 4 }] }],
+    }),
+    [{ date: "2026-08-14", campaign: "ASC", spend: 4 }],
+  );
+});
+
+test("Flyweel ads query uses dataSource and dateRange", () => {
+  const body = buildFlyweelAdsQuery({
+    startDate: "2026-08-08",
+    endDate: "2026-08-15",
+    metrics: ["spend", "impressions"],
+    dimensions: ["date", "campaign_id", "campaign", "channel"],
+  });
+  const query = (body.queries as Record<string, unknown>[])[0];
+  assert.equal(query.dataSource, "ads");
+  assert.deepEqual(query.dateRange, { start: "2026-08-08", end: "2026-08-15" });
+  assert.deepEqual(query.filters, { channel: ["Meta"] });
 });
 
 test("500-row chunking splits date ranges and refuses silent same-day truncation", async () => {

@@ -17,10 +17,52 @@ export type McpTool = {
 
 type JsonRpc = {
   jsonrpc: "2.0";
-  id: number;
+  id?: number;
   method: string;
   params?: Record<string, unknown>;
 };
+
+export function parseMcpRpcBody(text: string, contentType = ""): unknown {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const sse =
+    contentType.includes("text/event-stream") ||
+    trimmed.startsWith("event:") ||
+    /^data:/m.test(trimmed);
+  if (sse) {
+    const payloads: unknown[] = [];
+    for (const line of trimmed.split(/\r?\n/)) {
+      if (!line.startsWith("data:")) {
+        continue;
+      }
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") {
+        continue;
+      }
+      try {
+        payloads.push(JSON.parse(data));
+      } catch {
+        // ignore a broken event and keep looking for a result frame
+      }
+    }
+    const rpc = [...payloads].reverse().find((payload) => {
+      if (!payload || typeof payload !== "object") {
+        return false;
+      }
+      const row = payload as { result?: unknown; error?: unknown };
+      return row.result !== undefined || row.error !== undefined;
+    });
+    if (rpc) {
+      return rpc;
+    }
+    if (payloads.length) {
+      return payloads[payloads.length - 1];
+    }
+  }
+  return JSON.parse(trimmed);
+}
 
 export class FlyweelMcpClient {
   private sessionId = "";
@@ -58,22 +100,7 @@ export class FlyweelMcpClient {
   }
 
   private parseBody(text: string, contentType: string): unknown {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      return null;
-    }
-    if (contentType.includes("text/event-stream") || trimmed.startsWith("event:") || trimmed.includes("data:")) {
-      const dataLines = trimmed
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim())
-        .filter(Boolean);
-      const joined = dataLines.join("");
-      if (joined) {
-        return JSON.parse(joined);
-      }
-    }
-    return JSON.parse(trimmed);
+    return parseMcpRpcBody(text, contentType);
   }
 
   async rpc(method: string, params?: Record<string, unknown>): Promise<unknown> {
@@ -142,7 +169,25 @@ export class FlyweelMcpClient {
     } catch {
       await this.rpc("initialize");
     }
+    try {
+      await this.notify("notifications/initialized");
+    } catch {
+      // Some MCP servers ignore this notification.
+    }
     this.initialized = true;
+  }
+
+  private async notify(method: string) {
+    const response = await fetch(this.url, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ jsonrpc: "2.0", method }),
+    });
+    const session = response.headers.get("mcp-session-id");
+    if (session) {
+      this.sessionId = session;
+    }
+    await response.text().catch(() => "");
   }
 
   async listTools(): Promise<McpTool[]> {

@@ -213,7 +213,10 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
       const objects = payload
         .map(asRecord)
         .filter((row): row is Record<string, unknown> => Boolean(row));
-      if (objects.some((row) => Array.isArray(row.rows) || Array.isArray(row.data))) {
+      if (objects.some((row) => Array.isArray(row.rows) || Array.isArray(row.data) || Array.isArray(row.results))) {
+        return objects.flatMap((row) => unwrapRows(row));
+      }
+      if (objects.every((row) => "dataSource" in row || ("metrics" in row && "dimensions" in row))) {
         return objects.flatMap((row) => unwrapRows(row));
       }
       return objects;
@@ -241,6 +244,8 @@ export function unwrapRows(payload: unknown): Record<string, unknown>[] {
     asRecord(root.result)?.rows,
     asRecord(root.result)?.data,
     asRecord(root.query)?.rows,
+    root.queries,
+    root.output,
   ];
   for (const candidate of candidates) {
     if (Array.isArray(candidate) && candidate.length > 0) {
@@ -276,8 +281,15 @@ export function unwrapMcpToolResult(payload: unknown): unknown {
     const texts = content
       .map((item) => asRecord(item))
       .filter((item): item is Record<string, unknown> => Boolean(item))
-      .filter((item) => item.type === "text" || typeof item.text === "string")
-      .map((item) => String(item.text || ""));
+      .filter((item) => item.type === "text" || typeof item.text === "string" || item.type === "resource")
+      .map((item) => {
+        if (typeof item.text === "string" && item.text) {
+          return item.text;
+        }
+        const resource = asRecord(item.resource);
+        return String(resource?.text || resource?.blob || "");
+      })
+      .filter(Boolean);
     if (texts.length === 1) {
       return parseJsonOrTable(texts[0]);
     }

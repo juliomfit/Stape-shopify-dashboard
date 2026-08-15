@@ -149,7 +149,7 @@ export async function ingestMetaRange(input: {
     const accountId = account.accountId.replace(/^act_/, "");
     steps.push(`provider:${provider.id}`, `account:${accountId}`);
 
-    if (provider.id === "flyweel" && process.env.FLYWEEL_TRIGGER_SYNC === "1" && provider.sync) {
+    if (provider.id === "flyweel" && process.env.FLYWEEL_TRIGGER_SYNC !== "0" && provider.sync) {
       const sync = await provider.sync({ startDate: input.startDate, endDate: input.endDate });
       requests += sync.requests;
       steps.push(sync.ok ? "flyweel-refresh" : "flyweel-refresh-skipped");
@@ -313,13 +313,20 @@ export async function ingestMetaRange(input: {
   } catch (error) {
     failed += 1;
     const message = error instanceof Error ? error.message : "Meta sync failed";
+    const snippet =
+      provider instanceof FlyweelMetaAdsProvider ? provider.lastDebug() : "";
     const finished = await finishSyncRun(run, {
       status: inserted > 0 ? "partial" : "failed",
       records_inserted: inserted,
       records_failed: failed,
       records_requested: requests,
-      error_message: message,
-      metadata: JSON.stringify({ steps, provider: provider.id, provider_requests: requests }),
+      error_message: message.slice(0, 2500),
+      metadata: JSON.stringify({
+        steps,
+        provider: provider.id,
+        provider_requests: requests,
+        flyweel: snippet || undefined,
+      }),
     });
     return { ok: false, message, run: finished };
   } finally {
