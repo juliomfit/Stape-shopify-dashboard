@@ -5,12 +5,16 @@ import {
   flyweelMetaAccountId,
 } from "@/lib/ads/providers/config";
 import { FlyweelMcpClient } from "@/lib/ads/providers/flyweel-mcp";
+import { addDaysYmd } from "@/lib/ads/providers/chunk";
+import { getDashboardPeriod } from "@/lib/period";
 import { summarizeFlyweelSetup } from "@/lib/ads/providers/flyweel-query";
 import {
   describeFlyweelPayload,
   mergeInsightBatches,
   normalizeAccount,
   normalizeInsightRow,
+  parseNumber,
+  pickField,
   unwrapRows,
   payloadLooksLikeError,
 } from "@/lib/ads/providers/normalize";
@@ -43,6 +47,23 @@ const BASELINE_METRICS = [
 const CAMPAIGN_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
 const ADSET_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
 const AD_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
+
+function daysInRange(startDate: string, endDate: string) {
+  const days: string[] = [];
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    days.push(cursor);
+    cursor = addDaysYmd(cursor, 1);
+  }
+  return days;
+}
+
+function rowHasActivity(row: Record<string, unknown>) {
+  return (
+    parseNumber(pickField(row, ["spend", "cost", "amount_spent"])) > 0 ||
+    parseNumber(pickField(row, ["impressions", "clicks"])) > 0
+  );
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -270,20 +291,53 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   }
 
   private queryShapes(params: InsightQuery): Record<string, unknown>[] {
-    return [
-      {
+    const metrics = ["spend", "impressions", "clicks", "conversions"];
+    const filters = { channel: ["Meta"] };
+    const dayRange = { start: params.startDate, end: params.endDate };
+    const campaignTotals = {
+      queries: [
+        {
+          dataSource: "ads",
+          metrics,
+          dimensions: ["campaign_id", "campaign"],
+          dateRange: dayRange,
+          filters,
+          limit: FLYWEEL_ROW_LIMIT,
+        },
+      ],
+    };
+    const withDate = {
+      queries: [
+        {
+          dataSource: "ads",
+          metrics,
+          dimensions: ["date", "campaign_id", "campaign"],
+          dateRange: dayRange,
+          filters,
+          limit: FLYWEEL_ROW_LIMIT,
+        },
+      ],
+    };
+    if (params.startDate !== params.endDate) {
+      return [withDate];
+    }
+    const shapes: Record<string, unknown>[] = [campaignTotals];
+    if (params.startDate === getDashboardPeriod("today").startDate) {
+      shapes.push({
         queries: [
           {
             dataSource: "ads",
-            metrics: ["spend", "impressions", "clicks", "conversions"],
-            dimensions: ["date", "campaign_id", "campaign"],
-            dateRange: { start: params.startDate, end: params.endDate },
-            filters: { channel: ["Meta"] },
+            metrics,
+            dimensions: ["campaign_id", "campaign"],
+            dateRange: { preset: "today" },
+            filters,
             limit: FLYWEEL_ROW_LIMIT,
           },
         ],
-      },
-    ];
+      });
+    }
+    shapes.push(withDate);
+    return shapes;
   }
 
   private async queryOnce(
@@ -306,11 +360,14 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
           continue;
         }
         const rows = unwrapRows(payload);
-        if (rows.length > best.length) {
+        const active = rows.filter(rowHasActivity);
+        if (active.length > best.length) {
+          best = active;
+        } else if (!best.length && rows.length > best.length) {
           best = rows;
         }
-        if (best.length) {
-          return best;
+        if (active.length) {
+          return active;
         }
       } catch (error) {
         lastError = error;
@@ -367,21 +424,32 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   async getInsights(params: InsightQuery): Promise<MetaInsightResult> {
     const accountId = params.accountId.replace(/^act_/, "");
     const requestsBefore = this.client.requestCount;
-    const raw = await this.queryWithDimensionFallback({ ...params, accountId });
-    const normalized = raw.map((row) =>
-      normalizeInsightRow(row, {
+    const days = daysInRange(params.startDate, params.endDate);
+    const batches = [];
+    for (const day of days) {
+      const raw = await this.queryWithDimensionFallback({
+        ...params,
         accountId,
-        provider: this.id,
-        date: params.startDate === params.endDate ? params.startDate : undefined,
-      }),
-    );
-    const rows = mergeInsightBatches([normalized]).filter((row) => row.date);
+        startDate: day,
+        endDate: day,
+      });
+      batches.push(
+        raw.map((row) =>
+          normalizeInsightRow(row, {
+            accountId,
+            provider: this.id,
+            date: day,
+          }),
+        ),
+      );
+    }
+    const rows = mergeInsightBatches(batches).filter((row) => row.date);
     return {
       rows,
       actions: this.actionsFromRows(rows, params.level),
-      truncated: raw.length >= FLYWEEL_ROW_LIMIT,
+      truncated: false,
       requests: this.client.requestCount - requestsBefore,
-      splits: 0,
+      splits: Math.max(0, days.length - 1),
     };
   }
 
@@ -492,7 +560,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
 
   private async pollSync(jobId: string) {
     const started = Date.now();
-    while (Date.now() - started < 15_000) {
+    while (Date.now() - started < 8_000) {
       const payload = await this.callRead(["get_sync_status", "getSyncStatus"], { jobId, job_id: jobId });
       const status = String(asRecord(payload)?.status || "").toLowerCase();
       if (["completed", "complete", "success", "ok"].includes(status)) {
