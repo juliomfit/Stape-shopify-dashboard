@@ -18,7 +18,7 @@ import {
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { platformWarehouseStatus } from "@/lib/platform/bq";
 import { getSelectedPeriod } from "@/lib/period-server";
-import { pacificDaysInRange } from "@/lib/period";
+import { getDashboardPeriod, pacificDaysInRange } from "@/lib/period";
 import { loadMetaCache } from "@/lib/ads/meta-query";
 import { latestSuccessfulSync, latestSync } from "@/lib/platform/sync-runs";
 
@@ -72,6 +72,9 @@ async function renderMetaPage() {
     })),
   ]);
   const totals = totalsFromFacts(facts);
+  const weekFacts =
+    totals.spend > 0 ? [] : await getCampaignFacts(getDashboardPeriod("7d")).catch(() => []);
+  const weekTotals = totalsFromFacts(weekFacts);
   const campaigns = rollupCampaigns(facts);
   const days = pacificDaysInRange(period.startDate, period.endDate);
   const currency = "USD";
@@ -100,7 +103,18 @@ async function renderMetaPage() {
             Last sync error: {lastAttempt.error_message}
           </p>
         ) : null}
-        {facts.length === 0 ? (
+        {lastSync && totals.spend === 0 && weekTotals.spend > 0 ? (
+          <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
+            <h2 className="font-semibold text-foreground">Spend is in BigQuery — this date is $0</h2>
+            <p className="mt-2">
+              You do not need to update BigQuery. The last sync wrote campaign rows. This header range (
+              {period.startDate} to {period.endDate}) has no spend yet. Last 7 days has{" "}
+              {formatMoney({ amount: weekTotals.spend, currencyCode: currency })}.
+              Click <strong>Yesterday</strong> or <strong>7d</strong> in the header. Charts still read BigQuery, not Flyweel live.
+            </p>
+          </article>
+        ) : null}
+        {facts.length === 0 && !lastSync ? (
           <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
             <h2 className="font-semibold text-foreground">Close the Flyweel “Connect your AI” tab</h2>
             <p className="mt-2">

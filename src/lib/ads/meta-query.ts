@@ -78,6 +78,10 @@ export async function loadMetaCache(): Promise<CacheFile> {
   return (await readDurableJson<CacheFile>("meta-insights-cache")) ?? {};
 }
 
+function hasActivity(row: MetaInsightFact) {
+  return asNumber(row.spend) > 0 || asNumber(row.impressions) > 0 || asNumber(row.clicks) > 0;
+}
+
 async function queryFacts(
   table: string,
   period: DashboardPeriod,
@@ -104,6 +108,7 @@ async function queryFacts(
     const rows = await runPlatformQuery<MetaInsightFact>(
       `SELECT ${select} FROM ${fq}
        WHERE date BETWEEN @startDate AND @endDate
+         AND (IFNULL(spend, 0) > 0 OR IFNULL(impressions, 0) > 0 OR IFNULL(clicks, 0) > 0)
          ${extra}
        QUALIFY ROW_NUMBER() OVER (
          PARTITION BY date, account_id, ${grain}
@@ -115,7 +120,7 @@ async function queryFacts(
         ...extraParams,
       },
     );
-    return normalizeFacts(rows);
+    return normalizeFacts(rows).filter(hasActivity);
   } catch {
     return [];
   }
@@ -129,7 +134,7 @@ export async function getCampaignFacts(period: DashboardPeriod) {
   const cache = await loadMetaCache();
   return normalizeFacts(
     (cache.campaigns || []).filter((row) => inRange(asDate(row.date), period)),
-  );
+  ).filter(hasActivity);
 }
 
 export async function getAdsetFacts(period: DashboardPeriod, campaignId?: string) {

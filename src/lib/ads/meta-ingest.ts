@@ -372,7 +372,7 @@ export async function ingestMetaRange(input: {
 }
 
 export async function syncMetaIncremental() {
-  const window = lookbackWindow(2);
+  const window = lookbackWindow(7);
   return ingestMetaRange({
     ...window,
     includeEntities: true,
