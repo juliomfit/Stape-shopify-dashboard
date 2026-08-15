@@ -160,6 +160,76 @@ export async function persistMetaWarehouse(input: {
   }
   await ensurePlatformTables();
 
+  await replaceDateWindow({
+    table: "meta_campaign_insights_daily",
+    accountId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    rows: campaignFacts,
+  });
+  await replaceDateWindow({
+    table: "meta_adset_insights_daily",
+    accountId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    rows: adsetFacts,
+  });
+  await replaceDateWindow({
+    table: "meta_ad_insights_daily",
+    accountId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    rows: adFacts,
+  });
+  await replaceDateWindow({
+    table: "meta_actions_daily",
+    accountId,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    rows: input.actions.map((row) => ({
+      date: row.date,
+      account_id: row.accountId,
+      campaign_id: row.campaignId || null,
+      adset_id: row.adsetId || null,
+      ad_id: row.adId || null,
+      reporting_level: row.reportingLevel,
+      action_kind: row.actionValue ? "value" : "count",
+      action_type: row.actionType,
+      action_value: row.actionValue || row.actionCount,
+      provider: row.provider,
+      synced_at: input.syncedAt,
+      sync_run_id: input.syncRunId,
+      metadata: row.metadata ? JSON.stringify(row.metadata) : null,
+    })),
+  });
+  if (input.breakdowns && input.breakdowns.length > 0) {
+    await replaceDateWindow({
+      table: "meta_insights_breakdowns_daily",
+      accountId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      rows: input.breakdowns.map((row) => ({
+        date: row.date,
+        account_id: row.accountId,
+        campaign_id: row.campaignId || null,
+        adset_id: row.adsetId || null,
+        ad_id: row.adId || null,
+        reporting_level: row.reportingLevel,
+        breakdown_type: row.breakdownType,
+        breakdown_value: row.breakdownValue,
+        spend: row.spend,
+        impressions: row.impressions,
+        reach: row.reach,
+        clicks: row.clicks,
+        purchases: row.purchases,
+        purchase_value: row.purchaseValue,
+        provider: row.provider,
+        synced_at: input.syncedAt,
+        sync_run_id: input.syncRunId,
+      })),
+    });
+  }
+
   const accountsTable = platformTable("meta_accounts");
   if (accountsTable) {
     await runPlatformQuery(`
@@ -279,76 +349,6 @@ export async function persistMetaWarehouse(input: {
         first_seen_at: input.syncedAt,
         last_seen_at: input.syncedAt,
         provider: input.account.provider,
-      })),
-    });
-  }
-
-  await replaceDateWindow({
-    table: "meta_campaign_insights_daily",
-    accountId,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    rows: campaignFacts,
-  });
-  await replaceDateWindow({
-    table: "meta_adset_insights_daily",
-    accountId,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    rows: adsetFacts,
-  });
-  await replaceDateWindow({
-    table: "meta_ad_insights_daily",
-    accountId,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    rows: adFacts,
-  });
-  await replaceDateWindow({
-    table: "meta_actions_daily",
-    accountId,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    rows: input.actions.map((row) => ({
-      date: row.date,
-      account_id: row.accountId,
-      campaign_id: row.campaignId || null,
-      adset_id: row.adsetId || null,
-      ad_id: row.adId || null,
-      reporting_level: row.reportingLevel,
-      action_kind: row.actionValue ? "value" : "count",
-      action_type: row.actionType,
-      action_value: row.actionValue || row.actionCount,
-      provider: row.provider,
-      synced_at: input.syncedAt,
-      sync_run_id: input.syncRunId,
-      metadata: row.metadata ? JSON.stringify(row.metadata) : null,
-    })),
-  });
-  if (input.breakdowns && input.breakdowns.length > 0) {
-    await replaceDateWindow({
-      table: "meta_insights_breakdowns_daily",
-      accountId,
-      startDate: input.startDate,
-      endDate: input.endDate,
-      rows: input.breakdowns.map((row) => ({
-        date: row.date,
-        account_id: row.accountId,
-        campaign_id: row.campaignId || null,
-        adset_id: row.adsetId || null,
-        ad_id: row.adId || null,
-        reporting_level: row.reportingLevel,
-        breakdown_type: row.breakdownType,
-        breakdown_value: row.breakdownValue,
-        spend: row.spend,
-        impressions: row.impressions,
-        reach: row.reach,
-        clicks: row.clicks,
-        purchases: row.purchases,
-        purchase_value: row.purchaseValue,
-        provider: row.provider,
-        synced_at: input.syncedAt,
-        sync_run_id: input.syncRunId,
       })),
     });
   }

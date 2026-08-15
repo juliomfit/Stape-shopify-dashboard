@@ -95,10 +95,20 @@ async function queryFacts(
         : table === "meta_adset_insights_daily"
           ? "date, account_id, campaign_id, adset_id, adset_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value"
           : "date, account_id, campaign_id, adset_id, ad_id, ad_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value, ctr, cpc, cpm";
+    const grain =
+      table === "meta_campaign_insights_daily"
+        ? "campaign_id"
+        : table === "meta_adset_insights_daily"
+          ? "adset_id"
+          : "ad_id";
     const rows = await runPlatformQuery<MetaInsightFact>(
       `SELECT ${select} FROM ${fq}
        WHERE date BETWEEN @startDate AND @endDate
-         ${extra}`,
+         ${extra}
+       QUALIFY ROW_NUMBER() OVER (
+         PARTITION BY date, account_id, ${grain}
+         ORDER BY synced_at DESC
+       ) = 1`,
       {
         startDate: period.startDate,
         endDate: period.endDate,
