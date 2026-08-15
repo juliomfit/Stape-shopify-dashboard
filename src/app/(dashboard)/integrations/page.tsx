@@ -39,7 +39,7 @@ export default async function IntegrationsPage({
         title="Integrations"
         description={`Connect sources. Reporting timezone ${DASHBOARD_TZ}. Tokens stay server-side.`}
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         {query.meta === "connected" ? (
           <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             Meta connected. Press Refresh Meta to backfill insights.

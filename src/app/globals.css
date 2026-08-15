@@ -6,7 +6,7 @@
   --muted: #64748b;
   --border: #e6eaf0;
   --surface: #ffffff;
-  --sidebar: #0b1220;
+  --sidebar: #070b14;
   --sidebar-foreground: #94a3b8;
   --sidebar-active: #ffffff;
   --accent: #2563eb;
@@ -28,8 +28,71 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.dash-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .dash-page {
+    padding: 1.5rem;
+  }
+}
+
+.dash-table {
+  width: 100%;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.dash-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  padding: 0.5rem 1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dash-table td {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.dash-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.dash-table td:first-child {
+  white-space: nowrap;
+}
+
+.dash-table tfoot td {
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border);
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.dash-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }

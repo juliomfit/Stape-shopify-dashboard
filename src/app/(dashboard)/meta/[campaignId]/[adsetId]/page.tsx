@@ -25,7 +25,7 @@ export default async function MetaAdsetPage({
         title="Ads"
         description={`Ads in ad set ${adsetId}. Thumbnails appear after creatives sync into BigQuery. ${period.label}.`}
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         <p className="text-sm text-muted">
           <Link href={`/meta/${campaignId}`} className="text-accent hover:underline">
             ← Ad sets

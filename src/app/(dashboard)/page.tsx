@@ -117,7 +117,7 @@ export default async function OverviewPage() {
         title="Overview"
         description="Sales and funnel for the selected date range, using America/Los_Angeles calendar days."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
         <DataHealthStrip sources={health} />
         <NeedsAttention anomalies={anomalies} />

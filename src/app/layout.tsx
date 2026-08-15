@@ -14,10 +14,16 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Analytics Dashboard",
-    template: "%s · Analytics Dashboard",
+    default: "Goodsnova",
+    template: "%s · Goodsnova",
   },
-  description: "Shopify and Stape analytics dashboard",
+  description: "Goodsnova analytics",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover" as const,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

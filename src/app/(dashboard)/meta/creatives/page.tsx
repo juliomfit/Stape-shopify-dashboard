@@ -30,7 +30,7 @@ export default async function MetaCreativesPage() {
         title="Meta creatives"
         description="Campaign-level performance from the warehouse when Flyweel is the provider. Thumbnails need Meta Graph. Not a live Flyweel call."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         {rangeNote ? <p className="text-sm text-amber-900">{rangeNote}</p> : null}
         {rows.length === 0 ? (
           <EmptyTable

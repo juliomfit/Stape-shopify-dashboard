@@ -50,7 +50,7 @@ export default async function MetaCampaignPage({
         title={campaign?.name || "Campaign"}
         description={`Ad sets for campaign ${campaignId}. Platform-attributed. ${period.label}.`}
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         <p className="text-sm text-muted">
           <Link href="/meta" className="text-accent hover:underline">
             ← Meta Ads

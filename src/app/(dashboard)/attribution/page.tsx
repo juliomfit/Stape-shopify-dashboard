@@ -97,7 +97,7 @@ export default async function AttributionPage() {
         title="True Performance"
         description="First-touch is the gn_* cart attribute written on the Shopify order. Stape is a comparison only."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         <ConnectionStatus
           shopify={shopify.status}
           stape={attribution.status}

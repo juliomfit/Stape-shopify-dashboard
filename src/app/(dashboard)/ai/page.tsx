@@ -16,7 +16,7 @@ export default async function AiPage() {
         title="Ask GoodsNova AI"
         description="Optional control layer. Charts do not call GPT. Tools query the same semantic metrics as the dashboard."
       />
-      <section className="flex flex-1 flex-col gap-6 p-8">
+      <section className="dash-page gap-6">
         {!isOpenAiConfigured() ? (
           <p className="rounded-xl bg-slate-100 px-3 py-2 text-sm text-muted">
             Set OPENAI_API_KEY to enable answers. Refresh Meta and other syncs still work from Integrations.

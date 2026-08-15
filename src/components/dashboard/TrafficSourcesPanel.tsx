@@ -1,3 +1,4 @@
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import type { TrafficSource } from "@/lib/stape/types";
 import { formatNumber } from "@/lib/format";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
@@ -43,7 +44,9 @@ export function TrafficSourcesPanel({
             key={item.source}
             className="flex items-center justify-between gap-4 py-3"
           >
-            <span className="text-sm text-foreground">{item.source}</span>
+            <span className="text-sm text-foreground">
+              <ChannelLabel name={item.source} />
+            </span>
             <span className="text-sm text-muted">
               {formatNumber(item.sessions)} sessions
             </span>

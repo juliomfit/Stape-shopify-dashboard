@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ShopifyOrder } from "@/lib/shopify/types";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
+import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
 
 type OrdersTableProps = {
@@ -91,7 +92,7 @@ export function OrdersTable({
                     {formatDate(order.createdAt)}
                   </td>
                   <td className="px-6 py-3 text-foreground">
-                    {order.firstTouchChannel}
+                    <ChannelLabel name={order.firstTouchChannel} />
                     {order.firstTouch.utmSource || order.firstTouch.utmMedium ? (
                       <span className="mt-0.5 block text-xs text-muted">
                         {[order.firstTouch.utmSource, order.firstTouch.utmMedium]
