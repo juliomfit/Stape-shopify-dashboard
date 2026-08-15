@@ -209,11 +209,6 @@ export class FlyweelMcpClient {
     } catch {
       await this.rpc("initialize");
     }
-    try {
-      await this.notify("notifications/initialized");
-    } catch {
-      // Some MCP servers ignore this notification.
-    }
     this.initialized = true;
   }
 

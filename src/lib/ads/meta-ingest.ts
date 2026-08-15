@@ -42,6 +42,21 @@ function dateWindows(startDate: string, endDate: string, size: number) {
 async function resolveAccount(provider: MetaAdsProvider): Promise<MetaAccount> {
   const stored = await readDurableJson<AccountStore>("flyweel-account");
   const configured = await resolveFlyweelAccountId();
+  if (provider.id === "flyweel") {
+    const accountId = (configured || stored?.accountId || "209273195421975").replace(/^act_/, "");
+    const account = {
+      accountId,
+      accountName: stored?.accountName || "GoodsNova Meta",
+      platform: "meta" as const,
+      provider: provider.id,
+    };
+    await writeDurableJson("flyweel-account", {
+      accountId,
+      accountName: account.accountName,
+      provider: provider.id,
+    });
+    return account;
+  }
   let accounts: MetaAccount[] = [];
   try {
     accounts = await provider.getAccounts();
@@ -154,7 +169,7 @@ export async function ingestMetaRange(input: {
     const accountId = account.accountId.replace(/^act_/, "");
     steps.push(`provider:${provider.id}`, `account:${accountId}`);
 
-    if (provider instanceof FlyweelMetaAdsProvider) {
+    if (provider instanceof FlyweelMetaAdsProvider && process.env.FLYWEEL_SELECT_ON_REFRESH === "1") {
       try {
         await provider.selectConfiguredMetaAccounts(accountId);
         steps.push("flyweel-select-meta");
