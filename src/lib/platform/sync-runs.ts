@@ -57,6 +57,30 @@ export async function startSyncRun(input: {
   const store = await loadStore();
   store.runs = [run, ...store.runs].slice(0, MAX_LOCAL);
   await writeDurableJson(STORE, store);
+  if (isPlatformBqReady()) {
+    try {
+      await insertRows("sync_runs", [
+        {
+          id: run.id,
+          source: run.source,
+          sync_type: run.sync_type,
+          started_at: run.started_at,
+          completed_at: null,
+          status: run.status,
+          records_requested: 0,
+          records_inserted: 0,
+          records_updated: 0,
+          records_failed: 0,
+          lookback_start: run.lookback_start,
+          lookback_end: run.lookback_end,
+          error_message: null,
+          metadata: run.metadata,
+        },
+      ]);
+    } catch {
+      // finishSyncRun still writes the outcome.
+    }
+  }
   return run;
 }
 

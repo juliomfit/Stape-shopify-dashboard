@@ -154,13 +154,13 @@ export async function ingestMetaRange(input: {
     const accountId = account.accountId.replace(/^act_/, "");
     steps.push(`provider:${provider.id}`, `account:${accountId}`);
 
-    if (provider.id === "flyweel" && process.env.FLYWEEL_TRIGGER_SYNC !== "0" && provider.sync) {
+    if (provider.id === "flyweel" && process.env.FLYWEEL_TRIGGER_SYNC === "1" && provider.sync) {
       const sync = await provider.sync({ startDate: input.startDate, endDate: input.endDate });
       requests += sync.requests;
       steps.push(sync.ok ? "flyweel-refresh" : "flyweel-refresh-skipped");
     }
 
-    const chunkSize = provider.id === "flyweel" ? 7 : 93;
+    const chunkSize = 93;
     const checkpoint = await readDurableJson<{
       rangeStart: string;
       rangeEnd: string;

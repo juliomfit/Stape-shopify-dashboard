@@ -136,12 +136,16 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
 
   private accountsFromSetup(payload: unknown): Record<string, unknown>[] {
     const root = asRecord(payload);
+    const providers = asRecord(root?.providers);
     const nested = [
       root?.accounts,
       root?.ad_accounts,
       root?.adAccounts,
       asRecord(root?.meta)?.accounts,
       asRecord(root?.facebook)?.accounts,
+      asRecord(providers?.meta)?.accounts,
+      asRecord(providers?.facebook)?.accounts,
+      asRecord(asRecord(providers?.meta)?.data)?.accounts,
     ];
     for (const item of nested) {
       if (Array.isArray(item)) {
@@ -242,38 +246,21 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
       dimensions: allowed,
     });
     const query = (documented.queries as Record<string, unknown>[])[0];
+    const unfiltered = { ...query };
+    delete unfiltered.filters;
     return [
-      documented,
       {
         queries: [
           {
             dataSource: "ads",
             metrics,
-            dimensions: allowed.slice(0, 4),
-            dateRange: { start: params.startDate, end: params.endDate },
-            limit: 500,
-          },
-        ],
-      },
-      {
-        queries: [
-          {
-            ...query,
-            dateRange: { start_date: params.startDate, end_date: params.endDate },
-          },
-        ],
-      },
-      {
-        queries: [
-          {
-            dataSource: "ads",
-            metrics,
-            dimensions: allowed.slice(0, 3),
+            dimensions: ["date", "campaign", "channel"].slice(0, FLYWEEL_DIMENSION_LIMIT),
             dateRange: { preset: "last_7_days" },
             limit: 500,
           },
         ],
       },
+      { queries: [unfiltered] },
     ];
   }
 
