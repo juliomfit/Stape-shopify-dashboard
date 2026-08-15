@@ -1,5 +1,5 @@
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
-import { getCampaignFacts, getAdFacts, getAdsetFacts, rollupAds, rollupAdsets, rollupCampaigns, totalsFromFacts } from "@/lib/ads/meta-query";
+import { getCampaignFacts, getAdFacts, getAdsetFacts, getCreativePerformance, rollupAds, rollupAdsets, rollupCampaigns, totalsFromFacts } from "@/lib/ads/meta-query";
 import { getDataHealth } from "@/lib/platform/health";
 import { getBusinessContext } from "@/lib/platform/business-context";
 import { listChangeLog } from "@/lib/platform/change-log";
@@ -46,6 +46,11 @@ export const AI_TOOLS: AiTool[] = [
       properties: { campaign_id: { type: "string" } },
       additionalProperties: false,
     },
+  },
+  {
+    name: "get_creative_performance",
+    description: "Meta creative warehouse rollup for the selected period. Thumbnails only if Graph entity sync stored them.",
+    parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
     name: "get_ad_performance",
@@ -206,6 +211,10 @@ export async function executeAiTool(
         adsetId: typeof args.adset_id === "string" ? args.adset_id : undefined,
       });
       return compactRollup(rollupAds(rows));
+    }
+    case "get_creative_performance": {
+      const period = await getSelectedPeriod();
+      return (await getCreativePerformance(period)).slice(0, 25);
     }
     case "get_tracking_health": {
       const [health, attribution, data] = await Promise.all([

@@ -72,16 +72,22 @@ export default async function IntegrationsPage({
 
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Meta Ads</h2>
+          <p className="mt-1 text-xs text-muted">
+            Production ingest uses Flyweel when FLYWEEL_API_KEY is set. Dashboard reads BigQuery, never Flyweel on page load.
+          </p>
           {connection.configured ? (
             <div className="mt-3 space-y-1 text-sm">
               <p>Connected ✓</p>
-              <p>Account ID: {connection.adAccountId}</p>
-              <p>Token: {connection.tokenHint}</p>
+              <p>Provider: {connection.provider === "flyweel" ? "Flyweel" : "Meta Graph"}</p>
+              <p>Account ID: {connection.adAccountId || "—"}</p>
+              <p>Auth: {connection.tokenHint}</p>
               <p>Last sync: {lastMeta?.completed_at || lastMeta?.started_at || "—"}</p>
               <p>Status: {lastMeta?.status || "not synced"}</p>
             </div>
           ) : (
-            <p className="mt-3 text-sm text-muted">Not connected</p>
+            <p className="mt-3 text-sm text-muted">
+              Not connected. Set FLYWEEL_API_KEY on Vercel (Settings → API & MCP → fwl_ token) or use Facebook OAuth below.
+            </p>
           )}
         </article>
 

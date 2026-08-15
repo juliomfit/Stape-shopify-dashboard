@@ -22,9 +22,39 @@ Grant the dashboard service account **BigQuery Data Editor** + **Job User** on
 If INSERT fails, sync still stores `secrets/meta-insights-cache.json` (localhost)
 or a cookie payload (Vercel, size-limited) and records `sync_runs` locally.
 
+```
+Flyweel (Meta OAuth inside Flyweel)
+        → GoodsNova backend (FLYWEEL_API_KEY)
+        → goodsnova_platform BigQuery
+        → semantic formulas
+        → dashboard / optional GPT tools
+```
+
+Cursor's Flyweel MCP OAuth session is **not** production auth. Vercel must have `FLYWEEL_API_KEY`.
+
+## Flyweel production setup
+
+1. In Flyweel, connect Meta Ads (Facebook OAuth) and select the GoodsNova ad account.
+2. Settings → API & MCP → generate `fwl_…` key.
+3. Set on Vercel (server only, never `NEXT_PUBLIC_`):
+   - `FLYWEEL_API_KEY`
+   - `FLYWEEL_META_ACCOUNT_ID` (numeric act id, not the display name)
+   - optional `FLYWEEL_MCP_URL` (default `https://api.flyweel.co/functions/v1/mcp-server/mcp`)
+4. Run `bigquery/platform/00_schema.sql` and `01_flyweel.sql`.
+5. Press **Refresh Meta**. Dashboard reads BigQuery/cache only.
+
+If `FLYWEEL_API_KEY` is missing, ingest falls back to Meta Graph OAuth/token when those exist.
+
+Read-only: GoodsNova never calls `connect_ad_platform` or `select_ad_accounts`.
+
+Query limits handled in `src/lib/ads/providers/chunk.ts` (500-row split). Do not silently truncate.
+
+Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand.
+
 ## Meta setup
 
-1. Meta Developers → app → Marketing API.
+1. Preferred: Flyweel key as above.
+2. Fallback: Meta Developers → app → Marketing API.
 2. Add Facebook Login. Valid OAuth redirect:
    `https://YOUR_DOMAIN/api/meta/callback`
    (also `META_REDIRECT_URI` / `META_OAUTH_REDIRECT_URI`).

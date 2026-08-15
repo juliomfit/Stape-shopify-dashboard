@@ -29,6 +29,7 @@ export function DataHealthStrip({ sources }: { sources: SourceHealth[] }) {
             >
               <span className="text-sm font-medium">
                 {source.label} · {source.status}
+                {source.provider && source.provider !== "none" ? ` · ${source.provider}` : ""}
               </span>
               <span className="text-xs opacity-80">{source.message}</span>
             </a>

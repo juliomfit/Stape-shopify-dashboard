@@ -22,6 +22,7 @@ export type SourceHealth = {
   lastAttemptAt: string | null;
   message: string;
   href: string;
+  provider?: string;
 };
 
 function fromRun(run: SyncRun | null, success: SyncRun | null): {
@@ -92,9 +93,14 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
   ]);
 
   const metaFromRun = fromRun(metaRun, metaOk);
-  const metaConnected = Boolean(metaCreds.credentials) || ads.facebook.state === "connected";
+  const metaConnected =
+    Boolean(metaCreds.credentials) ||
+    ads.facebook.state === "connected" ||
+    Boolean(process.env.FLYWEEL_API_KEY?.trim());
   let metaStatus: SourceHealthStatus = "disconnected";
-  let metaMessage = "Not connected. Use Integrations or paste spend on True Performance.";
+  let metaMessage = "Not connected. Use Flyweel API key or Integrations Graph OAuth, or paste spend.";
+  const flyweelOn = Boolean(process.env.FLYWEEL_API_KEY?.trim());
+  const metaProvider = flyweelOn ? "Flyweel" : metaCreds.credentials ? "Meta Graph" : "none";
   if (metaFromRun.runStatus === "syncing") {
     metaStatus = "syncing";
     metaMessage = "Meta sync in progress.";
@@ -106,13 +112,15 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
     metaMessage = metaRun?.error_message || "Last Meta sync was partial.";
   } else if (metaConnected && metaOk) {
     metaStatus = delayed(metaOk.completed_at) ? "delayed" : "healthy";
-    metaMessage = `Last successful sync ${metaOk.completed_at}`;
+    metaMessage = `Provider: ${metaProvider}. Last successful sync ${metaOk.completed_at}`;
   } else if (ads.facebook.state === "connected") {
     metaStatus = "healthy";
     metaMessage = ads.facebook.message || "Using pasted Ads Manager totals for this range.";
   } else if (metaConnected) {
     metaStatus = "partial";
-    metaMessage = "Token saved but no successful platform sync yet. Press Refresh Meta.";
+    metaMessage = flyweelOn
+      ? "FLYWEEL_API_KEY is set but no successful warehouse sync yet. Press Refresh Meta."
+      : "Token saved but no successful platform sync yet. Press Refresh Meta.";
   }
 
   const shopify: SourceHealth = {
@@ -182,6 +190,7 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
       lastAttemptAt: metaFromRun.lastAttemptAt,
       message: metaMessage,
       href: "/integrations",
+      provider: metaProvider,
     },
     google,
     ga4,

@@ -14,9 +14,13 @@ export function RefreshControls() {
 
   function run(source: string) {
     start(async () => {
-      setMessage("Refreshing…");
+      setMessage(source === "meta" ? "Syncing Meta..." : "Refreshing…");
       const result = await refreshSourceAction(source);
-      setMessage(result.message);
+      setMessage(
+        source === "meta" && result.ok
+          ? `Meta updated. ${result.message}`
+          : result.message,
+      );
     });
   }
 

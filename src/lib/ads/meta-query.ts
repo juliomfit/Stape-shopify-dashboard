@@ -1,5 +1,6 @@
 import { readDurableJson } from "@/lib/durable-json";
 import { getMetaCredentials } from "@/lib/ads/meta-credentials";
+import { flyweelMetaAccountId } from "@/lib/ads/providers/config";
 import { isPlatformBqReady, runPlatformQuery } from "@/lib/platform/bq";
 import { platformTable } from "@/lib/platform/config";
 import { cpc, cpm, ctr, platformCpa, platformRoas } from "@/lib/metrics/formulas";
@@ -80,9 +81,20 @@ async function queryFacts(
   }
   try {
     const { credentials } = await getMetaCredentials();
-    const accountId = credentials?.adAccountId.replace(/^act_/, "") || "";
+    const stored = await readDurableJson<{ accountId?: string }>("flyweel-account");
+    const accountId =
+      flyweelMetaAccountId() ||
+      stored?.accountId ||
+      credentials?.adAccountId.replace(/^act_/, "") ||
+      "";
+    const select =
+      table === "meta_campaign_insights_daily"
+        ? "date, account_id, campaign_id, campaign_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value, ctr, cpc, cpm"
+        : table === "meta_adset_insights_daily"
+          ? "date, account_id, campaign_id, adset_id, adset_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value"
+          : "date, account_id, campaign_id, adset_id, ad_id, ad_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value, ctr, cpc, cpm";
     const rows = await runPlatformQuery<MetaInsightFact>(
-      `SELECT * FROM ${fq}
+      `SELECT ${select} FROM ${fq}
        WHERE date BETWEEN @startDate AND @endDate
          ${accountId ? "AND account_id = @accountId" : ""}
          ${extra}`,
@@ -270,11 +282,108 @@ export function totalsFromFacts(rows: MetaInsightFact[]) {
   };
 }
 
-export function dailySeries(rows: MetaInsightFact[], days: string[], field: keyof MetaInsightFact) {
-  const byDay = new Map<string, number>();
-  for (const row of rows) {
-    const date = String(row.date);
-    byDay.set(date, (byDay.get(date) || 0) + Number(row[field] || 0));
+export function dailyMetricSeries(
+  rows: MetaInsightFact[],
+  days: string[],
+  metric:
+    | "spend"
+    | "purchase_value"
+    | "purchases"
+    | "roas"
+    | "cpa"
+    | "cpm"
+    | "ctr"
+    | "cpc"
+    | "frequency",
+) {
+  return days.map((day) => {
+    const slice = rows.filter((row) => String(row.date) === day);
+    const totals = totalsFromFacts(slice);
+    if (metric === "purchase_value") return totals.purchaseValue;
+    const value = totals[metric];
+    return typeof value === "number" ? value : 0;
+  });
+}
+
+export type CreativeRow = {
+  creativeId: string;
+  name: string;
+  thumbnailUrl: string | null;
+  adName: string | null;
+  spend: number;
+  purchases: number;
+  cpa: number | null;
+  roas: number | null;
+  ctr: number | null;
+  frequency: number;
+  firstSeen: string | null;
+  lastSeen: string | null;
+};
+
+export async function getCreativePerformance(period: DashboardPeriod): Promise<CreativeRow[]> {
+  const fqCreatives = platformTable("meta_creatives");
+  const fqAds = platformTable("meta_ad_insights_daily");
+  const fqEntities = platformTable("meta_ads");
+  if (!fqCreatives || !fqAds || !isPlatformBqReady()) {
+    return [];
   }
-  return days.map((day) => byDay.get(day) ?? 0);
+  try {
+    const rows = await runPlatformQuery<{
+      creative_id: string;
+      name: string | null;
+      thumbnail_url: string | null;
+      ad_name: string | null;
+      spend: number;
+      purchases: number;
+      impressions: number;
+      clicks: number;
+      purchase_value: number;
+      first_seen_at: { value?: string } | string | null;
+      last_seen_at: { value?: string } | string | null;
+    }>(
+      `SELECT
+         c.creative_id,
+         c.name,
+         c.thumbnail_url,
+         ANY_VALUE(a.ad_name) AS ad_name,
+         SUM(i.spend) AS spend,
+         SUM(i.purchases) AS purchases,
+         SUM(i.impressions) AS impressions,
+         SUM(i.clicks) AS clicks,
+         SUM(i.purchase_value) AS purchase_value,
+         MIN(c.first_seen_at) AS first_seen_at,
+         MAX(c.last_seen_at) AS last_seen_at
+       FROM ${fqCreatives} c
+       LEFT JOIN ${fqEntities} a
+         ON a.creative_id = c.creative_id
+       LEFT JOIN ${fqAds} i
+         ON i.ad_id = a.ad_id
+        AND i.date BETWEEN @startDate AND @endDate
+       GROUP BY c.creative_id, c.name, c.thumbnail_url`,
+      { startDate: period.startDate, endDate: period.endDate },
+    );
+    return rows.map((row) => {
+      const spend = Number(row.spend || 0);
+      const purchases = Number(row.purchases || 0);
+      const impressions = Number(row.impressions || 0);
+      const clicks = Number(row.clicks || 0);
+      const purchaseValue = Number(row.purchase_value || 0);
+      return {
+        creativeId: String(row.creative_id),
+        name: String(row.name || row.creative_id),
+        thumbnailUrl: row.thumbnail_url,
+        adName: row.ad_name,
+        spend,
+        purchases,
+        cpa: platformCpa(spend, purchases),
+        roas: platformRoas(purchaseValue, spend),
+        ctr: ctr(clicks, impressions),
+        frequency: 0,
+        firstSeen: asDate(row.first_seen_at) || null,
+        lastSeen: asDate(row.last_seen_at) || null,
+      };
+    });
+  } catch {
+    return [];
+  }
 }

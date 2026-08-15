@@ -3,6 +3,7 @@ import {
   isMetaOAuthConfigured,
   type MetaAdAccountOption,
 } from "@/lib/ads/meta-oauth";
+import { flyweelConfigured, flyweelMetaAccountId, resolveActiveMetaProviderId } from "@/lib/ads/providers/config";
 import { clearDurableJson, readDurableJson, writeDurableJson } from "@/lib/durable-json";
 
 export type MetaCredentials = {
@@ -12,7 +13,8 @@ export type MetaCredentials = {
 
 export type MetaConnectionPublic = {
   configured: boolean;
-  source: "file" | "env" | "none";
+  source: "file" | "env" | "none" | "flyweel";
+  provider: "flyweel" | "meta_graph" | "none";
   adAccountId: string;
   tokenHint: string;
   canDisconnect: boolean;
@@ -75,10 +77,27 @@ export async function getMetaConnectionPublic(): Promise<MetaConnectionPublic> {
   const pending = await getPendingOAuth();
   const oauthReady = isMetaOAuthConfigured();
   const { credentials, source } = await getMetaCredentials();
+  const storedFlyweel = await readDurableJson<{ accountId?: string }>("flyweel-account");
+  const provider = resolveActiveMetaProviderId(Boolean(credentials));
+  if (provider === "flyweel") {
+    const accountId =
+      flyweelMetaAccountId() || storedFlyweel?.accountId || credentials?.adAccountId.replace(/^act_/, "") || "";
+    return {
+      configured: flyweelConfigured(),
+      source: "flyweel",
+      provider: "flyweel",
+      adAccountId: accountId,
+      tokenHint: "Flyweel API key (server)",
+      canDisconnect: false,
+      oauthReady,
+      pendingAccounts: pending?.accounts ?? [],
+    };
+  }
   if (!credentials) {
     return {
       configured: false,
       source: "none",
+      provider: "none",
       adAccountId: "",
       tokenHint: "",
       canDisconnect: false,
@@ -90,6 +109,7 @@ export async function getMetaConnectionPublic(): Promise<MetaConnectionPublic> {
   return {
     configured: true,
     source,
+    provider: "meta_graph",
     adAccountId: credentials.adAccountId.replace(/^act_/, ""),
     tokenHint: maskToken(credentials.accessToken),
     canDisconnect: source === "file",

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/formulas.test.ts"
+    "test": "node --experimental-strip-types --test test/formulas.test.ts test/flyweel-provider.test.ts"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^9.0.2",

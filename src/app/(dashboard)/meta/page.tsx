@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { MetaEntityTable } from "@/components/dashboard/MetaEntityTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { DailyTrendChart } from "@/components/dashboard/DailyTrendChart";
+import { MetaPerformanceChart } from "@/components/dashboard/MetaPerformanceChart";
 import { RefreshControls } from "@/components/dashboard/RefreshControls";
 import { Header } from "@/components/layout/Header";
 import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
 import {
-  dailySeries,
+  dailyMetricSeries,
   getCampaignFacts,
   rollupCampaigns,
   totalsFromFacts,
@@ -34,6 +35,7 @@ export default async function MetaPage() {
       canDisconnect: false,
       oauthReady: false,
       pendingAccounts: [],
+      provider: "none" as const,
     })),
     getCampaignFacts(period).catch(() => []),
     loadMetaCache().catch(() => ({ syncedAt: undefined })),
@@ -53,11 +55,18 @@ export default async function MetaPage() {
       />
       <section className="flex flex-1 flex-col gap-6 p-8">
         <p className="text-xs text-muted">
+          Provider: {connection.provider === "flyweel" ? "Flyweel" : connection.provider === "meta_graph" ? "Meta Graph" : "none"}
+          {" · "}
+          {connection.adAccountId ? `Account ${connection.adAccountId}` : "No account id yet"}
+          {" · "}
           {lastSync?.completed_at
             ? `Last successful sync ${lastSync.completed_at}`
             : cache.syncedAt
               ? `Local cache ${cache.syncedAt}`
               : "No Meta platform sync yet"}
+        </p>
+        <p className="text-xs text-muted">
+          Meta-attributed purchases are Ads Manager matching, not Shopify orders and not sGTM event delivery.
         </p>
         {!connection.configured && facts.length === 0 ? (
           <EmptyPanel
@@ -138,19 +147,28 @@ export default async function MetaPage() {
             value={facts.length ? totals.frequency.toFixed(2) : null}
           />
         </div>
-        <DailyTrendChart
-          title="Daily spend and purchase value"
-          description="Native campaign insights by Pacific day. Reach is not summed from ads."
+        <MetaPerformanceChart
           days={days}
-          seriesA={{ label: "Spend", values: dailySeries(facts, days, "spend") }}
-          seriesB={{
-            label: "Purchase value",
-            values: dailySeries(facts, days, "purchase_value"),
+          series={{
+            spend: dailyMetricSeries(facts, days, "spend"),
+            purchase_value: dailyMetricSeries(facts, days, "purchase_value"),
+            purchases: dailyMetricSeries(facts, days, "purchases"),
+            roas: dailyMetricSeries(facts, days, "roas"),
+            cpa: dailyMetricSeries(facts, days, "cpa"),
+            cpm: dailyMetricSeries(facts, days, "cpm"),
+            ctr: dailyMetricSeries(facts, days, "ctr"),
+            cpc: dailyMetricSeries(facts, days, "cpc"),
+            frequency: dailyMetricSeries(facts, days, "frequency"),
           }}
         />
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Campaigns</h2>
-          <p className="mt-1 text-xs text-muted">Click a campaign for ad sets. Sorted by spend.</p>
+        <p className="mt-1 text-xs text-muted">
+          Click a campaign for ad sets. Sorted by spend.{" "}
+          <Link className="underline" href="/meta/creatives">
+            Creatives
+          </Link>
+        </p>
           <div className="mt-4">
             <MetaEntityTable
               rows={campaigns}
