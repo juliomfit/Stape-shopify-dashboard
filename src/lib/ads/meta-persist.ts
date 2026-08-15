@@ -108,9 +108,9 @@ export async function persistMetaWarehouse(input: {
   syncedAt: string;
 }) {
   const accountId = input.account.accountId.replace(/^act_/, "");
-  const campaignFacts = input.campaignInsights.map((row) =>
-    insightToCampaignFact(row, input.syncRunId, input.syncedAt),
-  );
+  const campaignFacts = input.campaignInsights
+    .filter((row) => row.spend > 0 || row.impressions > 0 || row.clicks > 0)
+    .map((row) => insightToCampaignFact(row, input.syncRunId, input.syncedAt));
   const adsetFacts = input.adsetInsights.map((row) =>
     insightToAdsetFact(row, input.syncRunId, input.syncedAt),
   );
