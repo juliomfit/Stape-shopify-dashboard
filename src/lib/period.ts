@@ -376,6 +376,13 @@ export function pacificYmd(value: string | number | Date) {
   return ymd(parts.year, parts.month, parts.day);
 }
 
+/** Previous Pacific calendar day. Daily COGS form defaults here. */
+export function pacificYesterdayYmd(now: Date = new Date()) {
+  const today = zonedParts(now, DASHBOARD_TZ);
+  const previous = addDays(today.year, today.month, today.day, -1);
+  return ymd(previous.year, previous.month, previous.day);
+}
+
 /** Inclusive Pacific calendar days from startDate through endDate. */
 export function pacificDaysInRange(startDate: string, endDate: string) {
   const start = parseYmd(startDate);

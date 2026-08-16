@@ -5,6 +5,7 @@ import {
 } from "@/lib/dashboard/aligned-period";
 import {
   blendedCpa,
+  contributionProfit,
   merRatio,
   netAfterFees,
   netProfit,
@@ -28,11 +29,17 @@ import {
   getStapeFunnelMetrics,
   getStapeFunnelMetricsForPeriod,
 } from "@/lib/stape/get-funnel-metrics";
+import { loadCogsLedger } from "@/lib/platform/cogs-store";
+import {
+  cogsForPacificRange,
+  cogsSourceLine,
+  lastEnteredDays,
+} from "@/lib/platform/cogs-ledger";
 
 export async function getCoreDashboard() {
   const period = await getAlignedPeriod();
   const previous = previousDashboardPeriod(period);
-  const [shopify, previousShopify, funnel, previousFunnel, ads, metaPaste, googlePaste] =
+  const [shopify, previousShopify, funnel, previousFunnel, ads, metaPaste, googlePaste, cogsRows] =
     await Promise.all([
       getShopifyOverviewMetrics(),
       getShopifyOverviewForPeriod(previous),
@@ -41,6 +48,7 @@ export async function getCoreDashboard() {
       getPlatformReported(period),
       getMetaPaste(period),
       getGooglePaste(period),
+      loadCogsLedger(),
     ]);
 
   const alignedShopify = shopifyMetricsSince(
@@ -110,6 +118,27 @@ export async function getCoreDashboard() {
     alignedShopify.refundFees,
     totalSpend,
   );
+  const cogsRange = cogsForPacificRange(
+    cogsRows,
+    period.startDate,
+    period.endDate,
+  );
+  const profitAfterCogs =
+    cogsRange.complete && cogsRange.cogsForRange !== null
+      ? contributionProfit({
+          totalRevenue: alignedShopify.revenue,
+          processingFees: alignedShopify.processingFees,
+          refundFees: alignedShopify.refundFees,
+          adSpend: totalSpend,
+          cogs: cogsRange.cogsForRange,
+        })
+      : null;
+  const cogsRecent = lastEnteredDays(cogsRows, 14);
+  const cogsSource = cogsRange.complete
+    ? cogsSourceLine(cogsRange.enteredDates)
+    : cogsRange.missingDates.length > 0
+      ? `Missing supplier COGS · ${cogsRange.missingDates.join(", ")}`
+      : "No supplier COGS days in this range";
   const mer = merRatio(totalSpend, alignedShopify.revenue);
   const blendedRoas = ratio(alignedShopify.revenue, totalSpend);
   const cpa = blendedCpa(totalSpend, alignedShopify.paidOrders);
@@ -162,6 +191,11 @@ export async function getCoreDashboard() {
     dailyOrders,
     feesAfter,
     profit,
+    cogsRows,
+    cogsRange,
+    cogsRecent,
+    cogsSource,
+    profitAfterCogs,
     mer,
     blendedRoas,
     cpa,

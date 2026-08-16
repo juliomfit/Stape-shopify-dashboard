@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FlyweelKeyForm } from "@/components/dashboard/FlyweelKeyForm";
+import { DailyCogsForm } from "@/components/dashboard/DailyCogsForm";
 import { Header } from "@/components/layout/Header";
 import { MetaSyncPanel } from "@/components/dashboard/MetaSyncPanel";
 import { RefreshControls } from "@/components/dashboard/RefreshControls";
@@ -10,7 +11,9 @@ import { getBusinessContext } from "@/lib/platform/business-context";
 import { addChangeLogForm, saveBusinessContextForm, pickMetaAdAccountAction } from "@/lib/platform/actions";
 import { listChangeLog } from "@/lib/platform/change-log";
 import { latestSync } from "@/lib/platform/sync-runs";
-import { DASHBOARD_TZ } from "@/lib/period";
+import { DASHBOARD_TZ, pacificYesterdayYmd } from "@/lib/period";
+import { loadCogsLedger } from "@/lib/platform/cogs-store";
+import { lastEnteredDays } from "@/lib/platform/cogs-ledger";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +26,7 @@ export default async function IntegrationsPage({
 }) {
   const query = await searchParams;
   const period = await getSelectedPeriod();
-  const [connection, metaPaste, googlePaste, business, changes, lastMeta] =
+  const [connection, metaPaste, googlePaste, business, changes, lastMeta, cogsRows] =
     await Promise.all([
       getMetaConnectionPublic(),
       getMetaPaste(period),
@@ -31,6 +34,7 @@ export default async function IntegrationsPage({
       getBusinessContext(),
       listChangeLog(),
       latestSync("meta"),
+      loadCogsLedger(),
     ]);
 
   return (
@@ -111,10 +115,17 @@ export default async function IntegrationsPage({
         />
         <RefreshControls />
 
+        <DailyCogsForm
+          compact
+          defaultDate={pacificYesterdayYmd()}
+          recent={lastEnteredDays(cogsRows, 14)}
+          currencyCode={business.currency}
+        />
+
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Business context (AI)</h2>
           <p className="mt-1 text-xs text-muted">
-            Targets only. Leave COGS blank rather than guessing.
+            Targets only. Typical COGS is never copied into daily profit. Leave it blank rather than guessing.
           </p>
           <form action={saveBusinessContextForm} className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
@@ -136,6 +147,7 @@ export default async function IntegrationsPage({
             <label className="grid gap-1 text-sm">
               Typical COGS
               <input name="typicalCogs" defaultValue={business.typicalCogs ?? ""} className="rounded-lg border border-border px-3 py-2" />
+              <span className="text-xs text-muted">Static target for Ask AI. Not the daily supplier ledger.</span>
             </label>
             <label className="grid gap-1 text-sm">
               Currency

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { runScheduledSync, syncMetaBackfill } from "@/lib/platform/orchestrator";
 import { addChangeLog } from "@/lib/platform/change-log";
 import { saveBusinessContext } from "@/lib/platform/business-context";
+import { saveCogsDay } from "@/lib/platform/cogs-store";
 import { parseYmd } from "@/lib/period";
 import { selectMetaAdAccount } from "@/lib/ads/meta-actions";
 import { saveFlyweelCredentials } from "@/lib/ads/providers/flyweel-credentials";
@@ -52,6 +53,18 @@ export async function addChangeLogForm(formData: FormData) {
     entityId: String(formData.get("entityId") || ""),
   });
   refresh();
+}
+
+export async function saveCogsDayForm(formData: FormData) {
+  const result = await saveCogsDay({
+    date: String(formData.get("date") || ""),
+    amount: String(formData.get("amount") || ""),
+    note: String(formData.get("note") || ""),
+  });
+  if (result.ok) {
+    refresh();
+  }
+  return result;
 }
 
 export async function saveBusinessContextForm(formData: FormData) {

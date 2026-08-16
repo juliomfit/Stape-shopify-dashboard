@@ -13,6 +13,11 @@ type RevenueBreakdownProps = {
   refundFees: number | null;
   adSpend: number | null;
   periodLabel: string;
+  cogs?: number | null;
+  cogsComplete?: boolean;
+  missingCogsDates?: string[];
+  cogsSource?: string;
+  profitAfterCogs?: number | null;
 };
 
 function Row({
@@ -51,10 +56,19 @@ export function RevenueBreakdown({
   refundFees,
   adSpend,
   periodLabel,
+  cogs = null,
+  cogsComplete = false,
+  missingCogsDates = [],
+  cogsSource,
+  profitAfterCogs = null,
 }: RevenueBreakdownProps) {
   const feesKnown = (processingFees ?? 0) + (refundFees ?? 0);
   const netAfterFees = total - feesKnown;
   const netProfit = adSpend === null ? null : netAfterFees - adSpend;
+  const afterCogs =
+    cogsComplete && cogs !== null && adSpend !== null
+      ? profitAfterCogs ?? netAfterFees - adSpend - cogs
+      : null;
 
   return (
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
@@ -65,8 +79,9 @@ export function RevenueBreakdown({
         Same orders and the same header dates · {periodLabel}. Gross is line
         items before discounts. Total is what the customer paid. Ad spend is
         Meta + Google pasted or synced for this range only — not guessed, not
-        first-touch. Net profit is total − Shopify fees − ad spend. No product
-        cost (COGS).
+        first-touch. Contribution is total − Shopify fees − ad spend. Product
+        cost is subtracted only when every Pacific day in this range has a
+        supplier COGS row — never guessed, never typicalCogs.
       </p>
       <div className="mt-4 divide-y divide-border">
         <Row label="Gross sales" amount={gross} currencyCode={currencyCode} />
@@ -119,8 +134,27 @@ export function RevenueBreakdown({
           </p>
         ) : null}
         <Row
-          label="Net profit"
+          label="Contribution (no COGS)"
           amount={netProfit}
+          currencyCode={currencyCode}
+        />
+        <Row
+          label="Supplier COGS"
+          amount={cogsComplete ? cogs : null}
+          currencyCode={currencyCode}
+          muted
+        />
+        {cogsComplete ? null : (
+          <p className="py-2 text-sm text-amber-800">
+            {cogsSource ||
+              (missingCogsDates.length
+                ? `Missing supplier COGS · ${missingCogsDates.join(", ")}`
+                : "Supplier COGS incomplete for these dates.")}
+          </p>
+        )}
+        <Row
+          label="Profit after COGS"
+          amount={afterCogs}
           currencyCode={currencyCode}
         />
       </div>

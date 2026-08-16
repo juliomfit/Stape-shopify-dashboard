@@ -11,6 +11,7 @@ import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
 import { DataHealthStrip } from "@/components/dashboard/DataHealthStrip";
 import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
+import { DailyCogsForm } from "@/components/dashboard/DailyCogsForm";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
@@ -18,6 +19,7 @@ import { getDataHealth } from "@/lib/platform/health";
 import { computeAnomalies } from "@/lib/platform/anomalies";
 import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
+import { pacificYesterdayYmd } from "@/lib/period";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +53,10 @@ export default async function OverviewPage() {
     dailyOrders,
     feesAfter,
     profit,
+    profitAfterCogs,
+    cogsRange,
+    cogsRecent,
+    cogsSource,
     mer,
     blendedRoas,
     cpa,
@@ -289,6 +295,21 @@ export default async function OverviewPage() {
             }
           />
           <MetricCard
+            label="Profit after COGS"
+            source={
+              !cogsRange.complete
+                ? cogsSource
+                : profitAfterCogs === null
+                  ? `Needs ad spend for these dates · ${cogsSource}`
+                  : `${period.label} · total − fees − ad spend − ${cogsSource}`
+            }
+            value={
+              cogsRange.complete && profitAfterCogs !== null
+                ? formatMoney({ amount: profitAfterCogs, currencyCode: currency })
+                : null
+            }
+          />
+          <MetricCard
             label="New-customer orders"
             source={`${shopifySource} · numberOfOrders ≤ 1`}
             value={
@@ -314,6 +335,11 @@ export default async function OverviewPage() {
             deltaLabel={deltaLabel}
           />
         </div>
+        <DailyCogsForm
+          defaultDate={pacificYesterdayYmd()}
+          recent={cogsRecent}
+          currencyCode={currency}
+        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="New-customer ROAS"
@@ -423,6 +449,11 @@ export default async function OverviewPage() {
             processingFees={alignedShopify.processingFees}
             refundFees={alignedShopify.refundFees}
             adSpend={ads.totalSpend}
+            cogs={cogsRange.cogsForRange}
+            cogsComplete={cogsRange.complete}
+            missingCogsDates={cogsRange.missingDates}
+            cogsSource={cogsSource}
+            profitAfterCogs={profitAfterCogs}
           />
         ) : null}
         <ConversionFunnel

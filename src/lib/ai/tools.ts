@@ -72,7 +72,7 @@ export const AI_TOOLS: AiTool[] = [
   },
   {
     name: "get_profit_summary",
-    description: "Contribution profit (revenue − fees − ad spend). COGS is not invented.",
+    description: "Contribution profit (revenue − fees − ad spend) plus profit after COGS only when every Pacific day in the range has a typed supplier row. Never invents COGS or uses typicalCogs.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {
@@ -187,7 +187,15 @@ export async function executeAiTool(
         ),
         contribution_profit: profit,
         contribution_margin: contributionMargin(profit, data.alignedShopify.revenue),
-        note: "Blended cards use the same getPlatformReported as Overview. Meta is platform warehouse when Flyweel ingest exists; Google is paste. Contribution profit excludes COGS. Missing spend is null, not 0.",
+        supplier_cogs: data.cogsRange.cogsForRange,
+        cogs_complete: data.cogsRange.complete,
+        missing_cogs_dates: data.cogsRange.missingDates,
+        profit_after_cogs: data.profitAfterCogs,
+        profit_after_cogs_margin: contributionMargin(
+          data.profitAfterCogs,
+          data.alignedShopify.revenue,
+        ),
+        note: "Blended cards use the same getPlatformReported as Overview. Meta is platform warehouse when Flyweel ingest exists; Google is paste. contribution_profit excludes COGS. profit_after_cogs is null unless every Pacific day in the range has a typed supplier COGS row. typicalCogs is a target only and is never used. Missing spend or COGS is null, not 0.",
       };
     }
     case "get_meta_summary": {
@@ -315,7 +323,7 @@ export async function aiSystemPrompt(viewContext?: string) {
     `Business: ${context.business}. Product: ${context.primaryProduct}.`,
     `Timezone: ${context.timezone}. Currency: ${context.currency}.`,
     `Targets: CPA ${context.targetCpa ?? "unset"}, MER ${context.targetMer ?? "unset"}, contribution margin ${context.targetContributionMargin ?? "unset"}.`,
-    `Typical COGS ${context.typicalCogs ?? "unset (do not invent)"}. Shipping assumption ${context.shippingCostAssumption ?? "unset"}.`,
+    "Typical COGS is a static target only — never copy it into daily profit or invent supplier cost.",
     `Paid channels: ${context.paidChannels}. Conversion: ${context.primaryConversion}.`,
     viewContext ? `Current UI context: ${viewContext}` : "",
     `Recent change log: ${JSON.stringify(changes)}`,

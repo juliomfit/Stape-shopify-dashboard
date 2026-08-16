@@ -41,6 +41,9 @@ export default async function SalesPage() {
     inRange,
     totalSpend,
     cpa,
+    profitAfterCogs,
+    cogsRange,
+    cogsSource,
   } = data;
   const shopifySource = shopifyConnected
     ? `Shopify · ${period.label}`
@@ -222,6 +225,11 @@ export default async function SalesPage() {
             processingFees={alignedShopify.processingFees}
             refundFees={alignedShopify.refundFees}
             adSpend={ads.totalSpend}
+            cogs={cogsRange.cogsForRange}
+            cogsComplete={cogsRange.complete}
+            missingCogsDates={cogsRange.missingDates}
+            cogsSource={cogsSource}
+            profitAfterCogs={profitAfterCogs}
           />
         ) : null}
         <div className="flex flex-wrap gap-2">

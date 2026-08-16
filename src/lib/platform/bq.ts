@@ -137,6 +137,17 @@ export async function ensurePlatformTables() {
       CLUSTER BY account_id, campaign_id
     `);
   }
+  const cogs = platformTable("raw_cogs_daily");
+  if (cogs) {
+    await runPlatformQuery(`
+      CREATE TABLE IF NOT EXISTS ${cogs} (
+        date DATE NOT NULL,
+        amount FLOAT64 NOT NULL,
+        note STRING,
+        updated_at TIMESTAMP NOT NULL
+      )
+    `);
+  }
 }
 
 function isStreamingBufferError(error: unknown) {

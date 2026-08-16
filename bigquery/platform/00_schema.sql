@@ -317,3 +317,12 @@ CREATE TABLE IF NOT EXISTS `stape-analytics-487802.goodsnova_platform.openai_usa
   latency_ms INT64,
   estimated_usd FLOAT64
 );
+
+-- Daily supplier COGS (one USD total per Pacific day; Julio types it).
+-- Multiple inserts per date: latest updated_at wins. Never copy typicalCogs here.
+CREATE TABLE IF NOT EXISTS `stape-analytics-487802.goodsnova_platform.raw_cogs_daily` (
+  date DATE NOT NULL,
+  amount FLOAT64 NOT NULL,
+  note STRING,
+  updated_at TIMESTAMP NOT NULL
+);

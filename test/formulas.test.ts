@@ -42,6 +42,19 @@ test("contribution profit is not net profit with invented COGS", () => {
   );
 });
 
+test("contribution profit subtracts supplied COGS only", () => {
+  assert.equal(
+    contributionProfit({
+      totalRevenue: 100,
+      processingFees: 3,
+      refundFees: 0,
+      adSpend: 20,
+      cogs: 10,
+    }),
+    67,
+  );
+});
+
 test("coverage does not divide by zero", () => {
   assert.equal(coverageRatio(10, 0), null);
   assert.equal(coverageRatio(9, 10), 0.9);

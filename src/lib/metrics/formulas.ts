@@ -11,7 +11,9 @@
  *
  * Missing spend is null (shown as —), never 0.
  * Missing gn_* is Unknown, not Direct.
- * COGS is never invented. Contribution profit here is revenue − fees − ad spend.
+ * COGS is never invented and never filled from typicalCogs.
+ * Contribution profit without cogs is revenue − fees − ad spend.
+ * Pass cogs only when every Pacific day in the range has a typed supplier row.
  */
 
 export function ratio(numerator: number, spend: number | null): number | null {
@@ -93,6 +95,7 @@ export function netAfterFees(
 /**
  * Contribution profit (not net profit): Shopify total − Shopify Payments fees − ad spend.
  * Does not subtract COGS, shipping expense, or other opex unless those values are supplied.
+ * Callers must omit `cogs` when the daily ledger is incomplete so this does not treat missing days as $0.
  */
 export function contributionProfit(input: {
   totalRevenue: number;
