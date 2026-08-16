@@ -1,6 +1,7 @@
 import { DateRangeToggle } from "@/components/layout/DateRangeToggle";
 import { MenuButton } from "@/components/layout/NavLinks";
 import { BrandMark } from "@/components/dashboard/BrandMark";
+import { MetaWarehouseChip } from "@/components/layout/MetaWarehouseChip";
 import { getSelectedPeriod } from "@/lib/period-server";
 
 type HeaderProps = {
@@ -36,10 +37,13 @@ export async function Header({ title, description }: HeaderProps) {
             ) : null}
           </div>
         </div>
-        <DateRangeToggle
-          key={`${period.key}:${period.startDate}:${period.endDate}`}
-          period={period}
-        />
+        <div className="flex min-w-0 flex-col items-stretch gap-2 lg:items-end">
+          <DateRangeToggle
+            key={`${period.key}:${period.startDate}:${period.endDate}`}
+            period={period}
+          />
+          <MetaWarehouseChip />
+        </div>
       </div>
     </header>
   );

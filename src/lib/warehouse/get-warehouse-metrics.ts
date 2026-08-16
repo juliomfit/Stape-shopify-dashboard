@@ -1,3 +1,5 @@
+import { cache } from "react";
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
@@ -179,9 +181,34 @@ export async function getWarehouseMetrics(options: {
   model?: WarehouseModel;
   lookbackDays?: number;
 } = {}): Promise<WarehouseMetrics> {
-  const period = await getAlignedPeriod();
   const model = options.model ?? DEFAULT_MODEL;
   const lookbackDays = options.lookbackDays ?? DEFAULT_LOOKBACK;
+  return loadWarehouseMetricsCached(model, lookbackDays);
+}
+
+const loadWarehouseMetricsCached = cache(async (
+  model: WarehouseModel,
+  lookbackDays: number,
+): Promise<WarehouseMetrics> => {
+  const period = await getAlignedPeriod();
+  return rememberDashboard(
+    [
+      "warehouse-metrics",
+      period.startDate,
+      period.endDate,
+      model,
+      String(lookbackDays),
+    ],
+    () => loadWarehouseMetrics(period, model, lookbackDays),
+    ["dashboard", "stape"],
+  );
+});
+
+async function loadWarehouseMetrics(
+  period: Awaited<ReturnType<typeof getAlignedPeriod>>,
+  model: WarehouseModel,
+  lookbackDays: number,
+): Promise<WarehouseMetrics> {
   const base = emptyMetrics(period.label, model, lookbackDays);
 
   try {

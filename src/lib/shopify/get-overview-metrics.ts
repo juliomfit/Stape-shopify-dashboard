@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { shopifyOrdersQuery, type DashboardPeriod } from "@/lib/period";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { shopifyGraphql } from "@/lib/shopify/client";
@@ -174,21 +175,19 @@ function emptyMetrics(periodLabel: string): ShopifyOverviewMetrics {
   };
 }
 
-export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetrics> {
-  return getShopifyOverviewForPeriod(await getSelectedPeriod());
-}
-
-const loadOverviewCached = cache(async (key: string, serialized: string) => {
-  void key;
-  return loadShopifyOverview(JSON.parse(serialized) as DashboardPeriod);
-});
+export const getShopifyOverviewMetrics = cache(
+  async (): Promise<ShopifyOverviewMetrics> => {
+    return getShopifyOverviewForPeriod(await getSelectedPeriod());
+  },
+);
 
 export async function getShopifyOverviewForPeriod(
   period: DashboardPeriod,
 ): Promise<ShopifyOverviewMetrics> {
-  return loadOverviewCached(
-    `${period.startMs}:${period.endMs}`,
-    JSON.stringify(period),
+  return rememberDashboard(
+    ["shopify-overview", String(period.startMs), String(period.endMs)],
+    () => loadShopifyOverview(period),
+    ["dashboard", "shopify"],
   );
 }
 

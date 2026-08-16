@@ -13,6 +13,8 @@ import {
 } from "@/lib/ads/meta-query";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { getSelectedPeriod } from "@/lib/period-server";
+import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { gnCampaignExactMatch } from "@/lib/shopify/gn-campaign";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +27,10 @@ export default async function MetaCampaignPage({
 }) {
   const { campaignId } = await params;
   const period = await getSelectedPeriod();
-  const [campaignFacts, adsetFacts] = await Promise.all([
+  const [campaignFacts, adsetFacts, shopify] = await Promise.all([
     getCampaignFacts(period).catch(() => []),
     getAdsetFacts(period, campaignId).catch(() => []),
+    getShopifyOverviewMetrics().catch(() => null),
   ]);
   const campaign = rollupCampaigns(campaignFacts).find((row) => row.id === campaignId);
   const adsets = rollupAdsets(adsetFacts);
@@ -43,6 +46,13 @@ export default async function MetaCampaignPage({
         }
       : totalsFromFacts(adsetFacts);
   const currency = "USD";
+  const inRangeOrders = (shopify?.orderPoints || []).filter((order) => {
+    const created = new Date(order.createdAt).getTime();
+    return created >= period.startMs && created < period.endMs;
+  });
+  const gn = campaign
+    ? gnCampaignExactMatch(campaign.name, inRangeOrders)
+    : { matched: false, orders: 0, revenue: 0 };
 
   return (
     <>
@@ -91,6 +101,26 @@ export default async function MetaCampaignPage({
               totals.cpa === null
                 ? null
                 : formatMoney({ amount: totals.cpa, currencyCode: currency })
+            }
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+          <MetricCard
+            label="gn_* orders"
+            source={
+              gn.matched
+                ? "Shopify orders whose utm campaign equals this Meta name · not Ads Manager"
+                : "No Shopify gn_* campaign with this exact name"
+            }
+            value={gn.matched ? formatNumber(gn.orders) : null}
+          />
+          <MetricCard
+            label="gn_* revenue"
+            source="Same exact-name match · True Performance, not platform ROAS"
+            value={
+              gn.matched
+                ? formatMoney({ amount: gn.revenue, currencyCode: currency })
+                : null
             }
           />
         </div>

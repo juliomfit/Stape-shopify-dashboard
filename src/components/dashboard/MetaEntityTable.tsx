@@ -5,6 +5,11 @@ import Link from "next/link";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import type { EntityRollup } from "@/lib/ads/meta-query";
 import { EmptyTable, type EmptyNext } from "@/components/dashboard/EmptyTable";
+import {
+  StackList,
+  StackRow,
+  TableOrCards,
+} from "@/components/dashboard/TableOrCards";
 
 type SortKey = keyof Pick<
   EntityRollup,
@@ -86,11 +91,35 @@ export function MetaEntityTable({
     <div className="space-y-3">
       <input
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => {
+          setQuery(event.target.value);
+        }}
         placeholder="Search name or ID"
         className="w-full max-w-sm rounded-lg border border-border px-3 py-2 text-sm"
       />
-      <div className="overflow-x-auto">
+      <TableOrCards
+        cards={
+          <StackList>
+            {filtered.map((row) => {
+              const href = hrefPrefix
+                ? `${hrefPrefix.replace(/\/$/, "")}/${row.id}`
+                : undefined;
+              return (
+                <StackRow key={row.id} href={href}>
+                  <span className="font-medium text-foreground">{row.name}</span>
+                  <span className="text-xs text-muted">
+                    {money(row.spend, currency)}
+                    {" · CPA "}
+                    {row.cpa === null ? "—" : money(row.cpa, currency)}
+                    {" · "}
+                    {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
+                  </span>
+                </StackRow>
+              );
+            })}
+          </StackList>
+        }
+        table={
         <table className="min-w-[980px] w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border text-xs text-muted">
@@ -139,7 +168,8 @@ export function MetaEntityTable({
             })}
           </tbody>
         </table>
-      </div>
+        }
+      />
     </div>
   );
 }

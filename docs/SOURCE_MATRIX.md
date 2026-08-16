@@ -1,6 +1,6 @@
 # Page source matrix
 
-Header date cookie `dashboard_range` (America/Los_Angeles) is the period on every nav page. `getAlignedPeriod()` === `getSelectedPeriod()`.
+Header date cookie `dashboard_range` (America/Los_Angeles) is the period on every nav page. Default is **7d** (Today in Flyweel is often $0). `getAlignedPeriod()` === `getSelectedPeriod()`. Shopify/Stape/Meta warehouse reads are cached 60s.
 
 | Page | Route | Primary source | Spend / CPA |
 |---|---|---|---|

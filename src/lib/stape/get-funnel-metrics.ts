@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
 import { eventsFromSql, getBigQueryConfig } from "@/lib/stape/config";
@@ -251,20 +252,16 @@ async function loadFunnelMetrics(
   }
 }
 
-const loadFunnelCached = cache(async (key: string, serialized: string) => {
-  void key;
-  return loadFunnelMetrics(JSON.parse(serialized) as DashboardPeriod);
-});
-
 export async function getStapeFunnelMetricsForPeriod(
   period: DashboardPeriod,
 ): Promise<StapeFunnelMetrics> {
-  return loadFunnelCached(
-    `${period.startMs}:${period.endMs}`,
-    JSON.stringify(period),
+  return rememberDashboard(
+    ["stape-funnel", String(period.startMs), String(period.endMs)],
+    () => loadFunnelMetrics(period),
+    ["dashboard", "stape"],
   );
 }
 
-export async function getStapeFunnelMetrics(): Promise<StapeFunnelMetrics> {
+export const getStapeFunnelMetrics = cache(async (): Promise<StapeFunnelMetrics> => {
   return getStapeFunnelMetricsForPeriod(await getAlignedPeriod());
-}
+});

@@ -22,6 +22,8 @@ import { getSelectedPeriod } from "@/lib/period-server";
 import { getDashboardPeriod, pacificDaysInRange } from "@/lib/period";
 import { loadMetaCache } from "@/lib/ads/meta-query";
 import { latestSuccessfulSync, latestSync } from "@/lib/platform/sync-runs";
+import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { gnCampaignExactMatch } from "@/lib/shopify/gn-campaign";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +51,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt, warehouse] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -71,6 +73,7 @@ async function renderMetaPage() {
       serviceAccount: "",
       message: "Warehouse check failed.",
     })),
+    getShopifyOverviewMetrics().catch(() => null),
   ]);
   const totals = totalsFromFacts(facts);
   const claimed = resolveMetaClaim({
@@ -92,6 +95,17 @@ async function renderMetaPage() {
     totals.spend > 0 ? [] : await getCampaignFacts(getDashboardPeriod("7d")).catch(() => []);
   const weekTotals = totalsFromFacts(weekFacts);
   const campaigns = rollupCampaigns(facts);
+  const inRangeOrders = (shopify?.orderPoints || []).filter((order) => {
+    const created = new Date(order.createdAt).getTime();
+    return created >= period.startMs && created < period.endMs;
+  });
+  const gnByCampaign = campaigns.map((row) => ({
+    id: row.id,
+    name: row.name,
+    platformPurchases: row.purchases,
+    platformSpend: row.spend,
+    gn: gnCampaignExactMatch(row.name, inRangeOrders),
+  }));
   const days = pacificDaysInRange(period.startDate, period.endDate);
   const currency = "USD";
   const viewContext = `Meta Ads · ${period.label} · ${period.startDate} to ${period.endDate}`;
@@ -283,6 +297,36 @@ async function renderMetaPage() {
               hrefPrefix="/meta"
             />
           </div>
+        </article>
+        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-sm font-semibold text-foreground">
+            Platform vs gn_* (exact campaign name)
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            Ads Manager purchases from the warehouse vs Shopify orders whose gn_*
+            utm campaign equals the Meta campaign name. No fuzzy match. Missing
+            names stay unmatched.
+          </p>
+          {gnByCampaign.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">No campaigns in this range.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-border text-sm">
+              {gnByCampaign.slice(0, 12).map((row) => (
+                <li key={row.id} className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                  <Link href={`/meta/${row.id}`} className="font-medium underline">
+                    {row.name}
+                  </Link>
+                  <span className="text-xs text-muted sm:text-sm">
+                    Platform {formatNumber(row.platformPurchases)} purch.
+                    {" · gn_* "}
+                    {row.gn.matched
+                      ? `${formatNumber(row.gn.orders)} orders / ${formatMoney({ amount: row.gn.revenue, currencyCode: currency })}`
+                      : "no exact name match"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </article>
         <AskAiPanel viewContext={viewContext} />
       </section>

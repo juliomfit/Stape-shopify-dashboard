@@ -23,7 +23,7 @@ export const RANGE_OPTIONS: { key: Exclude<RangeKey, "custom">; label: string }[
     { key: "last_month", label: "Last month" },
   ];
 
-export const DEFAULT_RANGE: RangeKey = "today";
+export const DEFAULT_RANGE: RangeKey = "7d";
 export const RANGE_COOKIE = "dashboard_range";
 export const CUSTOM_RANGE_COOKIE = "dashboard_custom_range";
 export const MAX_CUSTOM_DAYS = 366;

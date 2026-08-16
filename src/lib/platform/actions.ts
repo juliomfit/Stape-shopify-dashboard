@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { runScheduledSync, syncMetaBackfill } from "@/lib/platform/orchestrator";
 import { addChangeLog } from "@/lib/platform/change-log";
 import { saveBusinessContext } from "@/lib/platform/business-context";
@@ -9,6 +9,10 @@ import { selectMetaAdAccount } from "@/lib/ads/meta-actions";
 import { saveFlyweelCredentials } from "@/lib/ads/providers/flyweel-credentials";
 
 function refresh() {
+  revalidateTag("dashboard", "max");
+  revalidateTag("shopify", "max");
+  revalidateTag("stape", "max");
+  revalidateTag("meta-warehouse", "max");
   revalidatePath("/", "layout");
 }
 

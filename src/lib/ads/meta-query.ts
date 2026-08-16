@@ -1,3 +1,4 @@
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { readDurableJson } from "@/lib/durable-json";
 import { isPlatformBqReady, runPlatformQuery } from "@/lib/platform/bq";
 import { platformTable } from "@/lib/platform/config";
@@ -127,6 +128,14 @@ async function queryFacts(
 }
 
 export async function getCampaignFacts(period: DashboardPeriod) {
+  return rememberDashboard(
+    ["meta-campaign-facts", period.startDate, period.endDate],
+    () => loadCampaignFacts(period),
+    ["dashboard", "meta-warehouse"],
+  );
+}
+
+async function loadCampaignFacts(period: DashboardPeriod) {
   const live = await queryFacts("meta_campaign_insights_daily", period);
   if (live.length > 0) {
     return live;

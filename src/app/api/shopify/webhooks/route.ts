@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { getShopifyConfig } from "@/lib/shopify/config";
 import { finishSyncRun, startSyncRun } from "@/lib/platform/sync-runs";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,8 @@ export async function POST(request: Request) {
     syncType: `webhook:${topic}`,
   });
   await finishSyncRun(run, { status: "completed", records_inserted: 1 });
+  revalidateTag("dashboard", "max");
+  revalidateTag("shopify", "max");
   revalidatePath("/", "layout");
   return NextResponse.json({ ok: true });
 }

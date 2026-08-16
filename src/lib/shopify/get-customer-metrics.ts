@@ -1,3 +1,5 @@
+import { cache } from "react";
+import { rememberDashboard } from "@/lib/dashboard/remember";
 import { shopifyOrdersQuery } from "@/lib/period";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { shopifyGraphql } from "@/lib/shopify/client";
@@ -100,9 +102,18 @@ function friendlyCustomerError(message: string) {
   return message;
 }
 
-export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetrics> {
+export const getShopifyCustomerMetrics = cache(async (): Promise<ShopifyCustomerMetrics> => {
   const period = await getSelectedPeriod();
+  return rememberDashboard(
+    ["shopify-customers", String(period.startMs), String(period.endMs)],
+    () => loadShopifyCustomerMetrics(period),
+    ["dashboard", "shopify"],
+  );
+});
 
+async function loadShopifyCustomerMetrics(
+  period: Awaited<ReturnType<typeof getSelectedPeriod>>,
+): Promise<ShopifyCustomerMetrics> {
   if (!isShopifyConfigured()) {
     return emptyMetrics(period.label);
   }
