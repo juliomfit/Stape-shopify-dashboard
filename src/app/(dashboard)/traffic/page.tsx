@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TrafficSourcesPanel } from "@/components/dashboard/TrafficSourcesPanel";
+import { Ga4BreakdownPanel, Ga4EngagementStrip } from "@/components/dashboard/Ga4Panels";
 import { Header } from "@/components/layout/Header";
 import { formatNumber } from "@/lib/format";
+import { getGa4Snapshot } from "@/lib/ads/ga4-query";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import { getStapeTrafficMetrics } from "@/lib/stape/get-traffic-metrics";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
@@ -15,10 +17,11 @@ export const metadata: Metadata = {
 };
 
 export default async function TrafficPage() {
-  const [shopify, stape, funnel] = await Promise.all([
+  const [shopify, stape, funnel, ga4] = await Promise.all([
     getShopifyOverviewMetrics(),
     getStapeTrafficMetrics(),
     getStapeFunnelMetrics(),
+    getGa4Snapshot().catch(() => null),
   ]);
   const stapeConnected = funnel.status.state === "connected";
   const stapeSource = stapeConnected
@@ -107,9 +110,60 @@ export default async function TrafficPage() {
             description={`Stape reconstructed path · ${stape.periodLabel} · not gn_*`}
           />
         </div>
+        {ga4 ? (
+          <>
+            <Ga4EngagementStrip totals={ga4.totals} periodLabel={ga4.periodLabel} />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Ga4BreakdownPanel
+                title="GA4 device"
+                description="Google Analytics deviceCategory · not Stape"
+                rows={ga4.devices.map((row) => ({
+                  label: row.label,
+                  sessions: row.sessions,
+                }))}
+              />
+              <Ga4BreakdownPanel
+                title="GA4 country"
+                description="Google Analytics country · not Stape"
+                rows={ga4.countries.map((row) => ({
+                  label: row.label,
+                  sessions: row.sessions,
+                }))}
+              />
+              <Ga4BreakdownPanel
+                title="GA4 landing page"
+                description="Google Analytics landingPage · not gn_*"
+                rows={ga4.landings.map((row) => ({
+                  label: row.label,
+                  sessions: row.sessions,
+                }))}
+              />
+              <Ga4BreakdownPanel
+                title="GA4 search terms"
+                description="utm term / search term if GA4 returned it. Search Console queries need a Search Console link."
+                rows={ga4.searchTerms.map((row) => ({
+                  label: row.label,
+                  sessions: row.sessions,
+                }))}
+              />
+            </div>
+            {ga4.googleAdsCampaigns.length > 0 ? (
+              <Ga4BreakdownPanel
+                title="GA4 Google Ads campaigns"
+                description="Inside Analytics if the property is linked to Google Ads. Not Ads Manager spend paste."
+                rows={ga4.googleAdsCampaigns.map((row) => ({
+                  label: row.label,
+                  sessions: row.sessions,
+                  extra: row.extra,
+                }))}
+                extraLabel="cost"
+              />
+            ) : null}
+          </>
+        ) : null}
         <p className="text-xs leading-5 text-muted">
-          Device, country, and landing-page tables are omitted: those columns
-          are not in stape_data.dashboard_events.
+          Device, country, and landing page come from GA4 Data API after Refresh GA4.
+          Stape dashboard_events still does not have those columns.
         </p>
       </section>
     </>

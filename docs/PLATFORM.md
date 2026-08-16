@@ -80,7 +80,13 @@ Google Ads API is not wired (needs a developer token). Paste totals remain the
 source. Cron records health only.
 
 GA4 Data API runs when `GA4_PROPERTY_ID` is set and the service account can read
-that property. sGTM BigQuery remains the event warehouse.
+that property (Analyst via Admin API if the GA4 UI rejects the service account email).
+Enable **Google Analytics Data API** on the GCP project that owns `GOOGLE_SERVICE_ACCOUNT_JSON`
+(the project id in the Refresh GA4 error URL). Optional `GA4_STREAM_ID` filters web-only.
+sGTM BigQuery remains the event warehouse. True Performance stays `gn_*`.
+
+Refresh GA4 uses the **header date range** (max 93 Pacific days) and writes
+`raw_ga4_metrics`, `raw_ga4_sources`, `raw_ga4_breakdowns`. Pages read BigQuery only.
 
 ## Shopify
 

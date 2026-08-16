@@ -149,18 +149,34 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
 
   const ga4From = fromRun(ga4Run, await latestSuccessfulSync("ga4"));
   const ga4Configured = Boolean(process.env.GA4_PROPERTY_ID?.trim());
+  const streamId = process.env.GA4_STREAM_ID?.trim();
+  let ga4Status: SourceHealthStatus = "disconnected";
+  let ga4Message =
+    "Set GA4_PROPERTY_ID to enable Data API pulls. sGTM BigQuery remains the event warehouse.";
+  if (ga4From.runStatus === "syncing") {
+    ga4Status = "syncing";
+    ga4Message = "GA4 Data API sync in progress.";
+  } else if (ga4From.runStatus === "error") {
+    ga4Status = "error";
+    ga4Message = ga4Run?.error_message || "Last GA4 sync failed.";
+  } else if (ga4Configured && ga4From.lastSuccessAt) {
+    ga4Status = delayed(ga4From.lastSuccessAt) ? "delayed" : "healthy";
+    ga4Message = `Data API · property ${process.env.GA4_PROPERTY_ID?.trim()} · ${
+      streamId ? `stream ${streamId}` : "all streams"
+    }. Last success ${ga4From.lastSuccessAt}.`;
+  } else if (ga4Configured) {
+    ga4Status = "partial";
+    ga4Message =
+      "GA4_PROPERTY_ID is set. Enable Analytics Data API on the service-account GCP project, then Refresh GA4.";
+  }
   const ga4: SourceHealth = {
     source: "ga4",
     label: "GA4",
-    status: !ga4Configured
-      ? "disconnected"
-      : ga4From.runStatus || "partial",
+    status: ga4Status,
     lastSuccessAt: ga4From.lastSuccessAt,
     lastAttemptAt: ga4From.lastAttemptAt,
-    message: ga4Configured
-      ? ga4Run?.error_message || "GA4 Data API property set. Sync on cron."
-      : "Set GA4_PROPERTY_ID to enable Data API pulls. sGTM BigQuery remains the event warehouse.",
-    href: "/integrations",
+    message: ga4Message,
+    href: "/health",
   };
 
   const googleFrom = fromRun(googleRun, await latestSuccessfulSync("google_ads"));

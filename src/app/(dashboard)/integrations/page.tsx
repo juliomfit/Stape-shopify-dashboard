@@ -148,6 +148,29 @@ export default async function IntegrationsPage({
         </article>
 
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-sm font-semibold text-foreground">GA4</h2>
+          <p className="mt-1 text-xs text-muted">
+            Data API uses the same service account JSON as BigQuery. Charts never call GA4 on page load.
+          </p>
+          <ul className="mt-3 space-y-1 text-sm">
+            <li>
+              Property ID:{" "}
+              {process.env.GA4_PROPERTY_ID?.trim() || "— (set GA4_PROPERTY_ID)"}
+            </li>
+            <li>
+              Stream ID: {process.env.GA4_STREAM_ID?.trim() || "— (optional GA4_STREAM_ID)"}
+            </li>
+            <li>
+              Measurement ID:{" "}
+              {process.env.GA4_MEASUREMENT_ID?.trim() || "— (optional GA4_MEASUREMENT_ID)"}
+            </li>
+          </ul>
+          <p className="mt-3 text-xs text-muted">
+            If Refresh GA4 says the Data API is disabled, enable it on the GCP project in the error URL (the project that owns the JSON key, not always stape-analytics-487802).
+          </p>
+        </article>
+
+        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Change log</h2>
           <form action={addChangeLogForm} className="mt-4 grid gap-3">
             <input name="title" placeholder="Creative launched" className="rounded-lg border border-border px-3 py-2 text-sm" required />

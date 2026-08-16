@@ -1,128 +1,336 @@
-import { createSign } from "crypto";
-import { getBigQueryConfig } from "@/lib/stape/config";
-import { finishSyncRun, startSyncRun } from "@/lib/platform/sync-runs";
+import { friendlyGa4Error, formatGa4Date, getGa4Config } from "@/lib/ads/ga4-config";
+import { ga4AccessToken, runGa4Report } from "@/lib/ads/ga4-client";
+import { addDaysYmd } from "@/lib/ads/providers/chunk";
 import { getDashboardPeriod } from "@/lib/period";
-import { insertRows, isPlatformBqReady } from "@/lib/platform/bq";
+import { getSelectedPeriod } from "@/lib/period-server";
+import {
+  insertRows,
+  isPlatformBqReady,
+  runPlatformQuery,
+} from "@/lib/platform/bq";
+import { platformTable } from "@/lib/platform/config";
+import { finishSyncRun, startSyncRun } from "@/lib/platform/sync-runs";
 
-type TokenResponse = { access_token?: string; error?: string };
+const MAX_DAYS = 93;
 
-async function serviceAccountAccessToken(scope: string) {
-  const config = getBigQueryConfig();
-  const creds = config?.credentials as
-    | { client_email?: string; private_key?: string }
-    | undefined;
-  if (!creds?.client_email || !creds.private_key) {
-    throw new Error("Service account JSON is missing client_email/private_key.");
+async function selectedOrDefaultPeriod() {
+  try {
+    return await getSelectedPeriod();
+  } catch {
+    return getDashboardPeriod("7d");
   }
+}
 
-  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString(
-    "base64url",
-  );
-  const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(
-    JSON.stringify({
-      iss: creds.client_email,
-      scope,
-      aud: "https://oauth2.googleapis.com/token",
-      iat: now,
-      exp: now + 3600,
-    }),
-  ).toString("base64url");
-  const unsigned = `${header}.${payload}`;
-  const signer = createSign("RSA-SHA256");
-  signer.update(unsigned);
-  const jwt = `${unsigned}.${signer.sign(creds.private_key, "base64url")}`;
-  const body = new URLSearchParams({
-    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-    assertion: jwt,
-  });
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body,
-  });
-  const json = (await response.json()) as TokenResponse;
-  if (!json.access_token) {
-    throw new Error(json.error || "Google token exchange failed.");
+function clampPeriod(startDate: string, endDate: string) {
+  const today = getDashboardPeriod("today").startDate;
+  const end = endDate > today ? today : endDate;
+  const minStart = addDaysYmd(end, -(MAX_DAYS - 1));
+  return {
+    startDate: startDate < minStart ? minStart : startDate,
+    endDate: end,
+  };
+}
+
+async function ensureGa4Tables() {
+  const metrics = platformTable("raw_ga4_metrics");
+  const sources = platformTable("raw_ga4_sources");
+  const breakdowns = platformTable("raw_ga4_breakdowns");
+  if (!metrics || !sources || !breakdowns) {
+    return;
   }
-  return json.access_token;
+  await runPlatformQuery(`
+    CREATE TABLE IF NOT EXISTS ${metrics} (
+      date STRING,
+      sessions FLOAT64,
+      purchases FLOAT64,
+      purchase_revenue FLOAT64,
+      engaged_sessions FLOAT64,
+      engagement_rate FLOAT64,
+      bounce_rate FLOAT64,
+      avg_session_seconds FLOAT64,
+      new_users FLOAT64,
+      active_users FLOAT64,
+      add_to_carts FLOAT64,
+      checkouts FLOAT64,
+      views FLOAT64,
+      property_id STRING,
+      stream_id STRING,
+      synced_at TIMESTAMP,
+      source_payload STRING
+    )
+  `);
+  await runPlatformQuery(`
+    ALTER TABLE ${metrics}
+    ADD COLUMN IF NOT EXISTS engaged_sessions FLOAT64,
+    ADD COLUMN IF NOT EXISTS engagement_rate FLOAT64,
+    ADD COLUMN IF NOT EXISTS bounce_rate FLOAT64,
+    ADD COLUMN IF NOT EXISTS avg_session_seconds FLOAT64,
+    ADD COLUMN IF NOT EXISTS new_users FLOAT64,
+    ADD COLUMN IF NOT EXISTS active_users FLOAT64,
+    ADD COLUMN IF NOT EXISTS add_to_carts FLOAT64,
+    ADD COLUMN IF NOT EXISTS checkouts FLOAT64,
+    ADD COLUMN IF NOT EXISTS views FLOAT64,
+    ADD COLUMN IF NOT EXISTS stream_id STRING
+  `);
+  await runPlatformQuery(`
+    CREATE TABLE IF NOT EXISTS ${sources} (
+      date STRING,
+      source STRING,
+      medium STRING,
+      campaign STRING,
+      sessions FLOAT64,
+      purchases FLOAT64,
+      purchase_revenue FLOAT64,
+      property_id STRING,
+      stream_id STRING,
+      synced_at TIMESTAMP
+    )
+  `);
+  await runPlatformQuery(`
+    CREATE TABLE IF NOT EXISTS ${breakdowns} (
+      date STRING,
+      kind STRING,
+      label STRING,
+      sessions FLOAT64,
+      purchases FLOAT64,
+      purchase_revenue FLOAT64,
+      extra FLOAT64,
+      property_id STRING,
+      stream_id STRING,
+      synced_at TIMESTAMP
+    )
+  `);
+}
+
+async function replaceWindow(table: string, startDate: string, endDate: string, propertyId: string) {
+  const fq = platformTable(table);
+  if (!fq) {
+    return;
+  }
+  try {
+    await runPlatformQuery(
+      `DELETE FROM ${fq}
+       WHERE property_id = @propertyId
+         AND date BETWEEN @startDate AND @endDate`,
+      { propertyId, startDate, endDate },
+    );
+  } catch {
+    // Streaming buffer: inserts still land; readers pick latest synced_at.
+  }
 }
 
 export async function ingestGa4() {
-  const propertyId = process.env.GA4_PROPERTY_ID?.trim();
-  const run = await startSyncRun({ source: "ga4", syncType: "data_api" });
-  if (!propertyId) {
+  const ga4 = getGa4Config();
+  const period = await selectedOrDefaultPeriod();
+  const window = clampPeriod(period.startDate, period.endDate);
+  const run = await startSyncRun({
+    source: "ga4",
+    syncType: "data_api",
+    lookbackStart: window.startDate,
+    lookbackEnd: window.endDate,
+  });
+  if (!ga4) {
     return finishSyncRun(run, {
       status: "failed",
       error_message: "GA4_PROPERTY_ID is not set.",
     });
   }
 
+  const notes: string[] = [];
   try {
-    const period = getDashboardPeriod("7d");
-    const token = await serviceAccountAccessToken(
-      "https://www.googleapis.com/auth/analytics.readonly",
-    );
-    const response = await fetch(
-      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
-      {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          dateRanges: [{ startDate: period.startDate, endDate: period.endDate }],
-          dimensions: [{ name: "date" }],
-          metrics: [
-            { name: "sessions" },
-            { name: "ecommercePurchases" },
-            { name: "purchaseRevenue" },
-          ],
-        }),
-      },
-    );
-    const payload = (await response.json()) as {
-      rows?: {
-        dimensionValues?: { value?: string }[];
-        metricValues?: { value?: string }[];
-      }[];
-      error?: { message?: string };
-    };
-    if (!response.ok) {
-      throw new Error(payload.error?.message || `GA4 Data API ${response.status}`);
+    const token = await ga4AccessToken();
+    const syncedAt = new Date().toISOString();
+    const daily = await runGa4Report({
+      token,
+      startDate: window.startDate,
+      endDate: window.endDate,
+      dimensions: ["date"],
+      metrics: ["sessions", "ecommercePurchases", "purchaseRevenue"],
+      limit: 120,
+    });
+    const extraByDate = new Map<string, number[]>();
+    try {
+      const extra = await runGa4Report({
+        token,
+        startDate: window.startDate,
+        endDate: window.endDate,
+        dimensions: ["date"],
+        metrics: [
+          "engagedSessions",
+          "engagementRate",
+          "bounceRate",
+          "averageSessionDuration",
+          "newUsers",
+          "activeUsers",
+          "addToCarts",
+          "checkouts",
+          "screenPageViews",
+        ],
+        limit: 120,
+        optional: true,
+      });
+      for (const row of extra) {
+        extraByDate.set(formatGa4Date(row.dimensions[0] || window.startDate), row.metrics);
+      }
+    } catch (error) {
+      notes.push(
+        `engagement: ${error instanceof Error ? error.message : "failed"}`,
+      );
     }
-    const rows = (payload.rows || []).map((row) => ({
-      date: row.dimensionValues?.[0]?.value || period.startDate,
-      sessions: Number(row.metricValues?.[0]?.value || 0),
-      purchases: Number(row.metricValues?.[1]?.value || 0),
-      purchase_revenue: Number(row.metricValues?.[2]?.value || 0),
-      property_id: propertyId,
-      synced_at: new Date().toISOString(),
-    }));
-    if (isPlatformBqReady()) {
+
+    const metricRows = daily.map((row) => {
+      const date = formatGa4Date(row.dimensions[0] || window.startDate);
+      const extra = extraByDate.get(date) || [];
+      return {
+        date,
+        sessions: row.metrics[0] || 0,
+        purchases: row.metrics[1] || 0,
+        purchase_revenue: row.metrics[2] || 0,
+        engaged_sessions: extra[0] || 0,
+        engagement_rate: extra[1] || 0,
+        bounce_rate: extra[2] || 0,
+        avg_session_seconds: extra[3] || 0,
+        new_users: extra[4] || 0,
+        active_users: extra[5] || 0,
+        add_to_carts: extra[6] || 0,
+        checkouts: extra[7] || 0,
+        views: extra[8] || 0,
+        property_id: ga4.propertyId,
+        stream_id: ga4.streamId,
+        synced_at: syncedAt,
+        source_payload: JSON.stringify(row),
+      };
+    });
+
+    let sourceRows: Record<string, unknown>[] = [];
+    try {
+      sourceRows = (
+        await runGa4Report({
+          token,
+          startDate: window.startDate,
+          endDate: window.endDate,
+          dimensions: ["date", "sessionSource", "sessionMedium", "sessionCampaignName"],
+          metrics: ["sessions", "ecommercePurchases", "purchaseRevenue"],
+          limit: 500,
+        })
+      ).map((row) => ({
+        date: formatGa4Date(row.dimensions[0] || window.startDate),
+        source: row.dimensions[1] || "(direct)",
+        medium: row.dimensions[2] || "(none)",
+        campaign: row.dimensions[3] || "(not set)",
+        sessions: row.metrics[0] || 0,
+        purchases: row.metrics[1] || 0,
+        purchase_revenue: row.metrics[2] || 0,
+        property_id: ga4.propertyId,
+        stream_id: ga4.streamId,
+        synced_at: syncedAt,
+      }));
+    } catch (error) {
+      notes.push(
+        `sources: ${error instanceof Error ? error.message : "failed"}`,
+      );
+    }
+
+    const breakdownKinds: {
+      kind: string;
+      dimensions: string[];
+      metrics: string[];
+      optional?: boolean;
+    }[] = [
+      { kind: "device", dimensions: ["date", "deviceCategory"], metrics: ["sessions"] },
+      { kind: "country", dimensions: ["date", "country"], metrics: ["sessions"] },
+      { kind: "landing", dimensions: ["date", "landingPage"], metrics: ["sessions"] },
+      {
+        kind: "search_term",
+        dimensions: ["date", "sessionManualTerm"],
+        metrics: ["sessions"],
+        optional: true,
+      },
+      {
+        kind: "search_console",
+        dimensions: ["date", "searchTerm"],
+        metrics: ["sessions"],
+        optional: true,
+      },
+      {
+        kind: "google_ads_campaign",
+        dimensions: ["date", "sessionGoogleAdsCampaignName"],
+        metrics: ["sessions", "advertiserAdCost"],
+        optional: true,
+      },
+    ];
+
+    const breakdownRows: Record<string, unknown>[] = [];
+    for (const spec of breakdownKinds) {
       try {
-        await insertRows(
-          "raw_ga4_metrics",
-          rows.map((row) => ({
-            ...row,
-            source_payload: JSON.stringify(row),
-          })),
+        const rows = await runGa4Report({
+          token,
+          startDate: window.startDate,
+          endDate: window.endDate,
+          dimensions: spec.dimensions,
+          metrics: spec.metrics,
+          limit: 80,
+          optional: spec.optional,
+        });
+        for (const row of rows) {
+          breakdownRows.push({
+            date: formatGa4Date(row.dimensions[0] || window.startDate),
+            kind: spec.kind,
+            label: row.dimensions[1] || "(not set)",
+            sessions: row.metrics[0] || 0,
+            purchases: 0,
+            purchase_revenue: 0,
+            extra: row.metrics[1] || 0,
+            property_id: ga4.propertyId,
+            stream_id: ga4.streamId,
+            synced_at: syncedAt,
+          });
+        }
+      } catch (error) {
+        notes.push(
+          `${spec.kind}: ${error instanceof Error ? error.message : "failed"}`,
         );
-      } catch {
-        // Table may not exist until 00_schema is extended; sync still records.
       }
     }
+
+    if (isPlatformBqReady()) {
+      try {
+        await ensureGa4Tables();
+      } catch (error) {
+        notes.push(
+          `ensure tables: ${error instanceof Error ? error.message : "failed"}`,
+        );
+      }
+      await replaceWindow("raw_ga4_metrics", window.startDate, window.endDate, ga4.propertyId);
+      await replaceWindow("raw_ga4_sources", window.startDate, window.endDate, ga4.propertyId);
+      await replaceWindow("raw_ga4_breakdowns", window.startDate, window.endDate, ga4.propertyId);
+      await insertRows("raw_ga4_metrics", metricRows);
+      await insertRows("raw_ga4_sources", sourceRows);
+      await insertRows("raw_ga4_breakdowns", breakdownRows);
+    } else {
+      notes.push("Platform BigQuery not ready; sync recorded without warehouse rows.");
+    }
+
+    const inserted = metricRows.length + sourceRows.length + breakdownRows.length;
     return finishSyncRun(run, {
-      status: "completed",
-      records_inserted: rows.length,
-      lookback_start: period.startDate,
-      lookback_end: period.endDate,
+      status: notes.length ? "partial" : "completed",
+      records_inserted: inserted,
+      lookback_start: window.startDate,
+      lookback_end: window.endDate,
+      error_message: notes.length ? notes.join(" · ").slice(0, 2500) : undefined,
+      metadata: JSON.stringify({
+        propertyId: ga4.propertyId,
+        streamId: ga4.streamId || null,
+        measurementId: ga4.measurementId || null,
+        notes,
+      }),
     });
   } catch (error) {
     return finishSyncRun(run, {
       status: "failed",
-      error_message: error instanceof Error ? error.message : "GA4 sync failed",
+      error_message: friendlyGa4Error(
+        error instanceof Error ? error.message : "GA4 sync failed",
+      ),
     });
   }
 }
