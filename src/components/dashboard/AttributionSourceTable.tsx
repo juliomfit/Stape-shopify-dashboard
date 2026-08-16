@@ -9,12 +9,14 @@ type AttributionSourceTableProps = {
   currencyCode: string;
   periodLabel: string;
   byChannel: FirstTouchRollup[];
+  bySource?: FirstTouchRollup[];
   bySourceMedium: FirstTouchRollup[];
   byCampaign: FirstTouchRollup[];
   sourceMediumSpendNote?: string | null;
 };
 
 const GROUPS: { key: FirstTouchGroupBy; label: string }[] = [
+  { key: "source", label: "Source" },
   { key: "source_medium", label: "Source / medium" },
   { key: "channel", label: "Channel" },
   { key: "campaign", label: "Campaign" },
@@ -39,11 +41,12 @@ export function AttributionSourceTable({
   currencyCode,
   periodLabel,
   byChannel,
+  bySource = [],
   bySourceMedium,
   byCampaign,
   sourceMediumSpendNote = null,
 }: AttributionSourceTableProps) {
-  const [group, setGroup] = useState<FirstTouchGroupBy>("source_medium");
+  const [group, setGroup] = useState<FirstTouchGroupBy>("source");
   const rows = useMemo(() => {
     if (group === "channel") {
       return byChannel;
@@ -51,8 +54,11 @@ export function AttributionSourceTable({
     if (group === "campaign") {
       return byCampaign;
     }
+    if (group === "source") {
+      return bySource;
+    }
     return bySourceMedium;
-  }, [group, byChannel, byCampaign, bySourceMedium]);
+  }, [group, byChannel, byCampaign, bySource, bySourceMedium]);
 
   const highlightEconomics = rows.some((row) => row.spend !== null);
   const totals = useMemo(() => {
@@ -94,12 +100,13 @@ export function AttributionSourceTable({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-foreground">
-            First-touch source / medium
+            Sources
           </h2>
           <p className="mt-1 text-xs leading-5 text-muted">
-            gn_* on the Shopify order · {periodLabel}. Unknown is missing stitch,
-            not Direct. Spend and ROAS only when that row has real Meta or Google
-            totals for these dates.
+            gn_* on the Shopify order · {periodLabel}. Source is the utm_source
+            that arrived (sendvio, klaviyo, or anything new). Channel Email is
+            only a bucket. Spend stays — unless that row uniquely maps to Meta
+            or Google spend for these dates.
           </p>
         </div>
         <div className="flex flex-wrap rounded-lg border border-border bg-background p-1">
@@ -136,6 +143,7 @@ export function AttributionSourceTable({
             <thead>
               <tr className="border-b border-border text-xs text-muted">
                 <th className="pb-2 pr-3 font-medium">Source</th>
+                <th className="pb-2 pr-3 font-medium">Channel</th>
                 <th className="pb-2 pr-3 font-medium">Medium</th>
                 <th className="pb-2 pr-3 font-medium">Orders</th>
                 <th className="pb-2 pr-3 font-medium">Revenue</th>
@@ -166,6 +174,7 @@ export function AttributionSourceTable({
                       {row.source}
                     </span>
                   </td>
+                  <td className="py-2 pr-3 text-muted">{row.channel}</td>
                   <td className="py-2 pr-3 text-muted">{row.medium}</td>
                   <td className="py-2 pr-3 text-muted">{formatNumber(row.orders)}</td>
                   <td className="py-2 pr-3 text-muted">
@@ -208,6 +217,7 @@ export function AttributionSourceTable({
             <tfoot>
               <tr className="border-t border-border bg-slate-50 text-sm">
                 <td className="py-2.5 pr-3 font-semibold text-foreground">Total</td>
+                <td className="py-2.5 pr-3 text-muted">—</td>
                 <td className="py-2.5 pr-3 text-muted">—</td>
                 <td className="py-2.5 pr-3 font-semibold text-foreground">
                   {formatNumber(totals.orders)}

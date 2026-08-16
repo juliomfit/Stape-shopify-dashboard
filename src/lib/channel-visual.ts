@@ -54,9 +54,13 @@ export function channelKind(name: string, type?: string): ChannelKind {
   if (
     text.includes("email") ||
     text.includes("klaviyo") ||
+    text.includes("sendvio") ||
+    text.includes("omnisend") ||
     text.includes("sms") ||
     text.includes("attentive") ||
-    text.includes("postscript")
+    text.includes("postscript") ||
+    text.includes("mailchimp") ||
+    text.includes("brevo")
   ) {
     return "email";
   }

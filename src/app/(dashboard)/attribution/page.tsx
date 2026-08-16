@@ -51,6 +51,7 @@ export default async function AttributionPage() {
     googleNewCustomerRoas,
     compare,
     shopifyFirstTouch,
+    shopifySources,
     shopifySourceMedium,
     shopifyCampaigns,
     sourceMediumSpendNote,
@@ -95,7 +96,7 @@ export default async function AttributionPage() {
     <>
       <Header
         title="True Performance"
-        description="First-touch is the gn_* cart attribute written on the Shopify order. Stape is a comparison only."
+        description="First-touch is the gn_* cart attribute written on the Shopify order. Sources appear from those tags, not from a list we type into the dashboard. Stape is a comparison only."
       />
       <section className="dash-page gap-6">
         <ConnectionStatus
@@ -288,6 +289,7 @@ export default async function AttributionPage() {
           currencyCode={currency}
           periodLabel={period.label}
           byChannel={shopifyFirstTouch}
+          bySource={shopifySources}
           bySourceMedium={shopifySourceMedium}
           byCampaign={shopifyCampaigns}
           sourceMediumSpendNote={sourceMediumSpendNote}
@@ -336,7 +338,8 @@ export default async function AttributionPage() {
         <InfoPanel
           title="How to read this"
           items={[
-            "Trust Shopify gn_* first-touch. Source / medium is gn_utm_source and gn_utm_medium (click ids if UTM is empty).",
+            "Trust Shopify gn_* first-touch. The Source tab is the raw utm_source on the order (sendvio, klaviyo, or any new tag). It is not a dashboard allowlist.",
+            "Channel Email is a bucket for email/SMS mediums and known ESPs. A new ESP with utm_medium=email still gets its own Source row.",
             "Unknown means the stitch did not write gn_*. Direct means gn_* ran with no source. They are not the same.",
             "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
             "ROAS = total revenue ÷ blended ad spend. MER is the inverse: blended ad spend ÷ total revenue (currentTotalPriceSet). They are not the same number.",

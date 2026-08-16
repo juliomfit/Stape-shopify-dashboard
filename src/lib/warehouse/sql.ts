@@ -62,8 +62,8 @@ classified AS (
         THEN "Facebook / Meta Ads"
       WHEN LOWER(IFNULL(raw_source, "")) IN ("tiktok") THEN "TikTok Ads"
       WHEN LOWER(IFNULL(raw_source, "")) IN ("bing", "microsoft") THEN "Microsoft Ads"
-      WHEN LOWER(IFNULL(raw_medium, "")) IN ("email", "sms")
-        OR LOWER(IFNULL(raw_source, "")) IN ("klaviyo", "omnisend", "email", "sms", "judgeme", "postscript", "attentive")
+      WHEN LOWER(IFNULL(raw_medium, "")) IN ("email", "sms", "edm", "newsletter", "mms")
+        OR LOWER(IFNULL(raw_source, "")) IN ("klaviyo", "omnisend", "email", "sms", "judgeme", "postscript", "attentive", "sendvio", "mailchimp", "brevo", "privy", "yotpo", "smsbump", "listrak", "drip")
         THEN "Email"
       WHEN LOWER(IFNULL(raw_source, "")) IN ("facebook", "fb", "ig", "instagram", "meta")
         OR REGEXP_CONTAINS(LOWER(IFNULL(referrer_host, "")), r"facebook|instagram")
