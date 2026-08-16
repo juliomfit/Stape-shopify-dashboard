@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { runScheduledSync, syncMetaBackfill } from "@/lib/platform/orchestrator";
 
 export const maxDuration = 60;
@@ -11,6 +12,12 @@ function jsonError(message: string, status = 500) {
   );
 }
 
+function bustMetaCache() {
+  revalidateTag("dashboard", "max");
+  revalidateTag("meta-warehouse", "max");
+  revalidatePath("/", "layout");
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
@@ -20,6 +27,7 @@ export async function POST(request: Request) {
     };
     if (body.startDate && body.endDate) {
       const result = await syncMetaBackfill(body.startDate, body.endDate);
+      bustMetaCache();
       return NextResponse.json({
         ok: result.ok,
         message: result.message,
@@ -29,6 +37,7 @@ export async function POST(request: Request) {
       });
     }
     const result = await runScheduledSync(body.source || "meta");
+    bustMetaCache();
     return NextResponse.json({
       ok: result.ok,
       message: result.message,

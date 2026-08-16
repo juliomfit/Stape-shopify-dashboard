@@ -69,7 +69,7 @@ Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. Ver
 6. Integrations → Log in with Facebook → pick ad account → **Refresh Meta**.
 7. First backfill: Integrations date pickers, max 93 Pacific days.
 
-Hourly Meta refresh is **not** an 8-day lookback. Incremental ingest is Pacific **today + yesterday**. Vercel **Hobby** cron is **once per day**
+Hourly Meta refresh is **not** an 8-day lookback. Incremental ingest is Pacific **today + yesterday + the day before** (three separate Flyweel days). Vercel **Hobby** cron is **once per day**
 (`0 15 * * *` UTC). Use Refresh Meta anytime.
 
 Overview / True Performance / Warehouse **Meta spend** reads `meta_campaign_insights_daily` (same as `/meta`) when warehouse rows or a successful sync exist. Google paste is labeled separately. Paste does **not** override warehouse Meta.

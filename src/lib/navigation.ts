@@ -15,9 +15,12 @@ export const navGroups: NavGroup[] = [
       { href: "/", label: "Overview" },
       { href: "/sales", label: "Sales" },
       { href: "/meta", label: "Meta Ads" },
-      { href: "/meta/creatives", label: "Creatives" },
       { href: "/attribution", label: "True Performance" },
     ],
+  },
+  {
+    label: "Ads",
+    items: [{ href: "/meta/creatives", label: "Creatives" }],
   },
   {
     label: "Funnel",

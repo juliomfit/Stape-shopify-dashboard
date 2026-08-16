@@ -4,6 +4,11 @@ import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
+import {
+  StackList,
+  StackRow,
+  TableOrCards,
+} from "@/components/dashboard/TableOrCards";
 
 type OrdersTableProps = {
   orders: ShopifyOrder[];
@@ -53,8 +58,32 @@ export function OrdersTable({
           First-touch from storefront gn_* cart attributes · {periodLabel}
         </p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[64rem] text-left text-sm">
+      <TableOrCards
+        cards={
+          <StackList>
+            {orders.map((order) => {
+              const href = order.legacyId
+                ? `/sales/${order.legacyId}`
+                : undefined;
+              return (
+                <StackRow key={order.id} href={href}>
+                  <span className="font-medium text-foreground">{order.name}</span>
+                  <span className="text-xs text-muted">
+                    {formatDate(order.createdAt)} · {formatMoney(order.total)}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {order.firstTouchChannel}
+                    {order.firstTouch.utmCampaign
+                      ? ` · ${order.firstTouch.utmCampaign}`
+                      : ""}
+                  </span>
+                </StackRow>
+              );
+            })}
+          </StackList>
+        }
+        table={
+      <table className="w-full min-w-[64rem] text-left text-sm">
           <thead className="bg-slate-50 text-xs font-medium uppercase tracking-wide text-muted">
             <tr>
               <th className="px-6 py-3 font-medium">Order</th>
@@ -123,7 +152,8 @@ export function OrdersTable({
             })}
           </tbody>
         </table>
-      </div>
+        }
+      />
     </article>
   );
 }
