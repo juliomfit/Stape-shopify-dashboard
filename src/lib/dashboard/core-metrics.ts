@@ -122,7 +122,7 @@ export async function getCoreDashboard() {
   for (const row of [...(metaPaste?.campaigns || []), ...(googlePaste?.campaigns || [])]) {
     campaignSpend[row.campaign] = row.spend;
   }
-  const { byChannel, bySourceMedium, byCampaign } = buildAttributionRollups(
+  const { byChannel, bySource, bySourceMedium, byCampaign } = buildAttributionRollups(
     inRange,
     spendByLabel,
     campaignSpend,
@@ -167,6 +167,7 @@ export async function getCoreDashboard() {
     cpa,
     ncRoas,
     byChannel,
+    bySource,
     bySourceMedium,
     byCampaign,
     sourceMediumNote,

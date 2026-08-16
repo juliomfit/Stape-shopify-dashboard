@@ -2,6 +2,7 @@
  * First-touch comes from storefront gn_* cart attributes on the Shopify
  * order (customAttributes / note_attributes), not Shopify session details.
  */
+import { isEmailTraffic, observedSource } from "@/lib/tracking/observed-source";
 
 export type ShopifyAttribute = {
   key?: string | null;
@@ -131,7 +132,7 @@ function referrerChannel(referrer: string) {
 }
 
 function utmChannel(source: string, medium: string) {
-  if (containsAny(medium, ["email", "sms"]) || containsAny(source, ["klaviyo", "omnisend", "postscript", "attentive", "email", "sms"])) {
+  if (isEmailTraffic(source, medium)) {
     return "Email";
   }
 
@@ -183,6 +184,10 @@ export function firstTouchChannel(firstTouch: FirstTouch) {
   const fromUtm = utmChannel(firstTouch.utmSource, firstTouch.utmMedium);
   if (fromUtm) {
     return fromUtm;
+  }
+
+  if (firstTouch.utmSource.trim()) {
+    return "Other";
   }
 
   const fromReferrer = referrerChannel(firstTouch.referrer);
@@ -237,7 +242,7 @@ export type FirstTouchRollup = {
   ncCpa: number | null;
 };
 
-export type FirstTouchGroupBy = "channel" | "campaign" | "source_medium";
+export type FirstTouchGroupBy = "source" | "channel" | "campaign" | "source_medium";
 
 const PAID_SPEND_CHANNELS = new Set(["Facebook / Meta Ads", "Google Ads"]);
 
@@ -397,13 +402,17 @@ export function buildAttributionRollups(
   campaignSpend: Record<string, number | null> = {},
 ) {
   const byChannel = rollupFirstTouch(rows, "channel", spendByChannel);
+  const bySource = attachUniqueChannelSpend(
+    rollupFirstTouch(rows, "source"),
+    spendByChannel,
+  );
   const bySourceMedium = attachUniqueChannelSpend(
     rollupFirstTouch(rows, "source_medium"),
     spendByChannel,
   );
   const byCampaign = rollupFirstTouch(rows, "campaign", campaignSpend);
 
-  return { byChannel, bySourceMedium, byCampaign };
+  return { byChannel, bySource, bySourceMedium, byCampaign };
 }
 
 export function rollupFirstTouch(
@@ -429,6 +438,10 @@ export function rollupFirstTouch(
       label = row.firstTouch.utmCampaign || "(no campaign)";
       source = label;
       medium = "—";
+    } else if (groupBy === "source") {
+      source = observedSource(row.firstTouch);
+      medium = parts.medium;
+      label = source;
     } else if (groupBy === "source_medium") {
       source = parts.source;
       medium = parts.medium;

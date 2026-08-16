@@ -34,6 +34,7 @@ export default async function SalesPage() {
     mismatch,
     ads,
     byChannel,
+    bySource,
     bySourceMedium,
     byCampaign,
     sourceMediumNote,
@@ -265,6 +266,7 @@ export default async function SalesPage() {
           currencyCode={currency}
           periodLabel={period.label}
           byChannel={byChannel}
+          bySource={bySource}
           bySourceMedium={bySourceMedium}
           byCampaign={byCampaign}
           sourceMediumSpendNote={sourceMediumNote}

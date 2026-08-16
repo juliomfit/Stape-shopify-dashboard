@@ -40,8 +40,8 @@ SELECT
       THEN "Facebook / Meta Ads"
     WHEN LOWER(IFNULL(e.utm_source, "")) IN ("tiktok") THEN "TikTok Ads"
     WHEN LOWER(IFNULL(e.utm_source, "")) IN ("bing", "microsoft") THEN "Microsoft Ads"
-    WHEN LOWER(IFNULL(e.utm_medium, "")) IN ("email", "sms")
-      OR LOWER(IFNULL(e.utm_source, "")) IN ("klaviyo", "omnisend", "email", "sms", "judgeme", "postscript", "attentive")
+    WHEN LOWER(IFNULL(e.utm_medium, "")) IN ("email", "sms", "edm", "newsletter", "mms")
+      OR LOWER(IFNULL(e.utm_source, "")) IN ("klaviyo", "omnisend", "email", "sms", "judgeme", "postscript", "attentive", "sendvio", "mailchimp", "brevo", "privy", "yotpo", "smsbump", "listrak", "drip")
       THEN "Email"
     WHEN LOWER(IFNULL(e.utm_source, "")) IN ("facebook", "fb", "ig", "instagram", "meta")
       OR REGEXP_CONTAINS(LOWER(IFNULL(e.referrer_host, "")), r"facebook|instagram|l.facebook")

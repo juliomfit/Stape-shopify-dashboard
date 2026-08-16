@@ -59,6 +59,7 @@ export type TruePerformance = {
   googleNewCustomerRoas: number | null;
   compare: PlatformCompareRow[];
   shopifyFirstTouch: FirstTouchRollup[];
+  shopifySources: FirstTouchRollup[];
   shopifySourceMedium: FirstTouchRollup[];
   shopifyCampaigns: FirstTouchRollup[];
   sourceMediumSpendNote: string | null;
@@ -137,12 +138,13 @@ export async function getTruePerformance(): Promise<TruePerformance> {
     ...campaignSpendByLabel(googlePaste),
     ...campaignSpendByLabel(metaPaste),
   };
-  const { byChannel, bySourceMedium, byCampaign } = buildAttributionRollups(
+  const { byChannel, bySource, bySourceMedium, byCampaign } = buildAttributionRollups(
     inRange,
     spendByLabel,
     campaignSpend,
   );
   const shopifyFirstTouch = byChannel;
+  const shopifySources = bySource;
   const shopifySourceMedium = bySourceMedium;
   const shopifyCampaigns = byCampaign;
   const sourceMediumSpendNoteText = sourceMediumSpendNote(
@@ -204,6 +206,7 @@ export async function getTruePerformance(): Promise<TruePerformance> {
       ),
     ],
     shopifyFirstTouch,
+    shopifySources,
     shopifySourceMedium,
     shopifyCampaigns,
     sourceMediumSpendNote: sourceMediumSpendNoteText,

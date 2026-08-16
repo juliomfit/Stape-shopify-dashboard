@@ -8,9 +8,9 @@ Header date cookie `dashboard_range` (America/Los_Angeles) is the period on ever
 | Sales | `/sales` | Shopify Admin orders + gn_* cart attributes | Same blended spend as Overview. First-touch is gn_*. |
 | Meta Ads | `/meta` | Warehouse campaign facts (Flyweel ingest). Charts never call Flyweel on GET. | Platform Ads Manager matching. Same Meta dollars as Overview Meta. |
 | Creatives | `/meta/creatives` | Campaign warehouse fallback; Graph thumbnails if stored | Campaign CPA from warehouse. No Flyweel thumbnails. |
-| Traffic | `/traffic` | Stape BQ sessions | No ad spend. Same session definition as Overview. |
+| Traffic | `/traffic` | Stape BQ sessions. Raw source list from first-hit `utm_source` / click id / referrer, plus channel buckets. | No ad spend. Same session definition as Overview. |
 | Conversions | `/conversions` | Shopify + Stape funnel from `getCoreDashboard` | Blended CPA same formula as Overview. |
-| True Performance | `/attribution` | Shopify gn_* first-touch | Spend labeled platform/paste. Channel ROAS = gn_* revenue ÷ platform spend. Never Ads Manager attribution. |
+| True Performance | `/attribution` | Shopify gn_* first-touch. Source tab = raw `utm_source` (Sendvio, Klaviyo, or any new tag). Channel Email is a bucket. | Spend labeled platform/paste. Channel ROAS = gn_* revenue ÷ platform spend. Never Ads Manager attribution. |
 | Warehouse | `/warehouse` | Stape `raw_events_full` click models | Platform Meta/Google spend cards share `getPlatformReported`. Models are not gn_*. |
 | Products | `/products` | Shopify line items | No invented COGS. |
 | Customers | `/customers` | Shopify customers on orders in range | Shopify period cookie. |

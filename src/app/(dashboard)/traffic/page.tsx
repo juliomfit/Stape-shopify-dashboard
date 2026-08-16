@@ -37,7 +37,7 @@ export default async function TrafficPage() {
     <>
       <Header
         title="Traffic"
-        description="Stape sessions from BigQuery. Channel names match gn_* (Google Ads, Facebook / Meta Ads, and so on). This is not first-touch truth."
+        description="Stape sessions from BigQuery. The source list is whatever utm_source (or click id / referrer) arrived — Sendvio does not need to be pre-listed. Channel buckets are separate."
       />
       <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
@@ -87,6 +87,12 @@ export default async function TrafficPage() {
             }
           />
         </div>
+        <TrafficSourcesPanel
+          title="Sources (utm / click / referrer)"
+          sources={stape.rawSources}
+          periodLabel={stape.periodLabel}
+          description={`Whatever landed on the first page of the session · ${stape.periodLabel} · not a dashboard allowlist · not gn_*`}
+        />
         <div className="grid gap-4 lg:grid-cols-2">
           <TrafficSourcesPanel
             title="Paid (Stape)"

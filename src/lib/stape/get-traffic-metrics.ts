@@ -3,6 +3,7 @@ import { getBigQueryClient } from "@/lib/stape/client";
 import {
   ATTRIBUTION_CHANNELS,
   CHANNEL_SQL,
+  OBSERVED_SOURCE_SQL,
   ORGANIC_CHANNELS,
   PAID_CHANNELS,
 } from "@/lib/stape/channel-sql";
@@ -30,6 +31,7 @@ function emptyMetrics(periodLabel: string): StapeTrafficMetrics {
     events: null,
     pageviews: null,
     sources: [],
+    rawSources: [],
     paidSources: [],
     organicSources: [],
     eventCounts: [],
@@ -132,6 +134,54 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
     const totalsRow = (totals[0] ?? {}) as TotalsRow;
     const allSources = withAllChannels(sources as SourceRow[]);
 
+    const [rawSourceRows] = await client.query({
+      ...queryOptions,
+      query: `
+        WITH hits AS (
+          SELECT
+            CONCAT(IFNULL(client_id, ''), '|', IFNULL(ga_session_id, '')) AS session_key,
+            timestamp,
+            LOWER(IFNULL(page_location, '')) AS page_location,
+            LOWER(IFNULL(page_referrer, '')) AS page_referrer,
+            IFNULL(gclid, '') AS gclid,
+            IFNULL(gbraid, '') AS gbraid,
+            IFNULL(wbraid, '') AS wbraid,
+            IFNULL(dclid, '') AS dclid,
+            IFNULL(fbclid, '') AS fbclid,
+            IFNULL(fbc, '') AS fbc,
+            IFNULL(ttclid, '') AS ttclid,
+            IFNULL(msclkid, '') AS msclkid
+          FROM ${table}
+          WHERE timestamp >= @startMs AND timestamp < @endMs
+        ),
+        first_hit AS (
+          SELECT * EXCEPT (rn)
+          FROM (
+            SELECT
+              hits.*,
+              ROW_NUMBER() OVER (PARTITION BY session_key ORDER BY timestamp) AS rn
+            FROM hits
+            WHERE session_key != '|'
+          )
+          WHERE rn = 1
+        )
+        SELECT
+          ${OBSERVED_SOURCE_SQL} AS source,
+          COUNT(*) AS sessions
+        FROM first_hit
+        GROUP BY 1
+        ORDER BY sessions DESC
+        LIMIT 80
+      `,
+      params: timeParams,
+    });
+    const rawSources = (rawSourceRows as SourceRow[])
+      .map((row) => ({
+        source: row.source || "direct",
+        sessions: toNumber(row.sessions),
+      }))
+      .filter((row) => row.source);
+
     const [eventRows] = await client.query({
       ...queryOptions,
       query: `
@@ -161,6 +211,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
       sessions: toNumber(totalsRow.sessions),
       pageviews: toNumber(totalsRow.pageviews),
       sources: allSources,
+      rawSources,
       paidSources: allSources.filter((row) =>
         (PAID_CHANNELS as readonly string[]).includes(row.source),
       ),

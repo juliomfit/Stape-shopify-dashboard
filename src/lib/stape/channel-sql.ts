@@ -1,3 +1,5 @@
+import { EMAIL_MEDIUM_SQL, EMAIL_SOURCE_SQL } from "@/lib/tracking/observed-source";
+
 /** Shared BigQuery SQL for first-party channel grouping. */
 export const ATTRIBUTION_CHANNELS = [
   "Google Ads",
@@ -59,8 +61,8 @@ export const CHANNEL_SQL = `
       OR page_location LIKE '%msclkid=%'
       OR REGEXP_CONTAINS(page_location, r'[?&]utm_source=(bing|microsoft)')
       THEN 'Microsoft Ads'
-    WHEN REGEXP_CONTAINS(page_location, r'[?&]utm_medium=(email|sms)')
-      OR REGEXP_CONTAINS(page_location, r'[?&]utm_source=(klaviyo|omnisend|email|sms|postscript|attentive)')
+    WHEN REGEXP_CONTAINS(page_location, r'[?&]utm_medium=(${EMAIL_MEDIUM_SQL})')
+      OR REGEXP_CONTAINS(page_location, r'[?&]utm_source=(${EMAIL_SOURCE_SQL})')
       THEN 'Email'
     WHEN REGEXP_CONTAINS(page_location, r'[?&]utm_source=(facebook|fb|ig|instagram|meta)')
       OR page_referrer LIKE '%facebook%'
@@ -72,6 +74,8 @@ export const CHANNEL_SQL = `
       OR page_referrer LIKE '%google.com%'
       OR page_referrer LIKE '%youtube.com%'
       THEN 'Google Organic'
+    WHEN REGEXP_CONTAINS(IFNULL(page_location, ''), r'[?&]utm_source=[^&]+')
+      THEN 'Other'
     WHEN page_location LIKE '%web-pixels@%'
       OR page_location LIKE '%/checkouts/%'
       OR page_location LIKE '%/checkout%'
@@ -83,5 +87,43 @@ export const CHANNEL_SQL = `
       )
       THEN 'Direct'
     ELSE 'Other'
+  END
+`;
+
+/** Raw utm_source / click-id / referrer host. New tools appear without a dashboard allowlist. */
+export const OBSERVED_SOURCE_SQL = `
+  CASE
+    WHEN REGEXP_CONTAINS(IFNULL(page_location, ''), r'[?&]utm_source=[^&]+')
+      THEN LOWER(TRIM(REGEXP_REPLACE(
+        IFNULL(REGEXP_EXTRACT(page_location, r'[?&]utm_source=([^&#]+)'), ''),
+        r'%20',
+        ' '
+      )))
+    WHEN IFNULL(gclid, '') != ''
+      OR IFNULL(gbraid, '') != ''
+      OR IFNULL(wbraid, '') != ''
+      OR IFNULL(dclid, '') != ''
+      OR page_location LIKE '%gclid=%'
+      OR page_location LIKE '%wbraid=%'
+      OR page_location LIKE '%gbraid=%'
+      OR page_location LIKE '%dclid=%'
+      THEN 'google'
+    WHEN IFNULL(fbclid, '') != ''
+      OR IFNULL(fbc, '') != ''
+      OR page_location LIKE '%fbclid=%'
+      THEN 'facebook'
+    WHEN IFNULL(ttclid, '') != ''
+      OR page_location LIKE '%ttclid=%'
+      THEN 'tiktok'
+    WHEN IFNULL(msclkid, '') != ''
+      OR page_location LIKE '%msclkid=%'
+      THEN 'microsoft'
+    WHEN IFNULL(page_referrer, '') != ''
+      AND (
+        IFNULL(page_location, '') = ''
+        OR STRPOS(IFNULL(page_referrer, ''), IFNULL(NET.HOST(page_location), '')) = 0
+      )
+      THEN LOWER(IFNULL(NET.HOST(page_referrer), 'direct'))
+    ELSE 'direct'
   END
 `;

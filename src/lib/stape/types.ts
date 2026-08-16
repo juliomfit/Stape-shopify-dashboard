@@ -22,6 +22,7 @@ export type StapeTrafficMetrics = {
   events: number | null;
   pageviews: number | null;
   sources: TrafficSource[];
+  rawSources: TrafficSource[];
   paidSources: TrafficSource[];
   organicSources: TrafficSource[];
   eventCounts: StapeEventCount[];
