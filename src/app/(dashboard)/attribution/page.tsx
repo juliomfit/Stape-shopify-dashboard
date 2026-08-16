@@ -18,6 +18,7 @@ import { getConversionRate } from "@/lib/dashboard/conversion";
 import { shopifyStapeMismatch, unknownFirstTouch } from "@/lib/dashboard/kpis";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { blendedAdSpendSource, firstTouchSourceLine } from "@/lib/metrics/source-lines";
+import { getGa4Snapshot } from "@/lib/ads/ga4-query";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,10 @@ function roasLabel(value: number | null) {
 }
 
 export default async function AttributionPage() {
-  const data = await getTruePerformance();
+  const [data, ga4] = await Promise.all([
+    getTruePerformance(),
+    getGa4Snapshot().catch(() => null),
+  ]);
   const {
     shopify,
     funnel,
@@ -300,6 +304,56 @@ export default async function AttributionPage() {
           facebookNote={platform.facebook.message}
           googleNote={platform.google.message}
         />
+        {ga4 ? (
+          <article className="rounded-2xl border border-dashed border-border bg-surface/60 p-6">
+            <h2 className="text-sm font-semibold text-foreground">
+              GA4 session source / medium (not gn_*)
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              Google Analytics last-click-style session source. Do not use this instead of
+              True Performance above. Property {ga4.propertyId || "unset"}
+              {ga4.streamId ? ` · stream ${ga4.streamId}` : ""}.
+            </p>
+            {ga4.sources.length === 0 ? (
+              <p className="mt-4 text-sm text-muted">
+                No GA4 source rows. Refresh GA4 for this header range.
+              </p>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[32rem] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs text-muted">
+                      <th className="pb-2 pr-3 font-medium">Source</th>
+                      <th className="pb-2 pr-3 font-medium">Medium</th>
+                      <th className="pb-2 pr-3 font-medium">Sessions</th>
+                      <th className="pb-2 pr-3 font-medium">Purchases</th>
+                      <th className="pb-2 font-medium">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ga4.sources.map((row) => (
+                      <tr
+                        key={`${row.source}/${row.medium}/${row.campaign}`}
+                        className="border-b border-border"
+                      >
+                        <td className="py-2 pr-3 font-medium text-foreground">{row.source}</td>
+                        <td className="py-2 pr-3 text-muted">{row.medium}</td>
+                        <td className="py-2 pr-3 text-muted">{formatNumber(row.sessions)}</td>
+                        <td className="py-2 pr-3 text-muted">{formatNumber(row.purchases)}</td>
+                        <td className="py-2 text-muted">
+                          {formatMoney({
+                            amount: row.purchaseRevenue,
+                            currencyCode: currency,
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </article>
+        ) : null}
         <section className="rounded-2xl border border-dashed border-border bg-surface/60 p-6">
           <h2 className="text-sm font-semibold text-foreground">
             Stape comparison (not the source of truth)
@@ -339,6 +393,7 @@ export default async function AttributionPage() {
           title="How to read this"
           items={[
             "Trust Shopify gn_* first-touch. The Source tab is the raw utm_source on the order (sendvio, klaviyo, or any new tag). It is not a dashboard allowlist.",
+            "GA4 source / medium is Google Analytics. It is a comparison only. Trust gn_* for True Performance.",
             "Channel Email is a bucket for email/SMS mediums and known ESPs. A new ESP with utm_medium=email still gets its own Source row.",
             "Unknown means the stitch did not write gn_*. Direct means gn_* ran with no source. They are not the same.",
             "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",

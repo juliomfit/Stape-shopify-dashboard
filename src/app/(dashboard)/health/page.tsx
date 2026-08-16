@@ -3,7 +3,7 @@ import { DataHealthStrip } from "@/components/dashboard/DataHealthStrip";
 import { Header } from "@/components/layout/Header";
 import { RefreshControls } from "@/components/dashboard/RefreshControls";
 import { getDataHealth } from "@/lib/platform/health";
-import { listSyncRuns } from "@/lib/platform/sync-runs";
+import { listSyncRuns, latestSuccessfulSync } from "@/lib/platform/sync-runs";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { coverageRatio } from "@/lib/metrics/formulas";
 import { getSelectedPeriod } from "@/lib/period-server";
@@ -11,7 +11,9 @@ import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
+import { Ga4CaptureCompare } from "@/components/dashboard/Ga4Panels";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
+import { getGa4Snapshot } from "@/lib/ads/ga4-query";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +21,14 @@ export const metadata: Metadata = { title: "Data health" };
 
 export default async function HealthPage() {
   const period = await getSelectedPeriod();
-  const [sources, runs, data, attribution, metaFacts] = await Promise.all([
+  const [sources, runs, data, attribution, metaFacts, ga4, ga4Ok] = await Promise.all([
     getDataHealth().catch(() => []),
     listSyncRuns().catch(() => []),
     getCoreDashboard(),
     getAttributionMetrics().catch(() => ({ tracking: [] as { label: string; filled: number; total: number }[] })),
     getCampaignFacts(period).catch(() => []),
+    getGa4Snapshot(period).catch(() => null),
+    latestSuccessfulSync("ga4").catch(() => null),
   ]);
   const shopifyOrders = data.shopifyConnected ? data.alignedShopify.orders : null;
   const stapePurchases = data.stapeConnected ? data.funnel.purchases : null;
@@ -34,10 +38,17 @@ export default async function HealthPage() {
     metaFacts.length > 0 &&
     overviewMeta !== null &&
     Math.abs(warehouseMeta.spend - overviewMeta) > 0.01;
-  const ga4Note = "GA4 purchases are not in this table unless GA4_PROPERTY_ID sync succeeded.";
+  const ga4Note =
+    "GA4 is Google Analytics (browser property), not gn_* and not Stape. Enable Data API on the service-account GCP project, then Refresh GA4.";
+  const ga4Ready = Boolean(ga4Ok);
   const rows = [
     { label: "Shopify orders", value: shopifyOrders, kind: "capture" },
     { label: "Server GTM / Stape purchases", value: stapePurchases, kind: "capture" },
+    {
+      label: "GA4 purchases",
+      value: ga4Ready && ga4 ? ga4.totals.purchases : null,
+      kind: "capture",
+    },
     {
       label: "Meta attributed purchases",
       value: data.ads.facebook.purchases,
@@ -59,6 +70,20 @@ export default async function HealthPage() {
       <section className="dash-page gap-6">
         <DataHealthStrip sources={sources} />
         <RefreshControls />
+        <Ga4CaptureCompare
+          shopifyOrders={shopifyOrders}
+          shopifyRevenue={data.shopifyConnected ? data.alignedShopify.revenue : null}
+          stapePurchases={stapePurchases}
+          stapeRevenue={data.stapeConnected ? data.funnel.purchaseRevenue : null}
+          ga4Purchases={ga4Ready && ga4 ? ga4.totals.purchases : null}
+          ga4Revenue={ga4Ready && ga4 ? ga4.totals.purchaseRevenue : null}
+          ga4Sessions={ga4Ready && ga4 ? ga4.totals.sessions : null}
+          currencyCode={data.currency}
+          periodLabel={data.period.label}
+          propertyId={ga4?.propertyId || ""}
+          streamId={ga4?.streamId || ""}
+          hasRows={ga4Ready}
+        />
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Spend correlation</h2>
           <p className="mt-1 text-xs text-muted">{blendedAdSpendSource(data.ads, data.period.label)}</p>

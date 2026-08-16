@@ -266,9 +266,45 @@ CREATE TABLE IF NOT EXISTS `stape-analytics-487802.goodsnova_platform.raw_ga4_me
   sessions FLOAT64,
   purchases FLOAT64,
   purchase_revenue FLOAT64,
+  engaged_sessions FLOAT64,
+  engagement_rate FLOAT64,
+  bounce_rate FLOAT64,
+  avg_session_seconds FLOAT64,
+  new_users FLOAT64,
+  active_users FLOAT64,
+  add_to_carts FLOAT64,
+  checkouts FLOAT64,
+  views FLOAT64,
   property_id STRING,
+  stream_id STRING,
   synced_at TIMESTAMP,
   source_payload STRING
+);
+
+CREATE TABLE IF NOT EXISTS `stape-analytics-487802.goodsnova_platform.raw_ga4_sources` (
+  date STRING,
+  source STRING,
+  medium STRING,
+  campaign STRING,
+  sessions FLOAT64,
+  purchases FLOAT64,
+  purchase_revenue FLOAT64,
+  property_id STRING,
+  stream_id STRING,
+  synced_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS `stape-analytics-487802.goodsnova_platform.raw_ga4_breakdowns` (
+  date STRING,
+  kind STRING,
+  label STRING,
+  sessions FLOAT64,
+  purchases FLOAT64,
+  purchase_revenue FLOAT64,
+  extra FLOAT64,
+  property_id STRING,
+  stream_id STRING,
+  synced_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `stape-analytics-487802.goodsnova_platform.openai_usage` (
