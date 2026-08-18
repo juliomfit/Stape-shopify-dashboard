@@ -1,16 +1,39 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #f3f5f8;
   --foreground: #0f172a;
   --muted: #64748b;
   --border: #e6eaf0;
   --surface: #ffffff;
+  --elevated: #f8fafc;
   --sidebar: #0b1220;
   --sidebar-foreground: #94a3b8;
   --sidebar-active: #ffffff;
   --accent: #2563eb;
   --accent-soft: #eff4ff;
+  --positive: #059669;
+  --negative: #dc2626;
+  --warning: #b45309;
+}
+
+.dark {
+  --background: #0a0e1a;
+  --foreground: #e8edf5;
+  --muted: #8b98ad;
+  --border: #1e2637;
+  --surface: #111726;
+  --elevated: #182034;
+  --sidebar: #070b14;
+  --sidebar-foreground: #8b98ad;
+  --sidebar-active: #ffffff;
+  --accent: #3b82f6;
+  --accent-soft: #17233f;
+  --positive: #34d399;
+  --negative: #f87171;
+  --warning: #fbbf24;
 }
 
 @theme inline {
@@ -19,11 +42,15 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-active: var(--sidebar-active);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -32,4 +59,54 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/*
+ * Dark-mode shims for the light-only Tailwind color utilities still used by
+ * the older detail pages, so dark mode stays consistent without rewriting
+ * every component. New components use semantic tokens and don't need these.
+ */
+.dark .bg-slate-50,
+.dark .bg-slate-100 {
+  background-color: var(--elevated);
+}
+
+.dark .bg-slate-500 {
+  background-color: #64748b;
+}
+
+.dark .text-slate-300,
+.dark .text-slate-500,
+.dark .text-slate-600 {
+  color: var(--muted);
+}
+
+.dark .bg-emerald-50 {
+  background-color: color-mix(in srgb, var(--positive) 16%, transparent);
+}
+
+.dark .text-emerald-700 {
+  color: var(--positive);
+}
+
+.dark .bg-red-50 {
+  background-color: color-mix(in srgb, var(--negative) 16%, transparent);
+}
+
+.dark .text-red-600,
+.dark .text-red-700 {
+  color: var(--negative);
+}
+
+.dark .bg-amber-50 {
+  background-color: color-mix(in srgb, var(--warning) 16%, transparent);
+}
+
+.dark .border-amber-200 {
+  border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+}
+
+.dark .text-amber-800,
+.dark .text-amber-950 {
+  color: var(--warning);
 }
