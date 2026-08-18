@@ -114,7 +114,7 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
     <>
       <Header
         title="Attribution"
-        description={`${modelLabel} · ${lookbackDays}d window · Shopify is money truth. Unknown is not Direct. Campaign mapping coverage is ${CAMPAIGN_MAPPING_STATUS}.`}
+        description="Shopify is money truth. Unknown is not Direct. Model and window live in the controls and URL. Campaign mapping coverage is VALIDATION REQUIRED until Julio runs bigquery/validation/05_meta_campaign_mapping_coverage.sql."
       />
       <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} stape={warehouse.status} />

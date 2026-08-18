@@ -9,6 +9,8 @@ import {
 import {
   ATTRIBUTION_WINDOW_DAYS,
   ATTRIBUTION_WINDOW_NOTE,
+  parseAttributionLookback,
+  parseAttributionModelParam,
 } from "@/lib/attribution/windows";
 
 type AttributionControlsProps = {
@@ -25,11 +27,20 @@ export function AttributionControls({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const selectedModel = parseAttributionModelParam(
+    searchParams.get("model"),
+    ATTRIBUTION_MODELS,
+    model ?? "last_non_direct",
+  ) as AttributionModel;
+  const selectedLookback = parseAttributionLookback(
+    searchParams.get("lookback") ?? String(lookbackDays),
+  );
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams.toString());
     next.set(key, value);
-    router.replace(`${pathname}?${next.toString()}`);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    router.refresh();
   }
 
   return (
@@ -39,7 +50,7 @@ export function AttributionControls({
           Attribution model
           <select
             className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
-            value={model}
+            value={selectedModel}
             onChange={(event) => setParam("model", event.target.value)}
           >
             {ATTRIBUTION_MODELS.map((key) => (
@@ -54,7 +65,7 @@ export function AttributionControls({
         Attribution window
         <select
           className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
-          value={String(lookbackDays)}
+          value={String(selectedLookback)}
           onChange={(event) => setParam("lookback", event.target.value)}
         >
           {ATTRIBUTION_WINDOW_DAYS.map((days) => (
@@ -64,7 +75,13 @@ export function AttributionControls({
           ))}
         </select>
       </label>
-      <p className="max-w-sm text-xs leading-5 text-muted">{ATTRIBUTION_WINDOW_NOTE}</p>
+      <div className="max-w-sm">
+        <p className="text-sm font-medium text-foreground">
+          {showModel ? `${ATTRIBUTION_MODEL_LABELS[selectedModel]} · ` : ""}
+          {selectedLookback}d window
+        </p>
+        <p className="mt-1 text-xs leading-5 text-muted">{ATTRIBUTION_WINDOW_NOTE}</p>
+      </div>
     </div>
   );
 }
