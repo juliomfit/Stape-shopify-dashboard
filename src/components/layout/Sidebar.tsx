@@ -2,6 +2,7 @@
 
 import { BrandMark } from "@/components/dashboard/BrandMark";
 import { NavLinks } from "@/components/layout/NavLinks";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 export function Sidebar() {
   return (
@@ -16,6 +17,9 @@ export function Sidebar() {
         </div>
       </div>
       <NavLinks />
+      <div className="mt-auto border-t border-white/10 px-3 py-3">
+        <ThemeToggle />
+      </div>
     </aside>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { BrandMark } from "@/components/dashboard/BrandMark";
 import { NavLinks } from "@/components/layout/NavLinks";
 import { useNav } from "@/components/layout/nav-context";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 export function MobileDrawer() {
   const { open, setOpen } = useNav();
@@ -69,6 +70,9 @@ export function MobileDrawer() {
           </button>
         </div>
         <NavLinks onNavigate={() => setOpen(false)} />
+        <div className="mt-auto border-t border-white/10 px-3 py-3">
+          <ThemeToggle onToggle={() => setOpen(false)} />
+        </div>
       </div>
     </div>
   );
