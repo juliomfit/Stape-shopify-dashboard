@@ -4,7 +4,7 @@ import type { Money } from "@/lib/shopify/types";
 export function formatMoney(money: Money) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: money.currencyCode,
+    currency: money.currencyCode || "USD",
     maximumFractionDigits: 2,
   }).format(money.amount);
 }

@@ -13,7 +13,10 @@ function ratio(count: number, base: number) {
     return null;
   }
 
-  return count / base;
+  // Funnel steps are not strictly nested (e.g. purchases are counted by
+  // transaction_id, checkout by session), so a later step can exceed an
+  // earlier one. Clamp to [0, 100%] so the funnel never shows > 100%.
+  return Math.max(0, Math.min(count / base, 1));
 }
 
 function dropOff(count: number, previous: number) {
@@ -21,7 +24,8 @@ function dropOff(count: number, previous: number) {
     return null;
   }
 
-  return 1 - count / previous;
+  // Never report a negative drop-off when a step grows vs the previous one.
+  return Math.max(0, 1 - count / previous);
 }
 
 export function ConversionFunnel({
