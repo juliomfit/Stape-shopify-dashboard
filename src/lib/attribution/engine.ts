@@ -242,3 +242,96 @@ export function attributeAllModels(
   }
   return result;
 }
+
+// --- Cross-order rollups (model comparison) ------------------------------
+
+export type OrderInput = {
+  id: string;
+  revenue: number;
+  purchaseTs: number;
+  touchpoints: Touchpoint[];
+};
+
+/** Attributed revenue and fractional ("equivalent") orders for one channel. */
+export type ChannelCell = {
+  revenue: number;
+  orders: number;
+};
+
+export type RollupOptions = {
+  model: AttributionModel;
+  windowDays?: number;
+  positionWeights?: PositionWeights;
+  timeDecayHalfLifeHours?: number;
+};
+
+/**
+ * Aggregate attributed revenue and fractional orders by channel for one model
+ * across many orders. Fractional orders are the summed touch credit weights, so
+ * they add up to the number of attributed orders (never double-counted).
+ */
+export function attributeOrdersByChannel(
+  orders: OrderInput[],
+  options: RollupOptions,
+): Record<string, ChannelCell> {
+  const out: Record<string, ChannelCell> = {};
+  for (const order of orders) {
+    const credits = attribute(order.touchpoints, {
+      model: options.model,
+      purchaseTs: order.purchaseTs,
+      windowDays: options.windowDays,
+      positionWeights: options.positionWeights,
+      timeDecayHalfLifeHours: options.timeDecayHalfLifeHours,
+    });
+    for (const item of credits) {
+      const cell = out[item.channel] ?? { revenue: 0, orders: 0 };
+      cell.revenue += item.weight * order.revenue;
+      cell.orders += item.weight;
+      out[item.channel] = cell;
+    }
+  }
+  return out;
+}
+
+export type ModelComparison = {
+  channels: string[];
+  models: AttributionModel[];
+  /** cells[model][channel] */
+  cells: Record<AttributionModel, Record<string, ChannelCell>>;
+  totalsByModel: Record<AttributionModel, ChannelCell>;
+};
+
+/**
+ * Build a channel × model matrix of attributed revenue/orders. Channels are the
+ * union across all models, ordered by descending revenue under the first model.
+ */
+export function compareModels(
+  orders: OrderInput[],
+  models: AttributionModel[],
+  options: Omit<RollupOptions, "model"> = {},
+): ModelComparison {
+  const cells = {} as Record<AttributionModel, Record<string, ChannelCell>>;
+  const totalsByModel = {} as Record<AttributionModel, ChannelCell>;
+  const channelSet = new Set<string>();
+
+  for (const model of models) {
+    const byChannel = attributeOrdersByChannel(orders, { ...options, model });
+    cells[model] = byChannel;
+    let revenue = 0;
+    let orderTotal = 0;
+    for (const [channel, cell] of Object.entries(byChannel)) {
+      channelSet.add(channel);
+      revenue += cell.revenue;
+      orderTotal += cell.orders;
+    }
+    totalsByModel[model] = { revenue, orders: orderTotal };
+  }
+
+  const reference = models[0];
+  const channels = [...channelSet].sort(
+    (a, b) =>
+      (cells[reference]?.[b]?.revenue ?? 0) - (cells[reference]?.[a]?.revenue ?? 0),
+  );
+
+  return { channels, models, cells, totalsByModel };
+}
