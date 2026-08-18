@@ -7,6 +7,7 @@ import {
   Boxes,
   Database,
   Funnel,
+  Gauge,
   Images,
   LayoutDashboard,
   Megaphone,
@@ -40,6 +41,8 @@ export function NavIcon({
   className?: string;
 }) {
   switch (href) {
+    case "/summary":
+      return <Gauge className={className} />;
     case "/":
       return <LayoutDashboard className={className} />;
     case "/sales":
