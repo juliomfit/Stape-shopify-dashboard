@@ -1,0 +1,183 @@
+<script>
+(function () {
+  try {
+    if (!window.fetch) return;
+
+    // ===== Config =====
+    var UID_COOKIE = "gn_uid";
+    var UID_DAYS = 365;
+
+    // Stape Click ID Restorer backup param (Google Ads Final URL suffix: qwerty={gclid})
+    var BACKUP_GCLID_PARAM = "qwerty";
+
+    // ===== Helpers (ES5-safe: no block-scoped function declarations) =====
+    var nowIso = function () { return new Date().toISOString(); };
+    var safeSlice = function (v, n) {
+      v = (v || "").toString().trim();
+      return v.length > n ? v.slice(0, n) : v;
+    };
+
+    var getCookie = function (name) {
+      var m = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+      return m ? decodeURIComponent(m[2]) : "";
+    };
+
+    var setCookie = function (name, value, days) {
+      var d = new Date();
+      d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+      document.cookie =
+        name + "=" + encodeURIComponent(value) +
+        "; expires=" + d.toUTCString() +
+        "; path=/; SameSite=Lax";
+    };
+
+    var uuidv4 = function () {
+      return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, function (c) {
+        return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
+      });
+    };
+
+    var getLS = function (k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
+    var setLS = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };
+
+    // ===== 1) Ensure stitch id cookie =====
+    var gn_uid = getCookie(UID_COOKIE);
+    if (!gn_uid) {
+      gn_uid = uuidv4();
+      setCookie(UID_COOKIE, gn_uid, UID_DAYS);
+    }
+
+    // ===== 2) Capture first-touch attribution (only once) =====
+    var qs = new URLSearchParams(location.search);
+
+    var cand = {
+      utm_source: qs.get("utm_source") || "",
+      utm_medium: qs.get("utm_medium") || "",
+      utm_campaign: qs.get("utm_campaign") || "",
+      utm_content: qs.get("utm_content") || "",
+      utm_term: qs.get("utm_term") || "",
+
+      // Click IDs
+      gclid: (qs.get("gclid") || qs.get(BACKUP_GCLID_PARAM) || ""),
+      gbraid: qs.get("gbraid") || "",
+      wbraid: qs.get("wbraid") || "",
+      msclkid: qs.get("msclkid") || "",
+      fbclid: qs.get("fbclid") || "",
+      ttclid: qs.get("ttclid") || ""
+    };
+
+    // Referrer hostname only (avoid storing full URL)
+    var ref = "";
+    try {
+      if (document.referrer) {
+        var r = new URL(document.referrer);
+        if (r.hostname && r.hostname !== location.hostname) ref = safeSlice(r.hostname, 200);
+      }
+    } catch (e) {}
+
+    var hasAny = !!(cand.utm_source || cand.utm_medium || cand.utm_campaign || cand.gclid || cand.msclkid || cand.fbclid || cand.ttclid || ref);
+
+    var FT_KEY = "gn_first_touch_v1";
+    var ftRaw = getLS(FT_KEY);
+    var ft = null;
+    try { ft = ftRaw ? JSON.parse(ftRaw) : null; } catch (e) { ft = null; }
+
+    if (!ft && hasAny) {
+      ft = {
+        ts: nowIso(),
+        landing_path: safeSlice(location.pathname, 200),
+        referrer: ref || ""
+      };
+
+      if (cand.utm_source) ft.utm_source = safeSlice(cand.utm_source, 200);
+      if (cand.utm_medium) ft.utm_medium = safeSlice(cand.utm_medium, 200);
+      if (cand.utm_campaign) ft.utm_campaign = safeSlice(cand.utm_campaign, 200);
+      if (cand.utm_content) ft.utm_content = safeSlice(cand.utm_content, 200);
+      if (cand.utm_term) ft.utm_term = safeSlice(cand.utm_term, 200);
+
+      if (cand.gclid) ft.gclid = safeSlice(cand.gclid, 200);
+      if (cand.gbraid) ft.gbraid = safeSlice(cand.gbraid, 200);
+      if (cand.wbraid) ft.wbraid = safeSlice(cand.wbraid, 200);
+      if (cand.msclkid) ft.msclkid = safeSlice(cand.msclkid, 200);
+      if (cand.fbclid) ft.fbclid = safeSlice(cand.fbclid, 200);
+      if (cand.ttclid) ft.ttclid = safeSlice(cand.ttclid, 200);
+
+      setLS(FT_KEY, JSON.stringify(ft));
+    }
+
+    // ===== 2b) Mirror first-touch into cookies (first-write only) =====
+    // sGTM BQ maps gclid/fbclid from Event Data gn_gclid / gn_fbclid.
+    // Returning visitors who already have localStorage get cookies on this run.
+    if (ft) {
+      var ftCookies = [
+        ["gn_utm_source", ft.utm_source],
+        ["gn_utm_medium", ft.utm_medium],
+        ["gn_utm_campaign", ft.utm_campaign],
+        ["gn_utm_content", ft.utm_content],
+        ["gn_utm_term", ft.utm_term],
+        ["gn_gclid", ft.gclid],
+        ["gn_gbraid", ft.gbraid],
+        ["gn_wbraid", ft.wbraid],
+        ["gn_msclkid", ft.msclkid],
+        ["gn_fbclid", ft.fbclid],
+        ["gn_ttclid", ft.ttclid]
+      ];
+      var ci;
+      for (ci = 0; ci < ftCookies.length; ci++) {
+        var ck = ftCookies[ci];
+        if (ck[1] && !getCookie(ck[0])) setCookie(ck[0], safeSlice(ck[1], 200), UID_DAYS);
+      }
+    }
+
+    // ===== 3) Build Shopify order attributes =====
+    var attrs = { gn_uid: safeSlice(gn_uid, 64) };
+
+    if (ft) {
+      if (ft.ts) attrs.gn_first_touch_ts = safeSlice(ft.ts, 40);
+      if (ft.landing_path) attrs.gn_landing_path = safeSlice(ft.landing_path, 200);
+      if (ft.referrer) attrs.gn_referrer = safeSlice(ft.referrer, 200);
+
+      if (ft.utm_source) attrs.gn_utm_source = safeSlice(ft.utm_source, 200);
+      if (ft.utm_medium) attrs.gn_utm_medium = safeSlice(ft.utm_medium, 200);
+      if (ft.utm_campaign) attrs.gn_utm_campaign = safeSlice(ft.utm_campaign, 200);
+      if (ft.utm_content) attrs.gn_utm_content = safeSlice(ft.utm_content, 200);
+      if (ft.utm_term) attrs.gn_utm_term = safeSlice(ft.utm_term, 200);
+
+      if (ft.gclid) attrs.gn_gclid = safeSlice(ft.gclid, 200);
+      if (ft.gbraid) attrs.gn_gbraid = safeSlice(ft.gbraid, 200);
+      if (ft.wbraid) attrs.gn_wbraid = safeSlice(ft.wbraid, 200);
+      if (ft.msclkid) attrs.gn_msclkid = safeSlice(ft.msclkid, 200);
+      if (ft.fbclid) attrs.gn_fbclid = safeSlice(ft.fbclid, 200);
+      if (ft.ttclid) attrs.gn_ttclid = safeSlice(ft.ttclid, 200);
+    }
+
+    // ===== 4) Write to Shopify cart attributes (non-blocking) =====
+    // Avoid spamming /cart/update.js
+    var SENT_KEY = "gn_cart_attrs_sent_hash_v1";
+    var payload = JSON.stringify(attrs);
+
+    // quick stable hash (string-based; good enough for "did it change?")
+    var hash = "";
+    try {
+      var i;
+      for (i = 0; i < payload.length; i++) {
+        hash = (hash + payload.charCodeAt(i).toString(16));
+        if (hash.length > 2048) hash = hash.slice(-2048);
+      }
+    } catch (e) {}
+
+    if (getLS(SENT_KEY) === hash) return;
+
+    fetch("/cart/update.js", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      credentials: "same-origin",
+      keepalive: true,
+      body: JSON.stringify({ attributes: attrs })
+    }).then(function () {
+      setLS(SENT_KEY, hash);
+    }).catch(function () {});
+
+  } catch (e) {}
+})();
+</script>

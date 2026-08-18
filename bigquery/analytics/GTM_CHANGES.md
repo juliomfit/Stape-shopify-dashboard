@@ -65,9 +65,20 @@ The live view has `expiration_timestamp`. Recreate without expiry. Keep the
 GA4-vs-Data-Client filter. Funnel SQL still nulls fbclid until the column
 exists and `src/lib/stape/config.ts` is updated.
 
-## 4. What not to change
+## 4. Web GTM (required for fill)
 
-- Web GTM `gn_uid` cookie and cart-attribute writer
+Server BQ already maps `gn_uid` / `gclid` ← `{{gn_gclid}}` / `fbclid` ← `{{gn_fbclid}}`.
+Those Event Data keys stay empty until **web** GTM:
+
+1. Setup-tags the stitch HTML before GA4/DT `page_view`
+2. Writes first-touch click IDs to `gn_*` cookies (not only localStorage)
+3. Sends `gn_uid` + first-touch params on **all** GA4 events (`ga4 - shared_event_settings`) and all Data Tags
+
+Import + click-by-click: `gtm/README.md`. Do not change warehouse SQL until Query 1 fill jumps.
+
+## 5. What not to change
+
 - Stape Store keys (`X-Stape-User-Id`, hashed email collection)
 - Existing `source_client`
 - Production pixels / CAPI / Ads tags
+- True Performance first-touch = Shopify cart `gn_*` (unchanged; this feed only fills BQ)
