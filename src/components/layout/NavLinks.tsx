@@ -12,6 +12,7 @@ import {
   Megaphone,
   Plug,
   Receipt,
+  Route,
   ShieldCheck,
   Sparkles,
   Stethoscope,
@@ -50,6 +51,8 @@ export function NavIcon({
       return <Images className={className} />;
     case "/attribution":
       return <Target className={className} />;
+    case "/journeys":
+      return <Route className={className} />;
     case "/traffic":
       return <Activity className={className} />;
     case "/conversions":
