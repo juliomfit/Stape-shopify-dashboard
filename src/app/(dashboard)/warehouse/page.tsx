@@ -51,7 +51,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
     <>
       <Header
         title="Warehouse attribution"
-        description="Observed click and session paths in BigQuery. Changing the model reallocates credit; canonical Shopify order totals do not change. True Performance remains gn_* first-touch."
+        description="Observed click and session paths in BigQuery (attribution_policy_v1). Changing the model reallocates credit; canonical Shopify order totals do not change. First-touch (cart) remains gn_*."
       />
       <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} stape={data.status} />
@@ -190,7 +190,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
           />
           <WarehouseChannelTable
             title="Assisting channels"
-            description="Linear credit across qualifying touches"
+            description="Middle touches only (neither first nor last). Not Linear."
             rows={data.assisting}
             currencyCode={currency}
           />

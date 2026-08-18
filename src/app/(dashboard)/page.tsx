@@ -247,9 +247,9 @@ export default async function OverviewPage() {
             source={
               mer === null
                 ? spendSource
-                : `${period.label} · blended ad spend ÷ total revenue`
+                : `${period.label} · Shopify revenue ÷ blended ad spend`
             }
-            value={mer === null ? null : formatPercent(mer)}
+            value={mer === null ? null : `${mer.toFixed(2)}x`}
           />
           <MetricCard
             label="Blended ROAS"
@@ -283,7 +283,7 @@ export default async function OverviewPage() {
           <Link className="underline" href="/meta">
             Meta Ads
           </Link>
-          {" · same warehouse numbers. True Performance stays "}
+          {" · same warehouse numbers. First-touch stays "}
           <Link className="underline" href="/attribution">
             gn_*
           </Link>

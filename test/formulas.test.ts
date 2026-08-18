@@ -4,9 +4,12 @@ import {
   blendedCpa,
   contributionProfit,
   coverageRatio,
+  marketingCostRatio,
   merRatio,
   platformRoas,
   ratio,
+  blendedNcac,
+  attributedNcac,
 } from "../src/lib/metrics/formulas.ts";
 
 test("missing spend is null not zero", () => {
@@ -16,9 +19,17 @@ test("missing spend is null not zero", () => {
   assert.equal(platformRoas(50, 0), null);
 });
 
-test("blended ROAS and MER inverses", () => {
+test("blended ROAS and MER are the same ratio; marketing cost ratio is the inverse", () => {
   assert.equal(ratio(200, 50), 4);
-  assert.equal(merRatio(50, 200), 0.25);
+  assert.equal(merRatio(50, 200), 4);
+  assert.equal(marketingCostRatio(50, 200), 0.25);
+});
+
+test("nCAC definitions stay separate", () => {
+  assert.equal(blendedNcac(400, 10), 40);
+  assert.equal(attributedNcac(200, 2.5), 80);
+  assert.equal(attributedNcac(200, 0), null);
+  assert.equal(blendedNcac(null, 10), null);
 });
 
 test("contribution profit is not net profit with invented COGS", () => {

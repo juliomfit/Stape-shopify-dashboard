@@ -10,7 +10,7 @@ const TABS = [
   { href: "/", label: "Overview" },
   { href: "/sales", label: "Sales" },
   { href: "/meta", label: "Meta" },
-  { href: "/attribution", label: "True" },
+  { href: "/attribution/overview", label: "Attr" },
 ] as const;
 
 export function BottomNav() {

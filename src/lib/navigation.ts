@@ -14,25 +14,26 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/summary", label: "Summary" },
       { href: "/", label: "Overview" },
-      { href: "/sales", label: "Sales" },
-      { href: "/meta", label: "Meta Ads" },
-      { href: "/meta/creatives", label: "Creatives" },
-      { href: "/attribution", label: "True Performance" },
+    ],
+  },
+  {
+    label: "Acquisition",
+    items: [
+      { href: "/attribution/overview", label: "Attribution" },
       { href: "/attribution-models", label: "Models" },
       { href: "/journeys", label: "Journeys" },
-    ],
-  },
-  {
-    label: "Funnel",
-    items: [
+      { href: "/attribution", label: "First-touch" },
+      { href: "/meta", label: "Meta Ads" },
+      { href: "/meta/creatives", label: "Creatives" },
       { href: "/traffic", label: "Traffic" },
-      { href: "/conversions", label: "Conversions" },
-      { href: "/warehouse", label: "Warehouse" },
+      { href: "/landing-pages", label: "Landing pages" },
     ],
   },
   {
-    label: "Store",
+    label: "Commerce",
     items: [
+      { href: "/sales", label: "Sales" },
+      { href: "/conversions", label: "Funnel" },
       { href: "/products", label: "Products" },
       { href: "/customers", label: "Customers" },
     ],
@@ -40,11 +41,15 @@ export const navGroups: NavGroup[] = [
   {
     label: "Data",
     items: [
-      { href: "/health", label: "Data health" },
+      { href: "/health", label: "Tracking health" },
       { href: "/data-quality", label: "Data quality" },
+      { href: "/warehouse", label: "Warehouse QA" },
       { href: "/integrations", label: "Integrations" },
-      { href: "/ai", label: "Ask AI" },
     ],
+  },
+  {
+    label: "AI",
+    items: [{ href: "/ai", label: "Ask Analytics" }],
   },
 ];
 

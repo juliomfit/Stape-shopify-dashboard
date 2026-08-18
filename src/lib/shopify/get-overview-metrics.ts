@@ -20,7 +20,7 @@ import type {
 } from "@/lib/shopify/types";
 
 const ORDERS_PER_PAGE = 100;
-const MAX_PAGES = 20;
+const MAX_PAGES = 100;
 
 type MoneySet = {
   shopMoney: {
@@ -278,6 +278,11 @@ async function loadShopifyOverview(
         const firstTouch = parseFirstTouch(attributes);
         const channel = firstTouchChannel(firstTouch);
 
+        const firstProductTitle =
+          order.lineItems.edges[0]?.node.product?.title ||
+          order.lineItems.edges[0]?.node.title ||
+          null;
+
         revenue += amount;
         orderPoints.push({
           createdAt: order.createdAt,
@@ -296,6 +301,7 @@ async function loadShopifyOverview(
           customerId,
           firstTouch,
           firstTouchChannel: channel,
+          firstProductTitle,
         });
 
         if (isGuest) {

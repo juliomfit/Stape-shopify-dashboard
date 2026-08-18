@@ -10,6 +10,10 @@ export function orderToTouchpoints(order: AttributedOrder): Touchpoint[] {
     id: `${order.transactionId}-${index}`,
     timestamp: touch.ts,
     channel: touch.channel,
+    source: touch.source ?? undefined,
+    medium: touch.medium ?? undefined,
+    campaign: touch.campaign ?? undefined,
+    clickId: touch.fbclid ? "fbclid" : touch.gclid ? "gclid" : null,
     isPaid: isPaidChannel(touch.channel),
     isDirect: isDirectChannel(touch.channel),
   }));

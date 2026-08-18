@@ -7,13 +7,17 @@
  * Labels:
  * - Platform-attributed = Meta/Google Ads Manager conversions (their matching).
  * - Blended = Shopify revenue ÷ (Meta spend + Google spend) when spend is known.
- * - First-party observed = Shopify gn_* first-touch (True Performance).
+ * - First-party observed = Shopify gn_* first-touch (First-touch Attribution).
+ * - Our attributed = canonical attribution_policy_v1 credit (warehouse SQL = TypeScript engine).
  *
  * Missing spend is null (shown as —), never 0.
  * Missing gn_* is Unknown, not Direct.
  * COGS is never invented and never filled from typicalCogs.
  * Contribution profit without cogs is revenue − fees − ad spend.
  * Pass cogs only when every Pacific day in the range has a typed supplier row.
+ *
+ * MER = revenue ÷ spend (ecommerce standard). The old spend÷revenue ratio is
+ * marketingCostRatio (Ad spend % of revenue). Never call both MER.
  */
 
 export function ratio(numerator: number, spend: number | null): number | null {
@@ -23,8 +27,22 @@ export function ratio(numerator: number, spend: number | null): number | null {
   return numerator / spend;
 }
 
-/** MER = blended ad spend ÷ Shopify total revenue. Inverse of blended ROAS. */
+/**
+ * MER = Shopify total revenue ÷ blended ad spend.
+ * Example: $100,000 / $40,000 = 2.5 MER. Same ratio as blended ROAS.
+ */
 export function merRatio(spend: number | null, orderRevenue: number): number | null {
+  return ratio(orderRevenue, spend);
+}
+
+/**
+ * Marketing cost ratio = blended ad spend ÷ Shopify total revenue.
+ * Formerly (incorrectly) labeled MER. Example: $40,000 / $100,000 = 40%.
+ */
+export function marketingCostRatio(
+  spend: number | null,
+  orderRevenue: number,
+): number | null {
   if (spend === null || spend <= 0 || orderRevenue <= 0) {
     return null;
   }
@@ -152,12 +170,28 @@ export function coverageRatio(captured: number | null, shopify: number | null): 
   return captured / shopify;
 }
 
-/** New-customer CAC = ad spend ÷ attributed new customers. Alias of newCustomerCpa at the customer grain. */
+/**
+ * Blended nCAC = total ad spend ÷ Shopify new-customer orders.
+ * Store-wide. Do not mix with attributed nCAC.
+ */
 export function newCustomerCac(
   spend: number | null,
   newCustomers: number | null,
 ): number | null {
   return newCustomerCpa(spend, newCustomers);
+}
+
+export const blendedNcac = newCustomerCac;
+
+/**
+ * Attributed nCAC = grain spend ÷ fractional attributed new-customer credit.
+ * Null when spend is missing or credited new customers are 0.
+ */
+export function attributedNcac(
+  spend: number | null,
+  attributedNewCustomerCredit: number | null,
+): number | null {
+  return newCustomerCpa(spend, attributedNewCustomerCredit);
 }
 
 /** New-customer ROAS = attributed new-customer revenue ÷ ad spend. */

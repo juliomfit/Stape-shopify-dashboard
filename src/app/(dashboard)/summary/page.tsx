@@ -90,11 +90,10 @@ export default async function SummaryPage() {
       id: "mer",
       group: "Blended performance",
       label: "MER",
-      value: percent(mer),
+      value: roas(mer),
       delta: null,
-      source: "Blended ad spend ÷ total revenue",
+      source: "Shopify revenue ÷ blended ad spend",
       hero: true,
-      invertDelta: true,
     },
     {
       id: "nc_cac",
@@ -180,7 +179,7 @@ export default async function SummaryPage() {
       label: "Meta spend",
       value: money(ads.facebook.spend),
       delta: null,
-      source: ads.facebook.state === "connected" ? "Meta Ads" : "Connect or paste on True Performance",
+      source: ads.facebook.state === "connected" ? "Meta Ads" : "Connect or paste on First-touch",
     },
     {
       id: "google_spend",
@@ -188,7 +187,7 @@ export default async function SummaryPage() {
       label: "Google spend",
       value: money(ads.google.spend),
       delta: null,
-      source: ads.google.state === "connected" ? "Google Ads" : "Paste on True Performance",
+      source: ads.google.state === "connected" ? "Google Ads" : "Paste on First-touch",
     },
     {
       id: "blended_cpa",

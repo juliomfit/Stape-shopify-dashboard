@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/formulas.test.ts test/profit-formulas.test.ts test/attribution-engine.test.ts test/attribution-rollup.test.ts test/platform-compare.test.ts test/customer-cohorts.test.ts test/flyweel-provider.test.ts test/resolve-meta-claim.test.ts test/observed-source.test.ts test/ga4-config.test.ts test/cogs-ledger.test.ts"
+    "test": "node --experimental-strip-types --test test/formulas.test.ts test/profit-formulas.test.ts test/attribution-engine.test.ts test/attribution-rollup.test.ts test/platform-compare.test.ts test/customer-cohorts.test.ts test/flyweel-provider.test.ts test/resolve-meta-claim.test.ts test/observed-source.test.ts test/ga4-config.test.ts test/cogs-ledger.test.ts test/attribution-platform.test.ts"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^9.0.2",

@@ -176,14 +176,18 @@ export function eventsFromSql(config: BigQueryConfig) {
         gbraid,
         wbraid,
         dclid,
-        CAST(NULL AS STRING) AS fbclid,
-        CAST(NULL AS STRING) AS fbc,
-        CAST(NULL AS STRING) AS fbp,
-        CAST(NULL AS STRING) AS ttclid,
-        CAST(NULL AS STRING) AS msclkid,
+        fbclid,
+        fbc,
+        fbp,
+        ttclid,
+        msclkid,
         transaction_id,
         value,
-        currency
+        currency,
+        gn_uid,
+        stape_user_id,
+        hashed_email,
+        shopify_customer_id
       FROM ${table}
       WHERE IFNULL(source_client, 'GA4') = 'GA4'
         AND event_name IS NOT NULL

@@ -40,8 +40,8 @@ export default async function DataQualityPage() {
   })();
   const notes = [
     shopify.truncated
-      ? `Shopify order fetch stopped at ${shopify.orderPoints.length} of ${shopify.reportedOrderCount ?? "unknown"} orders (100 × 20 pages). Narrow the header dates.`
-      : "Shopify order pagination finished for this range (open + closed).",
+      ? `Shopify order fetch stopped at ${shopify.orderPoints.length} of ${shopify.reportedOrderCount ?? "unknown"} orders (100 × 100 pages). Narrow the header dates or run migration 004 for warehouse history.`
+      : "Shopify order pagination finished for this range (open + closed, up to 10,000 orders).",
     config
       ? `BigQuery source is ${config.projectId}.${config.dataset}.${config.table}. Live Stape must be stape_data.dashboard_events, not the 19-row test table.`
       : "BigQuery is not configured.",
@@ -55,8 +55,9 @@ export default async function DataQualityPage() {
     "Today (Pacific) often has $0 in Flyweel while yesterday has spend. That is shown as $0 after a successful sync, not invented, and not hidden as a broken dashboard.",
     "Missing gn_* is Unknown, not Direct. Shop Pay Express often has no storefront script.",
     "Device, country, bounce rate, session duration, and COGS are omitted because those fields are not in Shopify or dashboard_events.",
-    "Warehouse attribution reads raw_events_full. X-Stape-User-Id, gn_uid, and hashed_email are not BigQuery columns until the sGTM writer is appended.",
-    "dashboard_events expires 2026-10-11. Recreate the view without expiration. raw_events_full partitions expire after 60 days.",
+    "Warehouse attribution reads raw_events_full. gn_uid, stape_user_id, hashed_email, and shopify_customer_id are BigQuery columns on that table when the sGTM writer fills them. The debugger shows presence, not plaintext email.",
+    "dashboard_events previously expired 2026-10-11. Recreate it with bigquery/migrations/2026_08_18_003_dashboard_events_lifecycle.sql. raw_events_full partitions were ~60 days; that migration extends retention. 90-day attribution stays hidden until retained_days ≥ 90.",
+    "MER = Shopify revenue ÷ ad spend. Marketing cost ratio = spend ÷ revenue. Unknown ≠ Direct. Assists = middle touches, not Linear.",
   ];
 
   return (

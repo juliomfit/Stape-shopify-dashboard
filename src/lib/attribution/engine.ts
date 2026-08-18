@@ -1,22 +1,18 @@
 /**
  * Canonical first-party attribution engine (pure, deterministic, testable).
  *
- * This is the single TypeScript source of truth for attribution model math.
- * It intentionally mirrors the semantics of the BigQuery warehouse models in
- * `src/lib/warehouse/get-warehouse-metrics.ts` so the dashboard, the order
- * debugger, and any future semantic/AI layer all agree on the numbers.
+ * Contract: `src/lib/attribution/policy.ts` (`attribution_policy_v1`).
+ * BigQuery warehouse SQL must match these formulas. Tests fail on disagreement.
  *
- * Direct-traffic rules (documented, not scattered):
- * - `first_touch` / `last_touch`: Direct IS eligible (it can win).
- * - `last_non_direct`: skips Direct when any non-direct touch exists; if every
- *   touch is Direct, the last Direct touch wins.
- * - `linear` / `position_based` / `time_decay`: credit only the non-direct
- *   "marketing" touches when any exist; if every touch is Direct, they fall
- *   back to crediting the Direct touches. (Matches the warehouse QUALIFY rule.)
- * - `paid_only`: credit only paid touches; if none are paid, there is no credit.
+ * Direct / Unknown (mandatory):
+ * - Unknown ≠ Direct. Missing tracking stays Unknown / unattributed.
+ * - Direct is a real eligible touch for first, last, linear, position, time-decay.
+ * - `last_non_direct`: skips Direct when any non-direct exists; if every touch
+ *   is Direct, the last Direct wins.
+ * - `paid_only`: paid touches only; empty credit (unattributed) when none exist.
  *
- * All models return weights that sum to 1 (± floating error) when at least one
- * eligible touch exists, and an empty array otherwise. No NaN/Infinity.
+ * All models return weights that sum to 1 (± 1e-9) when at least one eligible
+ * touch exists, and an empty array otherwise. No NaN/Infinity.
  */
 
 export const ATTRIBUTION_MODELS = [
@@ -69,13 +65,15 @@ export type PositionWeights = {
   middle: number;
 };
 
+/** Must match attribution_policy_v1 POSITION_WEIGHTS. */
 export const DEFAULT_POSITION_WEIGHTS: PositionWeights = {
   first: 0.4,
   last: 0.4,
   middle: 0.2,
 };
 
-export const DEFAULT_TIME_DECAY_HALF_LIFE_HOURS = 168; // 7 days
+/** Must match attribution_policy_v1 TIME_DECAY_HALF_LIFE_HOURS. */
+export const DEFAULT_TIME_DECAY_HALF_LIFE_HOURS = 168;
 
 export type AttributeOptions = {
   model: AttributionModel;
@@ -118,8 +116,8 @@ export function eligibleTouches(
     });
 }
 
-/** Non-direct "marketing" touches when any exist, otherwise the direct fallback. */
-function marketingTouches(touches: Touchpoint[]): Touchpoint[] {
+/** Non-direct touches when any exist, otherwise the Direct fallback (last_non_direct only). */
+function lastNonDirectTouches(touches: Touchpoint[]): Touchpoint[] {
   const nonDirect = touches.filter((touch) => !touch.isDirect);
   return nonDirect.length > 0 ? nonDirect : touches;
 }
@@ -199,21 +197,18 @@ export function attribute(
     case "last_touch":
       return [credit(touches[touches.length - 1], 1)];
     case "last_non_direct": {
-      const eligible = marketingTouches(touches);
+      const eligible = lastNonDirectTouches(touches);
       return [credit(eligible[eligible.length - 1], 1)];
     }
     case "linear":
-      return linearOver(marketingTouches(touches));
+      return linearOver(touches);
     case "position_based":
-      return positionOver(
-        marketingTouches(touches),
-        options.positionWeights ?? DEFAULT_POSITION_WEIGHTS,
-      );
+      return positionOver(touches, options.positionWeights ?? DEFAULT_POSITION_WEIGHTS);
     case "paid_only":
       return linearOver(touches.filter((touch) => touch.isPaid));
     case "time_decay":
       return timeDecayOver(
-        marketingTouches(touches),
+        touches,
         options.purchaseTs,
         options.timeDecayHalfLifeHours ?? DEFAULT_TIME_DECAY_HALF_LIFE_HOURS,
       );
@@ -334,4 +329,50 @@ export function compareModels(
   );
 
   return { channels, models, cells, totalsByModel };
+}
+
+/**
+ * Real assists: eligible touches that are neither first nor last on the
+ * converting path. Empty when the journey has fewer than 3 eligible touches.
+ * Credit is an equal split among assist touches (not Linear-including-ends).
+ */
+export function assistCredits(
+  touchpoints: Touchpoint[],
+  purchaseTs: number,
+  windowDays?: number,
+): Credit[] {
+  const touches = eligibleTouches(touchpoints, purchaseTs, windowDays);
+  if (touches.length < 3) {
+    return [];
+  }
+  return linearOver(touches.slice(1, -1));
+}
+
+export type OrderCredit = Credit & { attributedRevenue: number };
+
+export function applyRevenue(credits: Credit[], eligibleRevenue: number): OrderCredit[] {
+  return credits.map((item) => ({
+    ...item,
+    attributedRevenue: item.weight * eligibleRevenue,
+  }));
+}
+
+const CREDIT_EPS = 1e-9;
+
+export function orderCreditIntegrity(
+  credits: Credit[],
+  eligibleRevenue: number,
+): { ok: boolean; weightSum: number; attributedRevenue: number } {
+  const weightSum = credits.reduce((sum, item) => sum + item.weight, 0);
+  const attributedRevenue = credits.reduce(
+    (sum, item) => sum + item.weight * eligibleRevenue,
+    0,
+  );
+  const ok =
+    credits.length === 0
+      ? true
+      : Math.abs(weightSum - 1) < CREDIT_EPS &&
+        Math.abs(attributedRevenue - eligibleRevenue) <
+          Math.max(CREDIT_EPS, Math.abs(eligibleRevenue) * 1e-9);
+  return { ok, weightSum, attributedRevenue };
 }

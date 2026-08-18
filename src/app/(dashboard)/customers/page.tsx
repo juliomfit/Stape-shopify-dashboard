@@ -9,6 +9,9 @@ import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getShopifyCustomerMetrics } from "@/lib/shopify/get-customer-metrics";
 import { rollupCustomerCohorts } from "@/lib/shopify/cohorts";
+import { ltvByChannel, rollupLtvCohorts } from "@/lib/shopify/ltv";
+import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { LtvTable } from "@/components/dashboard/LtvTable";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +21,7 @@ export const metadata: Metadata = {
 
 export default async function CustomersPage() {
   const shopify = await getShopifyCustomerMetrics();
+  const overview = await getShopifyOverviewMetrics();
   const shopifySource =
     shopify.status.state === "connected"
       ? `Shopify · ${shopify.periodLabel}`
@@ -37,6 +41,15 @@ export default async function CustomersPage() {
   );
   const revenuePerCustomer =
     identified > 0 ? rangeRevenue / identified : null;
+  const ltvOrders = overview.orderPoints.map((order) => ({
+    createdAt: order.createdAt,
+    amount: order.amount,
+    customerId: order.customerId,
+    firstTouchChannel: order.firstTouchChannel,
+    firstProductTitle: order.firstProductTitle,
+  }));
+  const ltvCohorts = rollupLtvCohorts(ltvOrders);
+  const ltvChannels = ltvByChannel(ltvOrders);
   const cohorts = rollupCustomerCohorts(
     shopify.customers.map((customer) => ({
       createdAt: customer.createdAt,
@@ -135,11 +148,16 @@ export default async function CustomersPage() {
             </div>
             <p className="text-xs leading-5 text-muted">
               New vs returning here is unique people (lifetime numberOfOrders).
-              True Performance new-customer orders is order grain and will not
-              match. Last order date is the latest order in this header range,
-              not a guessed lifetime recency. Revenue / customer is this range
-              only — true LTV needs lifetime spend, which is not queried here.
+              First-touch new-customer orders is order grain and will not
+              match. Last order date is the latest order in this header range.
+              Range revenue / customer is not LTV — see first-purchase LTV below.
             </p>
+            <LtvTable rows={ltvCohorts} currencyCode={currency} />
+            <LtvTable
+              rows={ltvChannels}
+              currencyCode={currency}
+              title="LTV by first-touch channel (gn_*)"
+            />
             <CustomerCohortTable
               rows={cohorts}
               currencyCode={currency}

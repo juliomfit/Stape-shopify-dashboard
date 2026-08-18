@@ -32,6 +32,12 @@ export function isActivePath(pathname: string, href: string) {
   if (href === "/meta") {
     return pathname === "/meta" || /^\/meta\/(?!creatives)/.test(pathname);
   }
+  if (href === "/attribution") {
+    return pathname === "/attribution";
+  }
+  if (href === "/attribution/overview") {
+    return pathname === "/attribution/overview";
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -53,12 +59,15 @@ export function NavIcon({
       return <Megaphone className={className} />;
     case "/meta/creatives":
       return <Images className={className} />;
+    case "/attribution/overview":
     case "/attribution":
       return <Target className={className} />;
     case "/attribution-models":
       return <Columns3 className={className} />;
     case "/journeys":
       return <Route className={className} />;
+    case "/landing-pages":
+      return <Activity className={className} />;
     case "/traffic":
       return <Activity className={className} />;
     case "/conversions":

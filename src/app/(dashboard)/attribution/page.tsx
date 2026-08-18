@@ -23,7 +23,7 @@ import { getGa4Snapshot } from "@/lib/ads/ga4-query";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "True Performance",
+  title: "First-touch attribution",
 };
 
 function roasLabel(value: number | null) {
@@ -80,7 +80,7 @@ export default async function AttributionPage() {
   const roasNote =
     spendMissing ?? `${period.label} · total revenue ÷ blended ad spend`;
   const merNote =
-    spendMissing ?? `${period.label} · blended ad spend ÷ total revenue`;
+    spendMissing ?? `${period.label} · Shopify revenue ÷ blended ad spend (MER)`;
   const unknown = unknownFirstTouch(
     shopify.orderPoints.filter((order) => {
       const created = new Date(order.createdAt).getTime();
@@ -99,8 +99,8 @@ export default async function AttributionPage() {
   return (
     <>
       <Header
-        title="True Performance"
-        description="First-touch is the gn_* cart attribute written on the Shopify order. Sources appear from those tags, not from a list we type into the dashboard. Stape is a comparison only."
+        title="First-touch attribution"
+        description="Cart gn_* first-touch written on the Shopify order. This is one model, not the singular true answer. Multi-touch lives under Attribution. Stape is a comparison only."
       />
       <section className="dash-page gap-6">
         <ConnectionStatus
@@ -187,7 +187,7 @@ export default async function AttributionPage() {
           <MetricCard
             label="MER"
             source={merNote}
-            value={mer === null ? null : formatPercent(mer)}
+            value={mer === null ? null : `${mer.toFixed(2)}x`}
           />
           <MetricCard
             label="Blended CPA"
@@ -377,7 +377,7 @@ export default async function AttributionPage() {
             />
             <ChannelContributionTable
               title="Stape linear"
-              description="Even split across assisting channels"
+              description="Linear split across eligible touches (including Direct)"
               rows={attribution.linear}
               currencyCode={currency}
             />
@@ -393,11 +393,11 @@ export default async function AttributionPage() {
           title="How to read this"
           items={[
             "Trust Shopify gn_* first-touch. The Source tab is the raw utm_source on the order (sendvio, klaviyo, or any new tag). It is not a dashboard allowlist.",
-            "GA4 source / medium is Google Analytics. It is a comparison only. Trust gn_* for True Performance.",
+            "GA4 source / medium is Google Analytics. It is a comparison only. Trust gn_* for first-touch attribution.",
             "Channel Email is a bucket for email/SMS mediums and known ESPs. A new ESP with utm_medium=email still gets its own Source row.",
             "Unknown means the stitch did not write gn_*. Direct means gn_* ran with no source. They are not the same.",
             "Platform vs real uses gn_* Facebook/Google orders vs Ads Manager claimed purchases.",
-            "ROAS = total revenue ÷ blended ad spend. MER is the inverse: blended ad spend ÷ total revenue (currentTotalPriceSet). They are not the same number.",
+            "ROAS = total revenue ÷ blended ad spend. MER is the same ratio, labeled MER (e.g. 2.5). Marketing cost ratio is spend ÷ revenue (e.g. 40%). They are not interchangeable names.",
             "Row ROAS / CPA only when that row has real Meta or Google spend for these dates. Account spend is not split across multiple source/medium rows.",
             "Paste Meta Amount spent or upload an Ads Manager CSV for the same dates as the header toggle. Campaign ROAS needs campaign rows in the CSV.",
             alignedShopify.guestOrders

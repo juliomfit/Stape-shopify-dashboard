@@ -48,7 +48,8 @@ test("platform gap percent is (platform − our) / our", () => {
 
 test("lookback query param falls back to 7 days", () => {
   assert.equal(parseAttributionLookback("30"), 30);
-  assert.equal(parseAttributionLookback("90"), 90);
+  assert.equal(parseAttributionLookback("60"), 60);
+  assert.equal(parseAttributionLookback("90"), 7);
   assert.equal(parseAttributionLookback("12"), 7);
   assert.equal(parseAttributionLookback(undefined), 7);
 });

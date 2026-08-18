@@ -25,6 +25,9 @@ import { latestSuccessfulSync, latestSync } from "@/lib/platform/sync-runs";
 import { shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { newCustomerCac, newCustomerRoas } from "@/lib/metrics/formulas";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { OurCampaignTable } from "@/components/dashboard/OurCampaignTable";
+import { joinMetaAndOurCampaigns } from "@/lib/attribution/campaign-map";
+import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +55,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify, attrWarehouse] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -75,6 +78,7 @@ async function renderMetaPage() {
       message: "Warehouse check failed.",
     })),
     getShopifyOverviewMetrics().catch(() => null),
+    getWarehouseMetrics().catch(() => null),
   ]);
   const totals = totalsFromFacts(facts);
   const claimed = resolveMetaClaim({
@@ -325,9 +329,8 @@ async function renderMetaPage() {
           <Link className="underline" href="/meta/creatives">
             Creatives
           </Link>
-          . Campaign nCAC is not shown: Meta new-customer conversion metrics are
-          not in the warehouse ingest, and we do not invent them from store-wide
-          Shopify new customers.
+          . Campaign nCAC is not invented from store-wide Shopify new customers.
+          OUR campaign revenue is shown below only where UTM/name mapping exists.
         </p>
           <div className="mt-4">
             <MetaEntityTable
@@ -337,6 +340,15 @@ async function renderMetaPage() {
             />
           </div>
         </article>
+        <OurCampaignTable
+          rows={joinMetaAndOurCampaigns(
+            facts,
+            attrWarehouse?.campaigns.filter(
+              (row: { channel: string }) => row.channel === "Facebook / Meta Ads",
+            ) ?? [],
+          )}
+          currencyCode={currency}
+        />
         <AskAiPanel viewContext={viewContext} />
       </section>
     </>

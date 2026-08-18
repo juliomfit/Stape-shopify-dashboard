@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { AttributionLookbackControls } from "@/components/dashboard/AttributionLookbackControls";
+import { AttributionControls } from "@/components/dashboard/AttributionControls";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { IdentityMatchPanel } from "@/components/dashboard/IdentityMatchPanel";
 import { JourneyExplorer } from "@/components/dashboard/JourneyExplorer";
@@ -37,7 +37,7 @@ export default async function JourneysPage({ searchParams }: PageProps) {
       <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} stape={attribution.status} />
         <Suspense fallback={null}>
-          <AttributionLookbackControls lookbackDays={lookbackDays} />
+          <AttributionControls lookbackDays={lookbackDays} />
         </Suspense>
         <IdentityMatchPanel identity={attribution.identity} />
         <JourneyExplorer

@@ -3,7 +3,9 @@ import { contributionProfit } from "@/lib/metrics/formulas";
 
 export {
   aov,
+  attributedNcac,
   blendedCpa,
+  blendedNcac,
   breakEvenCpa,
   breakEvenRoas,
   contributionMargin,
@@ -11,6 +13,7 @@ export {
   cpc,
   cpm,
   ctr,
+  marketingCostRatio,
   merRatio,
   netAfterFees,
   newCustomerCac,

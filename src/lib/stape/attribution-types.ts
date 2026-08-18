@@ -17,6 +17,15 @@ export type JourneyTouch = {
   /** Unix epoch milliseconds. */
   ts: number;
   channel: string;
+  source?: string | null;
+  medium?: string | null;
+  campaign?: string | null;
+  content?: string | null;
+  landingPage?: string | null;
+  referrer?: string | null;
+  sessionKey?: string | null;
+  fbclid?: boolean;
+  gclid?: boolean;
 };
 
 export type AttributedOrder = {
@@ -30,6 +39,11 @@ export type AttributedOrder = {
   purchaseTs: number;
   /** Ordered touch list (oldest first) within the attribution lookback. */
   touches: JourneyTouch[];
+  gnUid?: string | null;
+  stapeUserId?: string | null;
+  shopifyCustomerId?: string | null;
+  hashedEmailPresent?: boolean | null;
+  clientId?: string | null;
 };
 
 export type IdentityStats = {

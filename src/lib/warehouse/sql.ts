@@ -1,8 +1,13 @@
+import { CHANNEL_SQL, PAID_CHANNELS } from "@/lib/stape/channel-sql";
+
 /**
  * On-the-fly warehouse CTEs against raw_events_full.
  * Same logic as bigquery/analytics/*.sql (views require Editor).
+ * Channel CASE is CHANNEL_SQL (TikTok not "TikTok Ads") so TypeScript and
+ * warehouse taxonomy cannot drift.
  */
 export function warehouseCtes(rawTable: string) {
+  const paidList = PAID_CHANNELS.map((channel) => `"${channel}"`).join(", ");
   return `
 WITH stg AS (
   SELECT
@@ -36,6 +41,7 @@ WITH stg AS (
     COALESCE(NULLIF(wbraid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]wbraid=([^&]+)"), "")) AS wbraid,
     NULLIF(dclid, "") AS dclid,
     COALESCE(NULLIF(fbclid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]fbclid=([^&]+)"), "")) AS fbclid,
+    NULLIF(fbc, "") AS fbc,
     COALESCE(NULLIF(msclkid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]msclkid=([^&]+)"), "")) AS msclkid,
     COALESCE(NULLIF(ttclid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]ttclid=([^&]+)"), "")) AS ttclid,
     value,
@@ -49,44 +55,13 @@ WITH stg AS (
 classified AS (
   SELECT
     stg.*,
-    CASE
-      WHEN gclid IS NOT NULL OR gbraid IS NOT NULL OR wbraid IS NOT NULL OR dclid IS NOT NULL THEN "Google Ads"
-      WHEN fbclid IS NOT NULL THEN "Facebook / Meta Ads"
-      WHEN msclkid IS NOT NULL THEN "Microsoft Ads"
-      WHEN ttclid IS NOT NULL THEN "TikTok Ads"
-      WHEN LOWER(IFNULL(raw_source, "")) IN ("google")
-        AND LOWER(IFNULL(raw_medium, "")) IN ("cpc", "ppc", "paid", "paidsearch", "paid_search")
-        THEN "Google Ads"
-      WHEN LOWER(IFNULL(raw_source, "")) IN ("facebook", "fb", "ig", "instagram", "meta")
-        AND LOWER(IFNULL(raw_medium, "")) IN ("cpc", "ppc", "paid", "paidsocial", "paid_social", "paid-social")
-        THEN "Facebook / Meta Ads"
-      WHEN LOWER(IFNULL(raw_source, "")) IN ("tiktok") THEN "TikTok Ads"
-      WHEN LOWER(IFNULL(raw_source, "")) IN ("bing", "microsoft") THEN "Microsoft Ads"
-      WHEN LOWER(IFNULL(raw_medium, "")) IN ("email", "sms", "edm", "newsletter", "mms")
-        OR LOWER(IFNULL(raw_source, "")) IN ("klaviyo", "omnisend", "email", "sms", "judgeme", "postscript", "attentive", "sendvio", "mailchimp", "brevo", "privy", "yotpo", "smsbump", "listrak", "drip")
-        THEN "Email"
-      WHEN LOWER(IFNULL(raw_source, "")) IN ("facebook", "fb", "ig", "instagram", "meta")
-        OR REGEXP_CONTAINS(LOWER(IFNULL(referrer_host, "")), r"facebook|instagram")
-        THEN "Meta Organic"
-      WHEN LOWER(IFNULL(raw_source, "")) IN ("google", "youtube")
-        OR LOWER(IFNULL(referrer_host, "")) LIKE "%google.%"
-        OR LOWER(IFNULL(referrer_host, "")) LIKE "%youtube.%"
-        THEN "Google Organic"
-      WHEN IFNULL(page_location, "") LIKE "%web-pixels@%"
-        OR IFNULL(page_path, "") LIKE "/checkouts/%"
-        THEN "Direct"
-      WHEN raw_source IS NULL
-        AND gclid IS NULL AND fbclid IS NULL
-        AND (page_referrer IS NULL OR page_referrer = "" OR referrer_host = page_host)
-        THEN "Direct"
-      ELSE "Other"
-    END AS channel
+    ${CHANNEL_SQL} AS channel
   FROM stg
 ),
 enriched AS (
   SELECT
     classified.*,
-    classified.channel IN ("Google Ads", "Facebook / Meta Ads", "TikTok Ads", "Microsoft Ads") AS is_paid,
+    classified.channel IN (${paidList}) AS is_paid,
     classified.channel = "Direct" AS is_direct
   FROM classified
 ),
@@ -253,6 +228,7 @@ order_touches AS (
     t.channel,
     t.click_id_type,
     t.click_id,
+    t.landing_page,
     t.is_paid,
     t.is_direct,
     t.session_key,

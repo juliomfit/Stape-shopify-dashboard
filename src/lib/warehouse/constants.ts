@@ -1,9 +1,17 @@
+import {
+  DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+  ATTRIBUTION_WINDOW_DAYS,
+} from "@/lib/attribution/windows";
+import { ATTRIBUTION_POLICY_ID } from "@/lib/attribution/policy";
+import { DEFAULT_TIME_DECAY_HALF_LIFE_HOURS } from "@/lib/attribution/engine";
+
 export const WAREHOUSE_MODELS = [
   { key: "first_touch", label: "First Touch" },
   { key: "last_touch", label: "Last Touch" },
   { key: "last_non_direct", label: "Last Non-Direct" },
   { key: "last_paid", label: "Last Paid" },
   { key: "first_paid", label: "First Paid" },
+  { key: "paid_only", label: "Paid Only" },
   { key: "linear", label: "Linear" },
   { key: "position_based", label: "Position Based" },
   { key: "time_decay", label: "Time Decay" },
@@ -11,13 +19,13 @@ export const WAREHOUSE_MODELS = [
 
 export type WarehouseModel = (typeof WAREHOUSE_MODELS)[number]["key"];
 
-export const LOOKBACK_DAYS = [1, 7, 14, 28, 30, 60, 90] as const;
+export const LOOKBACK_DAYS = ATTRIBUTION_WINDOW_DAYS;
 export type LookbackDays = (typeof LOOKBACK_DAYS)[number];
 
 export const DEFAULT_MODEL: WarehouseModel = "last_non_direct";
-export const DEFAULT_LOOKBACK: LookbackDays = 30;
-export const TIME_DECAY_HALF_LIFE_HOURS = 168;
-export const LOGIC_VERSION = "v1";
+export const DEFAULT_LOOKBACK: LookbackDays = DEFAULT_ATTRIBUTION_WINDOW_DAYS;
+export const TIME_DECAY_HALF_LIFE_HOURS = DEFAULT_TIME_DECAY_HALF_LIFE_HOURS;
+export const LOGIC_VERSION = ATTRIBUTION_POLICY_ID;
 
 export function isWarehouseModel(value: string | null): value is WarehouseModel {
   return WAREHOUSE_MODELS.some((model) => model.key === value);

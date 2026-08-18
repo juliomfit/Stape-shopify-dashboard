@@ -15,6 +15,8 @@ import { warehouseCtes } from "@/lib/warehouse/sql";
 import type {
   WarehouseChannelRow,
   WarehouseJourneyRow,
+  WarehouseCampaignRow,
+  WarehouseLandingRow,
   WarehouseMetrics,
   WarehouseQuality,
 } from "@/lib/warehouse/types";
@@ -82,6 +84,8 @@ function emptyMetrics(
     acquiring: [],
     closing: [],
     assisting: [],
+    campaigns: [],
+    landings: [],
     journeys: [],
     avgDaysToPurchase: null,
     avgTouchesToPurchase: null,
@@ -108,6 +112,7 @@ credited_raw AS (
     ot.medium,
     ot.campaign,
     ot.click_id,
+    ot.landing_page,
     ot.is_paid,
     ot.is_direct,
     ot.touchpoint_id,
@@ -123,9 +128,11 @@ credited_raw AS (
     STRUCT("last_non_direct" AS model_name),
     STRUCT("last_paid" AS model_name),
     STRUCT("first_paid" AS model_name),
+    STRUCT("paid_only" AS model_name),
     STRUCT("linear" AS model_name),
     STRUCT("position_based" AS model_name),
-    STRUCT("time_decay" AS model_name)
+    STRUCT("time_decay" AS model_name),
+    STRUCT("assist" AS model_name)
   ]) AS model
   WHERE ot.touchpoint_id IS NOT NULL
   QUALIFY
@@ -144,26 +151,32 @@ credited_raw AS (
     OR (model.model_name = "first_paid"
       AND ot.is_paid
       AND ot.touchpoint_timestamp = MIN(IF(ot.is_paid, ot.touchpoint_timestamp, NULL)) OVER (PARTITION BY ot.transaction_id))
-    OR (model.model_name IN ("linear", "position_based", "time_decay")
-      AND (
-        COUNTIF(NOT ot.is_direct) OVER (PARTITION BY ot.transaction_id) = 0
-        OR NOT ot.is_direct
-      ))
+    OR (model.model_name = "paid_only" AND ot.is_paid)
+    OR (model.model_name IN ("linear", "position_based", "time_decay"))
+    OR (model.model_name = "assist"
+      AND COUNT(*) OVER (PARTITION BY ot.transaction_id) >= 3
+      AND ot.touchpoint_timestamp != MIN(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id)
+      AND ot.touchpoint_timestamp != MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id))
 ),
 credited AS (
   SELECT
     * EXCEPT (touchpoint_timestamp),
     CASE model_name
       WHEN "linear" THEN 1.0 / COUNT(*) OVER (PARTITION BY transaction_id, model_name)
+      WHEN "assist" THEN 1.0 / COUNT(*) OVER (PARTITION BY transaction_id, model_name)
+      WHEN "paid_only" THEN 1.0 / COUNT(*) OVER (PARTITION BY transaction_id, model_name)
       WHEN "position_based" THEN
         CASE
           WHEN COUNT(*) OVER (PARTITION BY transaction_id, model_name) = 1 THEN 1.0
           WHEN COUNT(*) OVER (PARTITION BY transaction_id, model_name) = 2 THEN 0.5
-          WHEN hours_to_conversion = MAX(hours_to_conversion) OVER (PARTITION BY transaction_id, model_name)
-            AND hours_to_conversion = MIN(hours_to_conversion) OVER (PARTITION BY transaction_id, model_name)
-            THEN 1.0
-          WHEN hours_to_conversion = MAX(hours_to_conversion) OVER (PARTITION BY transaction_id, model_name) THEN 0.4
-          WHEN hours_to_conversion = MIN(hours_to_conversion) OVER (PARTITION BY transaction_id, model_name) THEN 0.4
+          WHEN ROW_NUMBER() OVER (
+            PARTITION BY transaction_id, model_name
+            ORDER BY touchpoint_timestamp ASC, touchpoint_id
+          ) = 1 THEN 0.4
+          WHEN ROW_NUMBER() OVER (
+            PARTITION BY transaction_id, model_name
+            ORDER BY touchpoint_timestamp DESC, touchpoint_id
+          ) = 1 THEN 0.4
           ELSE 0.2 / GREATEST(COUNT(*) OVER (PARTITION BY transaction_id, model_name) - 2, 1)
         END
       WHEN "time_decay" THEN
@@ -285,6 +298,44 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(order_timestamp) >= @startMs
           AND UNIX_MILLIS(order_timestamp) < @endMs
         GROUP BY 1, 2
+      `,
+    });
+
+    const [campaignRows] = await client.query({
+      ...queryOptions,
+      query: `
+        ${ctes},
+        ${ATTRIBUTION_SQL}
+        SELECT
+          IFNULL(NULLIF(campaign, ""), "(unmapped)") AS campaign,
+          IFNULL(channel, "Unknown") AS channel,
+          SUM(credit) AS orders,
+          SUM(net_revenue * credit) AS revenue
+        FROM credited
+        WHERE UNIX_MILLIS(order_timestamp) >= @startMs
+          AND UNIX_MILLIS(order_timestamp) < @endMs
+          AND model_name = @model
+        GROUP BY 1, 2
+        ORDER BY revenue DESC
+        LIMIT 200
+      `,
+      params: { ...params, model },
+    });
+
+    const [landingRows] = await client.query({
+      ...queryOptions,
+      query: `
+        ${ctes}
+        SELECT
+          IFNULL(NULLIF(landing_page, ""), "(unknown)") AS landingPage,
+          IFNULL(channel, "Unknown") AS channel,
+          COUNT(*) AS sessions
+        FROM sessions
+        WHERE UNIX_MILLIS(session_start) >= @startMs
+          AND UNIX_MILLIS(session_start) < @endMs
+        GROUP BY 1, 2
+        ORDER BY sessions DESC
+        LIMIT 100
       `,
     });
 
@@ -464,7 +515,7 @@ export async function getWarehouseMetrics(options: {
       "gn_uid and stape_user_id now come from raw_events_full (Data Client). GA4 collect hits may still lack gn_uid until that tag also sends it.",
       "hashed_email and shopify_customer_id usually fill on purchase, not page_view.",
       "gclid/gbraid/wbraid columns are often empty; Meta is mostly URL UTMs plus fbclid when present.",
-      "raw_events_full partitions expire after 60 days, so 90-day lookbacks will under-count until retention is extended.",
+      "raw_events_full partitions expire after ~60 days, so 90-day lookbacks are not offered until retention is extended (migration 003).",
     ];
     if (platform.facebook.spend === null && platform.google.spend === null) {
       gaps.push(
@@ -475,7 +526,7 @@ export async function getWarehouseMetrics(options: {
     }
     if (platform.facebook.claimKind === "warehouse" && platform.facebook.spend === 0) {
       gaps.push(
-        "Meta warehouse spend is $0 for this day (Flyweel often lags Today). Click Yesterday or 7d. This is not gn_* True Performance.",
+        "Meta warehouse spend is $0 for this day (Flyweel often lags Today). Click Yesterday or 7d. This is not gn_* first-touch attribution.",
       );
     }
 
@@ -501,7 +552,18 @@ export async function getWarehouseMetrics(options: {
       byChannel: toRows(model),
       acquiring: toRows("first_touch"),
       closing: toRows("last_non_direct"),
-      assisting: toRows("linear"),
+      assisting: toRows("assist"),
+      campaigns: (campaignRows as WarehouseCampaignRow[]).map((row) => ({
+        campaign: String(row.campaign),
+        channel: String(row.channel),
+        orders: toNumber(row.orders),
+        revenue: toNumber(row.revenue),
+      })),
+      landings: (landingRows as WarehouseLandingRow[]).map((row) => ({
+        landingPage: String(row.landingPage),
+        channel: String(row.channel),
+        sessions: toNumber(row.sessions),
+      })),
       journeys: (journeyRows as WarehouseJourneyRow[]).map((row) => ({
         path: String(row.path),
         orders: toNumber(row.orders),

@@ -67,6 +67,7 @@ export type OrderPoint = {
   customerId: string | null;
   firstTouch: FirstTouch;
   firstTouchChannel: string;
+  firstProductTitle: string | null;
 };
 
 export type ShopifyOverviewMetrics = {

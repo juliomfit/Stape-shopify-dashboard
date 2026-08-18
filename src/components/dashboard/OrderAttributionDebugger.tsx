@@ -4,8 +4,10 @@ import {
   eligibleTouches,
   ATTRIBUTION_MODELS,
   ATTRIBUTION_MODEL_LABELS,
+  assistCredits,
 } from "@/lib/attribution/engine";
 import { isDirectChannel, isPaidChannel } from "@/lib/attribution/channel";
+import { identityEvidence } from "@/lib/attribution/identity";
 import { orderToTouchpoints } from "@/lib/attribution/journey";
 import type { AttributedOrder } from "@/lib/stape/attribution-types";
 import { DASHBOARD_TZ } from "@/lib/period";
@@ -39,6 +41,16 @@ function touchDotClass(channel: string) {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+function statusClass(status: string) {
+  if (status === "matched" || status === "present") {
+    return "text-positive";
+  }
+  if (status === "missing") {
+    return "text-negative";
+  }
+  return "text-muted";
+}
+
 export function OrderAttributionDebugger({
   order,
   lookbackDays,
@@ -46,6 +58,25 @@ export function OrderAttributionDebugger({
 }: OrderAttributionDebuggerProps) {
   const touchpoints = orderToTouchpoints(order);
   const eligible = eligibleTouches(touchpoints, order.purchaseTs, lookbackDays);
+  const excluded = touchpoints.filter(
+    (touch) => !eligible.some((item) => item.id === touch.id),
+  );
+  const identity = identityEvidence({
+    personKey: order.personKey,
+    gnUid: order.gnUid,
+    stapeUserId: order.stapeUserId,
+    shopifyCustomerId: order.shopifyCustomerId,
+    hashedEmailPresent: order.hashedEmailPresent,
+    transactionId: order.transactionId,
+    clientId: order.clientId,
+  });
+  const assists = assistCredits(touchpoints, order.purchaseTs, lookbackDays);
+  const first = eligible[0];
+  const last = eligible[eligible.length - 1];
+  const lagDays =
+    first && Number.isFinite(order.purchaseTs)
+      ? Math.max(0, (order.purchaseTs - first.timestamp) / DAY_MS)
+      : null;
 
   return (
     <div className="grid gap-5 border-t border-border pt-5 lg:grid-cols-2">
@@ -53,10 +84,16 @@ export function OrderAttributionDebugger({
         <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
           Journey · {lookbackDays}-day lookback
         </h3>
+        <p className="mt-1 text-xs text-muted">
+          First {first?.channel ?? "—"} · Last {last?.channel ?? "—"} · Last non-direct{" "}
+          {order.lastNonDirect} · {eligible.length} eligible ·{" "}
+          {eligible.filter((touch) => touch.isPaid).length} paid · lag{" "}
+          {lagDays == null ? "—" : `${lagDays.toFixed(1)}d`}
+        </p>
         {eligible.length === 0 ? (
           <p className="mt-3 text-sm text-muted">
             No first-party touches were stitched to this order within the
-            lookback. It is credited as Direct/Unknown.
+            lookback. It stays Unattributed/Unknown — not Direct.
           </p>
         ) : (
           <ol className="mt-3 space-y-3">
@@ -65,6 +102,7 @@ export function OrderAttributionDebugger({
               const gapDays = previous
                 ? (touch.timestamp - previous.timestamp) / DAY_MS
                 : null;
+              const original = order.touches[index];
               return (
                 <li key={touch.id} className="flex gap-3 text-sm">
                   <span
@@ -78,6 +116,10 @@ export function OrderAttributionDebugger({
                       {gapDays !== null
                         ? ` · ${gapDays < 1 ? "same day" : `${gapDays.toFixed(1)}d later`}`
                         : " · first touch"}
+                      {original?.campaign ? ` · ${original.campaign}` : ""}
+                      {original?.landingPage ? ` · ${original.landingPage}` : ""}
+                      {original?.fbclid ? " · fbclid" : ""}
+                      {original?.gclid ? " · gclid" : ""}
                     </p>
                   </div>
                 </li>
@@ -94,11 +136,31 @@ export function OrderAttributionDebugger({
             </li>
           </ol>
         )}
-        <p className="mt-4 text-xs leading-5 text-muted">
-          Stitched on person key{" "}
-          <span className="font-mono">{order.personKey || "—"}</span> (first-party
-          identity from client_id / Data Client user_id). Transaction{" "}
-          <span className="font-mono">{order.transactionId}</span>.
+        {excluded.length > 0 ? (
+          <p className="mt-3 text-xs text-muted">
+            Excluded {excluded.length} touch{excluded.length === 1 ? "" : "es"}{" "}
+            (outside window or after purchase).
+          </p>
+        ) : null}
+
+        <h3 className="mt-6 text-xs font-semibold uppercase tracking-[0.12em] text-muted">
+          Identity evidence · {identity.confidence}
+        </h3>
+        <p className="mt-1 text-xs text-muted">{identity.summary}</p>
+        <ul className="mt-2 space-y-1 text-xs">
+          {identity.fields.map((field) => (
+            <li key={field.key} className="flex justify-between gap-3">
+              <span className="text-foreground">{field.label}</span>
+              <span className={statusClass(field.status)}>
+                {field.status}
+                {field.display ? ` · ${field.display}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs leading-5 text-muted">
+          Transaction <span className="font-mono">{order.transactionId}</span>.
+          Hashed email is presence-only. No plaintext PII.
         </p>
       </div>
 
@@ -122,7 +184,9 @@ export function OrderAttributionDebugger({
                   {ATTRIBUTION_MODEL_LABELS[model]}
                 </p>
                 {byChannel.length === 0 ? (
-                  <p className="mt-1 text-xs text-muted">No eligible touch.</p>
+                  <p className="mt-1 text-xs text-muted">
+                    Unattributed under this model (not Direct).
+                  </p>
                 ) : (
                   <ul className="mt-1.5 space-y-1">
                     {byChannel.map(([channel, weight]) => (
@@ -145,6 +209,23 @@ export function OrderAttributionDebugger({
               </div>
             );
           })}
+          <div className="rounded-xl border border-border bg-elevated/60 p-3">
+            <p className="text-sm font-medium text-foreground">Assists (middle touches)</p>
+            {assists.length === 0 ? (
+              <p className="mt-1 text-xs text-muted">
+                No middle touches (need 3+ eligible touches). Not Linear.
+              </p>
+            ) : (
+              <ul className="mt-1.5 space-y-1">
+                {Object.entries(creditByChannel(assists)).map(([channel, weight]) => (
+                  <li key={channel} className="flex justify-between gap-3 text-xs">
+                    <span className="text-foreground">{channel}</span>
+                    <span className="text-muted">{formatPercent(weight)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     </div>

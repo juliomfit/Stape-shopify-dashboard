@@ -74,7 +74,7 @@ export function computeAnomalies(input: {
     check("orders", input.orders, input.previousOrders, "Shopify orders", true),
     check("spend", input.spend, input.previousSpend, "Blended ad spend"),
     check("cpa", input.cpa, input.previousCpa, "Blended CPA"),
-    check("mer", input.mer, input.previousMer, "MER (spend ÷ revenue)"),
+    check("mer", input.mer, input.previousMer, "MER (revenue ÷ spend)", true),
     check(
       "conversion",
       input.conversion,

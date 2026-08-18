@@ -10,7 +10,7 @@ import type {
 } from "@/lib/stape/attribution-types";
 import type { TrafficSource } from "@/lib/stape/types";
 
-/** Default lookback for True Performance and callers that do not pass a window. */
+/** Default lookback for first-touch and callers that do not pass a window. */
 export const ATTRIBUTION_LOOKBACK_DAYS = DEFAULT_ATTRIBUTION_WINDOW_DAYS;
 
 function toNumber(value: unknown) {
@@ -240,13 +240,7 @@ export async function getAttributionMetrics(options?: {
             channel,
             revenue / COUNT(*) OVER (PARTITION BY transaction_id) AS revenue_share,
             transaction_id
-          FROM non_direct
-        ),
-        direct_only AS (
-          SELECT transaction_id, ANY_VALUE(revenue) AS revenue
-          FROM order_attr
-          WHERE transaction_id NOT IN (SELECT transaction_id FROM non_direct)
-          GROUP BY transaction_id
+          FROM paths
         )
         SELECT 'first_non_direct' AS model, first_non_direct AS source, COUNT(*) AS orders, SUM(revenue) AS revenue
         FROM order_attr
@@ -263,9 +257,6 @@ export async function getAttributionMetrics(options?: {
         SELECT 'linear', channel, COUNT(DISTINCT transaction_id), SUM(revenue_share)
         FROM linear_base
         GROUP BY 2
-        UNION ALL
-        SELECT 'linear', 'Direct', COUNT(*), SUM(revenue)
-        FROM direct_only
         UNION ALL
         SELECT 'totals', 'all', COUNT(*), SUM(revenue)
         FROM order_attr
@@ -297,7 +288,12 @@ export async function getAttributionMetrics(options?: {
             p.revenue,
             p.purchase_ts,
             e.timestamp,
-            e.channel
+            e.channel,
+            e.page_location,
+            e.page_referrer,
+            e.session_key,
+            e.gclid,
+            e.fbclid
           FROM purchases p
           JOIN events e
             ON e.person_key = p.person_key
@@ -310,7 +306,19 @@ export async function getAttributionMetrics(options?: {
           ANY_VALUE(person_key) AS personKey,
           ANY_VALUE(revenue) AS revenue,
           ANY_VALUE(purchase_ts) AS purchaseTs,
-          ARRAY_AGG(STRUCT(timestamp AS ts, channel AS channel) ORDER BY timestamp) AS touches,
+          ARRAY_AGG(STRUCT(
+            timestamp AS ts,
+            channel AS channel,
+            REGEXP_EXTRACT(page_location, r'[?&]utm_source=([^&]+)') AS source,
+            REGEXP_EXTRACT(page_location, r'[?&]utm_medium=([^&]+)') AS medium,
+            REGEXP_EXTRACT(page_location, r'[?&]utm_campaign=([^&]+)') AS campaign,
+            REGEXP_EXTRACT(page_location, r'[?&]utm_content=([^&]+)') AS content,
+            REGEXP_EXTRACT(page_location, r'https?://[^/]+(/[^?]*)') AS landingPage,
+            page_referrer AS referrer,
+            session_key AS sessionKey,
+            (IFNULL(fbclid, '') != '' OR page_location LIKE '%fbclid=%') AS fbclid,
+            (IFNULL(gclid, '') != '' OR page_location LIKE '%gclid=%') AS gclid
+          ) ORDER BY timestamp) AS touches,
           IFNULL(
             ARRAY_AGG(IF(channel = 'Direct', NULL, channel) IGNORE NULLS ORDER BY timestamp LIMIT 1)[SAFE_OFFSET(0)],
             'Direct'
@@ -420,7 +428,7 @@ export async function getAttributionMetrics(options?: {
     const orders = (orderRows as Record<string, unknown>[]).map((row) => {
       const touches = (
         Array.isArray(row.touches) ? row.touches : []
-      ) as { ts?: unknown; channel?: unknown }[];
+      ) as Record<string, unknown>[];
       return {
         transactionId: String(row.transactionId ?? ""),
         revenue: toNumber(row.revenue),
@@ -432,9 +440,68 @@ export async function getAttributionMetrics(options?: {
         touches: touches.map((touch) => ({
           ts: toNumber(touch.ts),
           channel: String(touch.channel ?? "Direct"),
+          source: touch.source ? String(touch.source) : null,
+          medium: touch.medium ? String(touch.medium) : null,
+          campaign: touch.campaign ? String(touch.campaign) : null,
+          content: touch.content ? String(touch.content) : null,
+          landingPage: touch.landingPage ? String(touch.landingPage) : null,
+          referrer: touch.referrer ? String(touch.referrer) : null,
+          sessionKey: touch.sessionKey ? String(touch.sessionKey) : null,
+          fbclid: Boolean(touch.fbclid),
+          gclid: Boolean(touch.gclid),
         })),
+        gnUid: null as string | null,
+        stapeUserId: null as string | null,
+        shopifyCustomerId: null as string | null,
+        hashedEmailPresent: null as boolean | null,
+        clientId: null as string | null,
       };
     });
+
+    const txnIds = orders.map((order) => order.transactionId).filter(Boolean);
+    if (txnIds.length > 0) {
+      try {
+        const raw = `\`${config.projectId}.stape_data.raw_events_full\``;
+        const [idRows] = await client.query({
+          ...queryOptions,
+          params: { txns: txnIds },
+          query: `
+            SELECT
+              transaction_id,
+              ANY_VALUE(NULLIF(gn_uid, "")) AS gn_uid,
+              ANY_VALUE(NULLIF(stape_user_id, "")) AS stape_user_id,
+              ANY_VALUE(COALESCE(NULLIF(shopify_customer_id, ""), NULLIF(user_id, ""))) AS shopify_customer_id,
+              COUNTIF(IFNULL(hashed_email, "") != "") > 0 AS hashed_email_present,
+              ANY_VALUE(NULLIF(client_id, "")) AS client_id
+            FROM ${raw}
+            WHERE transaction_id IN UNNEST(@txns)
+              AND LOWER(IFNULL(event_name, "")) = "purchase"
+            GROUP BY transaction_id
+          `,
+        });
+        const byTxn = new Map(
+          (idRows as Record<string, unknown>[]).map((row) => [
+            String(row.transaction_id),
+            row,
+          ]),
+        );
+        for (const order of orders) {
+          const row = byTxn.get(order.transactionId);
+          if (!row) {
+            continue;
+          }
+          order.gnUid = row.gn_uid ? String(row.gn_uid) : null;
+          order.stapeUserId = row.stape_user_id ? String(row.stape_user_id) : null;
+          order.shopifyCustomerId = row.shopify_customer_id
+            ? String(row.shopify_customer_id)
+            : null;
+          order.hashedEmailPresent = Boolean(row.hashed_email_present);
+          order.clientId = row.client_id ? String(row.client_id) : null;
+        }
+      } catch {
+        // Identity columns may be absent until the sGTM writer / view migration.
+      }
+    }
     const gaps: string[] = [];
 
     if (toNumber(tracking.gclid) === 0) {

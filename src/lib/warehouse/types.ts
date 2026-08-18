@@ -13,6 +13,19 @@ export type WarehouseJourneyRow = {
   revenue: number;
 };
 
+export type WarehouseCampaignRow = {
+  campaign: string;
+  channel: string;
+  orders: number;
+  revenue: number;
+};
+
+export type WarehouseLandingRow = {
+  landingPage: string;
+  channel: string;
+  sessions: number;
+};
+
 export type WarehouseQuality = {
   totalOrders: number;
   ordersWithTransactionId: number;
@@ -64,6 +77,8 @@ export type WarehouseMetrics = {
   acquiring: WarehouseChannelRow[];
   closing: WarehouseChannelRow[];
   assisting: WarehouseChannelRow[];
+  campaigns: WarehouseCampaignRow[];
+  landings: WarehouseLandingRow[];
   journeys: WarehouseJourneyRow[];
   avgDaysToPurchase: number | null;
   avgTouchesToPurchase: number | null;

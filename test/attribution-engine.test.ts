@@ -5,6 +5,9 @@ import {
   attributeAllModels,
   creditByChannel,
   eligibleTouches,
+  orderCreditIntegrity,
+  applyRevenue,
+  assistCredits,
   ATTRIBUTION_MODELS,
   type Touchpoint,
 } from "../src/lib/attribution/engine.ts";
@@ -61,12 +64,12 @@ test("last non-direct falls back to Direct when every touch is Direct", () => {
   assert.deepEqual(channelWeights(journey, "last_non_direct"), { Direct: 1 });
 });
 
-test("linear splits equally across non-direct touches; Direct excluded", () => {
+test("linear splits equally across all eligible touches including Direct (Journey A)", () => {
   const journey = [META(240), GOOGLE_ORG(120), DIRECT(24)];
   const weights = channelWeights(journey, "linear");
-  assert.ok(near(weights["Meta Paid"], 0.5));
-  assert.ok(near(weights["Organic Search"], 0.5));
-  assert.equal(weights["Direct"], undefined);
+  assert.ok(near(weights["Meta Paid"], 1 / 3));
+  assert.ok(near(weights["Organic Search"], 1 / 3));
+  assert.ok(near(weights["Direct"], 1 / 3));
 });
 
 test("linear falls back to Direct-only when all touches are Direct", () => {
@@ -81,14 +84,24 @@ test("linear rolls repeated channel touches up correctly", () => {
   assert.ok(near(weights["Organic Search"], 1 / 3));
 });
 
-test("position based: 40/20/40 across three marketing touches (Direct excluded from middle)", () => {
+test("position based Journey A is 40/20/40 including Direct", () => {
+  const journey = [META(240), GOOGLE_ORG(120), DIRECT(24)];
+  const byChannel = creditByChannel(
+    attribute(journey, { model: "position_based", purchaseTs: PURCHASE }),
+  );
+  assert.ok(near(byChannel["Meta Paid"], 0.4));
+  assert.ok(near(byChannel["Organic Search"], 0.2));
+  assert.ok(near(byChannel["Direct"], 0.4));
+});
+
+test("position based: Direct in the path is a real middle/end touch", () => {
   const journey = [META(240), DIRECT(150), GOOGLE_ORG(120), EMAIL(24)];
   const credits = attribute(journey, { model: "position_based", purchaseTs: PURCHASE });
   const byChannel = creditByChannel(credits);
   assert.ok(near(byChannel["Meta Paid"], 0.4));
-  assert.ok(near(byChannel["Organic Search"], 0.2));
+  assert.ok(near(byChannel["Direct"], 0.1));
+  assert.ok(near(byChannel["Organic Search"], 0.1));
   assert.ok(near(byChannel["Email"], 0.4));
-  assert.equal(byChannel["Direct"], undefined);
 });
 
 test("position based: single touch is 100%", () => {
@@ -196,4 +209,44 @@ test("no model ever returns NaN/Infinity and weights sum to 1 when touches exist
       assert.ok(near(total, 1, 1e-9), `${model} sums to 1 (got ${total})`);
     }
   }
+});
+
+test("Unknown is not converted to Direct", () => {
+  const unknown: Touchpoint = {
+    id: "u",
+    timestamp: PURCHASE - HOUR,
+    channel: "Unknown",
+    isPaid: false,
+    isDirect: false,
+  };
+  assert.deepEqual(channelWeights([unknown], "last_touch"), { Unknown: 1 });
+  assert.deepEqual(channelWeights([unknown], "last_non_direct"), { Unknown: 1 });
+});
+
+test("order credit reconciles refunded net revenue", () => {
+  const journey = [META(240), GOOGLE_ORG(120), DIRECT(24)];
+  const credits = attribute(journey, { model: "linear", purchaseTs: PURCHASE });
+  const net = 19.99;
+  const integrity = orderCreditIntegrity(credits, net);
+  assert.equal(integrity.ok, true);
+  assert.ok(near(integrity.attributedRevenue, net));
+  const withMoney = applyRevenue(credits, net);
+  const sum = withMoney.reduce((total, row) => total + row.attributedRevenue, 0);
+  assert.ok(near(sum, net));
+});
+
+test("assists are middle touches only", () => {
+  const journey = [META(240), GOOGLE_ORG(120), EMAIL(24)];
+  const credits = assistCredits(journey, PURCHASE);
+  assert.deepEqual(creditByChannel(credits), { "Organic Search": 1 });
+});
+
+test("partial window cutoff uses epoch days not calendar TZ labels", () => {
+  const journey = [META(7 * 24 + 1), EMAIL(1)];
+  const inside = attribute(journey, {
+    model: "first_touch",
+    purchaseTs: PURCHASE,
+    windowDays: 7,
+  });
+  assert.deepEqual(creditByChannel(inside), { Email: 1 });
 });
