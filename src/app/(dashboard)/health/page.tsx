@@ -129,7 +129,7 @@ export default async function HealthPage() {
             </p>
           ) : (
             <p className="mt-3 text-sm text-muted">
-              Today $0 with Yesterday spend is Flyweel lag, not a missing BigQuery dataset. True Performance stays gn_*.
+              Today $0 with Yesterday spend is Flyweel lag, not a missing BigQuery dataset. First-touch stays gn_*.
             </p>
           )}
         </article>

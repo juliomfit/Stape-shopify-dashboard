@@ -311,7 +311,7 @@ export default async function AttributionPage() {
             </h2>
             <p className="mt-1 text-xs leading-5 text-muted">
               Google Analytics last-click-style session source. Do not use this instead of
-              True Performance above. Property {ga4.propertyId || "unset"}
+              First-touch above. Property {ga4.propertyId || "unset"}
               {ga4.streamId ? ` · stream ${ga4.streamId}` : ""}.
             </p>
             {ga4.sources.length === 0 ? (

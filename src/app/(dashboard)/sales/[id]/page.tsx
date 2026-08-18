@@ -132,7 +132,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
           </Link>
           ,{" "}
           <Link href="/attribution" className="text-accent hover:underline">
-            True Performance
+            First-touch
           </Link>
           , and{" "}
           <Link href="/meta" className="text-accent hover:underline">

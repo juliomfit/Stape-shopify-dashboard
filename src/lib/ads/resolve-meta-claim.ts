@@ -23,7 +23,7 @@ function empty(
 }
 
 /**
- * Overview, True Performance, Warehouse, and Ask AI must resolve Meta spend
+ * Overview, First-touch, Warehouse, and Ask AI must resolve Meta spend
  * the same way as /meta. Warehouse rows win. Missing spend stays null.
  */
 export function resolveMetaClaim(input: {
@@ -86,7 +86,7 @@ export function resolveMetaClaim(input: {
     input.graph ??
     empty(
       "not_configured",
-      `Paste Ads Manager totals on True Performance or Refresh Meta for ${input.periodLabel}`,
+      `Paste Ads Manager totals on First-touch or Refresh Meta for ${input.periodLabel}`,
     )
   );
 }

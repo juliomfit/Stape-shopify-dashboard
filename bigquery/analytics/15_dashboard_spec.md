@@ -2,15 +2,15 @@
 
 Path: `/warehouse`
 
-This page is **not** True Performance. True Performance stays Shopify `gn_*`
-first-touch. This page is warehouse observed-click models.
+This page is **not** First-touch (`gn_*`). First-touch stays Shopify `gn_*`
+first-touch. This page is warehouse observed-click models (`attribution_policy_v1`).
 
 ## Controls (do not change Shopify order totals)
 
 - Header date range (Pacific) — order window
 - Attribution model: First Touch, Last Touch, Last Non-Direct, Last Paid,
   Linear, Position Based, Time Decay, First Paid
-- Lookback: 1 / 7 / 14 / 28 / 30 / 60 / 90 days
+- Lookback: 1 / 7 / 14 / 30 / 60 days in the app (90-day hidden until `raw_events_full` retention covers it; see `attribution_policy_v1`)
 - Optional: channel, confidence
 
 Changing model reallocates `credit` / `attributed_revenue` only.

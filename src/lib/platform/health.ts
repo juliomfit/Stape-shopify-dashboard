@@ -192,7 +192,7 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
     message:
       ads.google.state === "connected"
         ? ads.google.message || "Pasted Ads Manager totals for this range."
-        : "Paste Google spend on True Performance. Ads API needs a developer token (not wired).",
+        : "Paste Google spend on First-touch. Ads API needs a developer token (not wired).",
     href: "/attribution",
   };
 

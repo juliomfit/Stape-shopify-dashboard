@@ -1,7 +1,7 @@
 -- GoodsNova platform warehouse (Meta entities/insights, sync runs, daily business).
 -- Run in BigQuery Editor if the dashboard service account cannot CREATE.
 -- Grant the dashboard SA: BigQuery Data Editor + Job User on this dataset.
--- Do not mix these tables with True Performance (Shopify gn_*) or warehouse click models.
+-- Do not mix these tables with First-touch (Shopify gn_*) or warehouse click models.
 
 CREATE SCHEMA IF NOT EXISTS `stape-analytics-487802.goodsnova_platform`
 OPTIONS (

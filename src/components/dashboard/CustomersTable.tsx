@@ -42,7 +42,7 @@ export function CustomersTable({
         </h2>
         <p className="mt-1 text-xs text-muted">
           {periodLabel} · names only, no emails · New means 1 lifetime Shopify
-          order, not “new-customer orders” on True Performance
+          order, not “new-customer orders” on First-touch
         </p>
       </div>
       <div className="overflow-x-auto">

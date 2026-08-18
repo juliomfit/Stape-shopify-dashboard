@@ -1,7 +1,7 @@
 # GoodsNova attribution warehouse
 
 Production-grade, transaction-safe attribution on first-party server data.
-This layer does **not** replace Shopify `gn_*` first-touch on True Performance.
+This layer does **not** replace Shopify `gn_*` first-touch on `/attribution`.
 Warehouse models are labeled **observed click / session attribution**. They are
 not Meta or Google view-through, and they are not Ads Manager numbers.
 
@@ -74,7 +74,7 @@ flowchart TD
   sGTM --> store
   sGTM --> emailStore
   sGTM -->|"declared columns only"| bq
-  shopify -->|"Admin API"| dashboardShopify["True Performance gn_* first-touch"]
+  shopify -->|"Admin API"| dashboardShopify["First-touch gn_*"]
   bq --> warehouse["Warehouse models this folder"]
 ```
 
@@ -91,7 +91,7 @@ Click IDs are attribution keys, not person keys. No IP merges.
 | Change | Why |
 |---|---|
 | New SQL in `bigquery/analytics/` | Layered warehouse. Raw tables untouched. |
-| Dashboard `/warehouse` | Multi-model + quality. Does not alter True Performance. |
+| Dashboard `/warehouse` | Multi-model + quality. Does not alter First-touch (`gn_*`). |
 | sGTM BigQuery writer **appends** columns | See `GTM_CHANGES.md`. Do not replace X-Stape-User-Id. |
 | Do **not** drop `dashboard_events` | Funnel still uses it. Recreate before 2026-10-11 expiry. |
 | Do **not** shorten `raw_events_full` retention further | 60-day expiry already limits lookbacks. |
@@ -128,7 +128,7 @@ For conflicting `purchase` rows with the same `transaction_id`:
 
 | Series | Meaning |
 |---|---|
-| Shopify `gn_*` | Storefront first-touch on the order. Source of truth for True Performance. |
+| Shopify `gn_*` | Storefront first-touch on the order. Source of truth for First-touch. |
 | Warehouse models | Deterministic click/session path in sGTM → BigQuery. |
 | Platform-reported | Ads Manager. `platform_reported_*` only. Never mixed into warehouse credit. |
 

@@ -67,15 +67,15 @@ GOOGLE_APPLICATION_CREDENTIALS=secrets/gcp-service-account.json
 
 Restart `npm run dev`. Overview, Traffic, Conversions, and Attribution read `dashboard_events`.
 
-## True Performance (first-touch + spend)
+## First-touch attribution (`gn_*` + spend)
 
-True Performance uses Shopify `gn_*` cart attributes as first-touch. Stape is shown as a comparison only.
+First-touch uses Shopify `gn_*` cart attributes. Stape is shown as a comparison only. Multi-touch OUR attribution lives on `/attribution/overview`.
 
 ### Meta spend
 
 Facebook will not let this localhost dashboard log in the way Triple Whale does until your app appeal is approved. Until then, paste Ads Manager Amount spent or upload a Campaigns CSV. After the app is live, add `META_APP_ID` and `META_APP_SECRET` and use **Log in with Facebook**.
 
-1. True Performance → set Today / Yesterday / 7d / 30d.
+1. First-touch → set Today / Yesterday / 7d / 30d.
 2. Ads Manager → Campaigns → same dates (Pacific time).
 3. Type Amount spent, or Export CSV and upload it.
 4. Press **Save Meta totals** or **Import CSV**.
@@ -136,7 +136,7 @@ Never commit `.env.local` or `secrets/`.
 
 ## Warehouse attribution
 
-`/warehouse` is multi-model observed-click attribution from `raw_events_full`. It does **not** replace True Performance (`gn_*`).
+`/warehouse` is multi-model observed-click attribution from `raw_events_full`. It does **not** replace First-touch (`gn_*`).
 
 SQL to create the `analytics` dataset (needs BigQuery Editor) lives in `bigquery/analytics/`. The app service account is read-only, so the page runs the same logic as SELECT until those views exist. Required sGTM column appends: `bigquery/analytics/GTM_CHANGES.md`.
 

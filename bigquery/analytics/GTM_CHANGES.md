@@ -81,4 +81,4 @@ Import + click-by-click: `gtm/README.md`. Do not change warehouse SQL until Quer
 - Stape Store keys (`X-Stape-User-Id`, hashed email collection)
 - Existing `source_client`
 - Production pixels / CAPI / Ads tags
-- True Performance first-touch = Shopify cart `gn_*` (unchanged; this feed only fills BQ)
+- First-touch = Shopify cart `gn_*` (unchanged; this feed only fills BQ)

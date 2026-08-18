@@ -1,6 +1,6 @@
 # GoodsNova platform layer
 
-Sources still stay labeled. This layer does **not** replace True Performance (`gn_*`),
+Sources still stay labeled. This layer does **not** replace First-touch (`gn_*`),
 Shopify Attribution, or the Stape warehouse click models.
 
 Page-by-page sources: `docs/SOURCE_MATRIX.md`.
@@ -72,7 +72,7 @@ Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. Ver
 Hourly Meta refresh is **not** an 8-day lookback. Incremental ingest is Pacific **today + yesterday**. Vercel **Hobby** cron is **once per day**
 (`0 15 * * *` UTC). Use Refresh Meta anytime.
 
-Overview / True Performance / Warehouse **Meta spend** reads `meta_campaign_insights_daily` (same as `/meta`) when warehouse rows or a successful sync exist. Google paste is labeled separately. Paste does **not** override warehouse Meta.
+Overview / First-touch / Warehouse **Meta spend** reads `meta_campaign_insights_daily` (same as `/meta`) when warehouse rows or a successful sync exist. Google paste is labeled separately. Paste does **not** override warehouse Meta.
 
 ## Google Ads / GA4
 
@@ -83,7 +83,7 @@ GA4 Data API runs when `GA4_PROPERTY_ID` is set and the service account can read
 that property (Analyst via Admin API if the GA4 UI rejects the service account email).
 Enable **Google Analytics Data API** on the GCP project that owns `GOOGLE_SERVICE_ACCOUNT_JSON`
 (the project id in the Refresh GA4 error URL). Optional `GA4_STREAM_ID` filters web-only.
-sGTM BigQuery remains the event warehouse. True Performance stays `gn_*`.
+sGTM BigQuery remains the event warehouse. First-touch stays `gn_*`.
 
 Refresh GA4 uses the **header date range** (max 93 Pacific days) and writes
 `raw_ga4_metrics`, `raw_ga4_sources`, `raw_ga4_breakdowns`. Pages read BigQuery only.

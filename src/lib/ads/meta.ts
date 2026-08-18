@@ -169,7 +169,7 @@ export async function getMetaClaimed(
     if (!credentials) {
       graph = empty(
         "not_configured",
-        "Paste Ads Manager totals on True Performance for this date range",
+        "Paste Ads Manager totals on First-touch for this date range",
       );
     } else {
       try {

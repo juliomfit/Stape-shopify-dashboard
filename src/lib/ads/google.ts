@@ -35,7 +35,7 @@ export async function getGoogleClaimed(
       state: "not_configured",
       claimKind: "missing",
       message:
-        "Paste Google Ads spend on True Performance for this date range",
+        "Paste Google Ads spend on First-touch for this date range",
       spend: null,
       purchases: null,
       revenue: null,
