@@ -218,7 +218,6 @@ export async function getAttributionMetrics(options?: {
           SELECT
             transaction_id,
             ANY_VALUE(revenue) AS revenue,
-            ARRAY_AGG(channel ORDER BY timestamp LIMIT 1)[OFFSET(0)] AS first_touch,
             IFNULL(
               ARRAY_AGG(IF(channel = 'Direct', NULL, channel) IGNORE NULLS ORDER BY timestamp LIMIT 1)[SAFE_OFFSET(0)],
               'Direct'
