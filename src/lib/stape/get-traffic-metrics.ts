@@ -37,7 +37,8 @@ function emptyMetrics(periodLabel: string): StapeTrafficMetrics {
 }
 
 function toNumber(value: unknown) {
-  return Number(value ?? 0);
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
 }
 
 function withAllChannels(rows: SourceRow[]): TrafficSource[] {
