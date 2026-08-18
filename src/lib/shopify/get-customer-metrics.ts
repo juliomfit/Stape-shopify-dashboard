@@ -125,6 +125,7 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
         spend: number;
         numberOfOrders: number;
         lastOrderAt: string | null;
+        createdAt: string | null;
       }
     >();
 
@@ -157,6 +158,7 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
           spend: 0,
           numberOfOrders: Number(order.customer.numberOfOrders ?? 0),
           lastOrderAt: order.createdAt,
+          createdAt: order.customer.createdAt ?? null,
         };
         current.orderCount += 1;
         current.spend += Number(order.currentTotalPriceSet.shopMoney.amount);
@@ -189,6 +191,7 @@ export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetric
         isNew: item.numberOfOrders <= 1,
         lastOrderAt: item.lastOrderAt,
         lifetimeOrders: item.numberOfOrders,
+        createdAt: item.createdAt,
       }))
       .sort((a, b) => b.spend.amount - a.spend.amount);
 

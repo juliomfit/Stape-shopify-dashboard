@@ -47,6 +47,7 @@ export type CustomerPerformance = {
   isNew: boolean;
   lastOrderAt: string | null;
   lifetimeOrders: number;
+  createdAt: string | null;
 };
 
 export type OrderPoint = {

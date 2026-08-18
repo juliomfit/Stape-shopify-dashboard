@@ -22,6 +22,9 @@ import { getSelectedPeriod } from "@/lib/period-server";
 import { getDashboardPeriod, pacificDaysInRange } from "@/lib/period";
 import { loadMetaCache } from "@/lib/ads/meta-query";
 import { latestSuccessfulSync, latestSync } from "@/lib/platform/sync-runs";
+import { shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
+import { newCustomerCac, newCustomerRoas } from "@/lib/metrics/formulas";
+import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +52,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt, warehouse] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -71,6 +74,7 @@ async function renderMetaPage() {
       serviceAccount: "",
       message: "Warehouse check failed.",
     })),
+    getShopifyOverviewMetrics().catch(() => null),
   ]);
   const totals = totalsFromFacts(facts);
   const claimed = resolveMetaClaim({
@@ -95,6 +99,18 @@ async function renderMetaPage() {
   const days = pacificDaysInRange(period.startDate, period.endDate);
   const currency = "USD";
   const viewContext = `Meta Ads · ${period.label} · ${period.startDate} to ${period.endDate}`;
+  const alignedShopify = shopify
+    ? shopifyMetricsSince(shopify.orderPoints, period.startMs, period.endMs)
+    : null;
+  const shopifyConnected = shopify?.status.state === "connected";
+  const metaNcCac = newCustomerCac(
+    claimed.spend,
+    shopifyConnected ? alignedShopify?.newCustomerOrders ?? null : null,
+  );
+  const metaNcRoas = newCustomerRoas(
+    alignedShopify?.newCustomerRevenue ?? 0,
+    claimed.spend,
+  );
 
   return (
     <>
@@ -237,6 +253,40 @@ async function renderMetaPage() {
             }
           />
         </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="New-customer CAC"
+            source="Meta spend ÷ Shopify new-customer orders (store-wide, not campaign-attributed)"
+            value={
+              metaNcCac === null
+                ? null
+                : formatMoney({ amount: metaNcCac, currencyCode: currency })
+            }
+          />
+          <MetricCard
+            label="New-customer ROAS"
+            source="Shopify new-customer revenue ÷ Meta spend (store-wide)"
+            value={metaNcRoas === null ? null : `${metaNcRoas.toFixed(2)}x`}
+          />
+          <MetricCard
+            label="New-customer orders"
+            source="Shopify numberOfOrders ≤ 1 · not Meta new-customer conversions"
+            value={
+              shopifyConnected && alignedShopify
+                ? formatNumber(alignedShopify.newCustomerOrders)
+                : null
+            }
+          />
+          <MetricCard
+            label="Returning-customer orders"
+            source="Shopify numberOfOrders > 1 · store-wide"
+            value={
+              shopifyConnected && alignedShopify
+                ? formatNumber(alignedShopify.returningCustomerOrders)
+                : null
+            }
+          />
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
             label="Reach"
@@ -275,6 +325,9 @@ async function renderMetaPage() {
           <Link className="underline" href="/meta/creatives">
             Creatives
           </Link>
+          . Campaign nCAC is not shown: Meta new-customer conversion metrics are
+          not in the warehouse ingest, and we do not invent them from store-wide
+          Shopify new customers.
         </p>
           <div className="mt-4">
             <MetaEntityTable

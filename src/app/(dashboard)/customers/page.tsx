@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { CustomersTable } from "@/components/dashboard/CustomersTable";
+import { CustomerCohortTable } from "@/components/dashboard/CustomerCohortTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ScopeHelp } from "@/components/dashboard/ScopeHelp";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
-import { formatNumber, formatPercent } from "@/lib/format";
+import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getShopifyCustomerMetrics } from "@/lib/shopify/get-customer-metrics";
+import { rollupCustomerCohorts } from "@/lib/shopify/cohorts";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,21 @@ export default async function CustomersPage() {
   const returningCustomers = shopify.customers.length - newCustomers;
   const identified = shopify.customers.length;
   const repeatRate = identified > 0 ? returningCustomers / identified : null;
+  const currency = shopify.customers[0]?.spend.currencyCode || "USD";
+  const rangeRevenue = shopify.customers.reduce(
+    (sum, customer) => sum + customer.spend.amount,
+    0,
+  );
+  const revenuePerCustomer =
+    identified > 0 ? rangeRevenue / identified : null;
+  const cohorts = rollupCustomerCohorts(
+    shopify.customers.map((customer) => ({
+      createdAt: customer.createdAt,
+      orderCount: customer.orderCount,
+      spend: customer.spend.amount,
+      isNew: customer.isNew,
+    })),
+  );
 
   return (
     <>
@@ -102,13 +119,32 @@ export default async function CustomersPage() {
                     : null
                 }
               />
+              <MetricCard
+                label="Revenue / customer"
+                source={`${shopifySource} · spend in this range ÷ identified customers · not lifetime LTV`}
+                value={
+                  shopify.status.state === "connected" &&
+                  revenuePerCustomer !== null
+                    ? formatMoney({
+                        amount: revenuePerCustomer,
+                        currencyCode: currency,
+                      })
+                    : null
+                }
+              />
             </div>
             <p className="text-xs leading-5 text-muted">
               New vs returning here is unique people (lifetime numberOfOrders).
               True Performance new-customer orders is order grain and will not
               match. Last order date is the latest order in this header range,
-              not a guessed lifetime recency.
+              not a guessed lifetime recency. Revenue / customer is this range
+              only — true LTV needs lifetime spend, which is not queried here.
             </p>
+            <CustomerCohortTable
+              rows={cohorts}
+              currencyCode={currency}
+              periodLabel={shopify.periodLabel}
+            />
             <CustomersTable
               customers={shopify.customers}
               periodLabel={shopify.periodLabel}

@@ -4,6 +4,8 @@ import { contributionProfit } from "@/lib/metrics/formulas";
 export {
   aov,
   blendedCpa,
+  breakEvenCpa,
+  breakEvenRoas,
   contributionMargin,
   coverageRatio,
   cpc,
@@ -11,10 +13,12 @@ export {
   ctr,
   merRatio,
   netAfterFees,
+  newCustomerCac,
   newCustomerCpa,
   percentChange,
   platformCpa,
   platformRoas,
+  profitRoas,
   ratio,
 } from "@/lib/metrics/formulas";
 

@@ -3,6 +3,7 @@ import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { InfoPanel } from "@/components/dashboard/InfoPanel";
 import { SpendCoveragePanel } from "@/components/dashboard/SpendCoveragePanel";
 import { TrackingHealth } from "@/components/dashboard/TrackingHealth";
+import { IdentityMatchPanel } from "@/components/dashboard/IdentityMatchPanel";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { Header } from "@/components/layout/Header";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
@@ -81,6 +82,7 @@ export default async function DataQualityPage() {
           currentEnd={period.endDate}
         />
         <TrackingHealth fields={attribution.tracking} />
+        <IdentityMatchPanel identity={attribution.identity} />
         <WarehouseQualityPanel
           quality={warehouse.quality}
           totalOrders={warehouse.orders}

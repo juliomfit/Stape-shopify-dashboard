@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   title: "Sales",
 };
 
+function roasLabel(value: number | null) {
+  return value === null ? null : `${value.toFixed(2)}x`;
+}
+
 export default async function SalesPage() {
   const data = await getCoreDashboard();
   const {
@@ -39,9 +43,15 @@ export default async function SalesPage() {
     byCampaign,
     sourceMediumNote,
     inRange,
-    totalSpend,
     cpa,
+    profit,
     profitAfterCogs,
+    profitRoasValue,
+    profitRoasAfterCogs,
+    beRoas,
+    beCpa,
+    ncCac,
+    ncRoas,
     cogsRange,
     cogsSource,
   } = data;
@@ -201,6 +211,83 @@ export default async function SalesPage() {
                 ? null
                 : formatPercent(unknown.orderShare)
             }
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Contribution profit"
+            source={
+              profit === null
+                ? "Needs ad spend for these dates · COGS not subtracted"
+                : `${period.label} · total − fees − ad spend · not net profit (no COGS)`
+            }
+            value={
+              profit === null
+                ? null
+                : formatMoney({ amount: profit, currencyCode: currency })
+            }
+          />
+          <MetricCard
+            label="Profit ROAS"
+            source={
+              profitRoasValue === null
+                ? "Needs ad spend · contribution profit ÷ spend"
+                : `${period.label} · contribution profit ÷ blended ad spend`
+            }
+            value={roasLabel(profitRoasValue)}
+          />
+          <MetricCard
+            label="Profit ROAS after COGS"
+            source={
+              !cogsRange.complete
+                ? cogsSource
+                : profitRoasAfterCogs === null
+                  ? `Needs ad spend · ${cogsSource}`
+                  : `${period.label} · profit after COGS ÷ blended ad spend`
+            }
+            value={cogsRange.complete ? roasLabel(profitRoasAfterCogs) : null}
+          />
+          <MetricCard
+            label="Break-even ROAS"
+            source={
+              beRoas === null
+                ? "Needs a positive contribution margin"
+                : cogsRange.complete
+                  ? "1 ÷ contribution margin after COGS"
+                  : "1 ÷ contribution margin (no COGS until ledger is complete)"
+            }
+            value={roasLabel(beRoas)}
+          />
+          <MetricCard
+            label="Break-even CPA"
+            source="AOV × contribution margin %"
+            value={
+              beCpa === null
+                ? null
+                : formatMoney({ amount: beCpa, currencyCode: currency })
+            }
+          />
+          <MetricCard
+            label="New-customer CAC"
+            source={
+              ncCac === null
+                ? spendSource
+                : `${period.label} · blended ad spend ÷ Shopify new-customer orders`
+            }
+            value={
+              ncCac === null
+                ? null
+                : formatMoney({ amount: ncCac, currencyCode: currency })
+            }
+          />
+          <MetricCard
+            label="New-customer ROAS"
+            source={
+              ncRoas === null
+                ? spendSource
+                : `${period.label} · new-customer revenue ÷ blended ad spend`
+            }
+            value={roasLabel(ncRoas)}
           />
         </div>
         {unknown.orders > 0 ? (

@@ -1,4 +1,5 @@
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
+import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
 import { CHANNEL_SQL, ATTRIBUTION_CHANNELS } from "@/lib/stape/channel-sql";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { eventsFromSql, getBigQueryConfig, identityMapSql } from "@/lib/stape/config";
@@ -9,7 +10,8 @@ import type {
 } from "@/lib/stape/attribution-types";
 import type { TrafficSource } from "@/lib/stape/types";
 
-export const ATTRIBUTION_LOOKBACK_DAYS = 7;
+/** Default lookback for True Performance and callers that do not pass a window. */
+export const ATTRIBUTION_LOOKBACK_DAYS = DEFAULT_ATTRIBUTION_WINDOW_DAYS;
 
 function toNumber(value: unknown) {
   const amount = Number(value ?? 0);
@@ -41,11 +43,14 @@ function withContribution(
   }));
 }
 
-function emptyMetrics(periodLabel: string): AttributionMetrics {
+function emptyMetrics(
+  periodLabel: string,
+  lookbackDays: number = ATTRIBUTION_LOOKBACK_DAYS,
+): AttributionMetrics {
   return {
     status: { state: "not_configured" },
     periodLabel,
-    lookbackDays: ATTRIBUTION_LOOKBACK_DAYS,
+    lookbackDays,
     attributedOrders: 0,
     attributedRevenue: 0,
     firstTouch: [],
@@ -68,12 +73,18 @@ function emptyMetrics(periodLabel: string): AttributionMetrics {
   };
 }
 
-export async function getAttributionMetrics(): Promise<AttributionMetrics> {
+export async function getAttributionMetrics(options?: {
+  lookbackDays?: number;
+}): Promise<AttributionMetrics> {
   const period = await getAlignedPeriod();
+  const lookbackDays =
+    options?.lookbackDays && options.lookbackDays > 0
+      ? options.lookbackDays
+      : ATTRIBUTION_LOOKBACK_DAYS;
 
   try {
     if (!getBigQueryConfig()) {
-      return emptyMetrics(period.label);
+      return emptyMetrics(period.label, lookbackDays);
     }
 
     const { client, config } = getBigQueryClient();
@@ -83,7 +94,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
     const timeParams = {
       startMs: period.startMs,
       endMs: period.endMs,
-      lookbackMs: ATTRIBUTION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+      lookbackMs: lookbackDays * 24 * 60 * 60 * 1000,
     };
 
     const eventsCte = `
@@ -116,6 +127,8 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
         FROM ${table} e
         LEFT JOIN identity
           ON identity.client_id = e.client_id
+        WHERE e.timestamp >= @startMs - @lookbackMs
+          AND e.timestamp < @endMs
       ),
       events AS (
         SELECT
@@ -127,7 +140,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
 
     const [firstRows] = await client.query({
       ...queryOptions,
-      params: { startMs: period.startMs, endMs: period.endMs },
+      params: timeParams,
       query: `
         ${eventsCte}
         SELECT channel AS source, COUNT(*) AS sessions
@@ -149,7 +162,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
 
     const [lastRows] = await client.query({
       ...queryOptions,
-      params: { startMs: period.startMs, endMs: period.endMs },
+      params: timeParams,
       query: `
         ${eventsCte}
         SELECT channel AS source, COUNT(*) AS sessions
@@ -315,7 +328,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
 
     const [identityRows] = await client.query({
       ...queryOptions,
-      params: { startMs: period.startMs, endMs: period.endMs },
+      params: timeParams,
       query: `
         ${eventsCte}
         SELECT
@@ -435,7 +448,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
     return {
       status: { state: "connected", projectId: config.projectId },
       periodLabel: period.label,
-      lookbackDays: ATTRIBUTION_LOOKBACK_DAYS,
+      lookbackDays,
       attributedOrders: toNumber(totals?.orders),
       attributedRevenue: toNumber(totals?.revenue),
       firstTouch: withSessions(firstRows as { source: string; sessions: number }[]),
@@ -467,7 +480,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
     const message =
       error instanceof Error ? error.message : "Could not load attribution data.";
     return {
-      ...emptyMetrics(period.label),
+      ...emptyMetrics(period.label, lookbackDays),
       status: { state: "error", message },
     };
   }

@@ -13,6 +13,7 @@ import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 import { Ga4CaptureCompare } from "@/components/dashboard/Ga4Panels";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
+import { IdentityMatchPanel } from "@/components/dashboard/IdentityMatchPanel";
 import { getGa4Snapshot } from "@/lib/ads/ga4-query";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,16 @@ export default async function HealthPage() {
     getDataHealth().catch(() => []),
     listSyncRuns().catch(() => []),
     getCoreDashboard(),
-    getAttributionMetrics().catch(() => ({ tracking: [] as { label: string; filled: number; total: number }[] })),
+    getAttributionMetrics().catch(() => ({
+      tracking: [] as { label: string; filled: number; total: number }[],
+      identity: {
+        purchases: 0,
+        purchasesWithPerson: 0,
+        uniquePeople: 0,
+        uniqueBrowsers: 0,
+        crossDevicePeople: 0,
+      },
+    })),
     getCampaignFacts(period).catch(() => []),
     getGa4Snapshot(period).catch(() => null),
     latestSuccessfulSync("ga4").catch(() => null),
@@ -162,6 +172,7 @@ export default async function HealthPage() {
             ))}
           </ul>
         </article>
+        <IdentityMatchPanel identity={attribution.identity} />
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">Stape field fill</h2>
           <ul className="mt-3 space-y-1 text-sm text-muted">

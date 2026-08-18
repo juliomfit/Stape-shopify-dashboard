@@ -61,6 +61,11 @@ export default async function OverviewPage() {
     blendedRoas,
     cpa,
     ncRoas,
+    ncCac,
+    profitRoasValue,
+    profitRoasAfterCogs,
+    beRoas,
+    beCpa,
     ads,
     deltas,
   } = data;
@@ -349,6 +354,67 @@ export default async function OverviewPage() {
                 : `${period.label} · new-customer revenue ÷ blended ad spend`
             }
             value={roasLabel(ncRoas)}
+          />
+          <MetricCard
+            label="New-customer CAC"
+            source={
+              ncCac === null
+                ? spendSource
+                : `${period.label} · blended ad spend ÷ Shopify new-customer orders`
+            }
+            value={
+              ncCac === null
+                ? null
+                : formatMoney({ amount: ncCac, currencyCode: currency })
+            }
+          />
+          <MetricCard
+            label="Profit ROAS"
+            source={
+              profitRoasValue === null
+                ? "Needs ad spend · contribution profit (no COGS) ÷ spend"
+                : `${period.label} · contribution profit ÷ blended ad spend · COGS not subtracted`
+            }
+            value={roasLabel(profitRoasValue)}
+          />
+          <MetricCard
+            label="Profit ROAS after COGS"
+            source={
+              !cogsRange.complete
+                ? cogsSource
+                : profitRoasAfterCogs === null
+                  ? `Needs ad spend · ${cogsSource}`
+                  : `${period.label} · profit after COGS ÷ blended ad spend`
+            }
+            value={
+              cogsRange.complete ? roasLabel(profitRoasAfterCogs) : null
+            }
+          />
+          <MetricCard
+            label="Break-even ROAS"
+            source={
+              beRoas === null
+                ? cogsRange.complete
+                  ? "Needs a positive contribution margin after COGS"
+                  : "Needs a positive contribution margin (no COGS until ledger is complete)"
+                : cogsRange.complete
+                  ? "1 ÷ contribution margin after COGS"
+                  : "1 ÷ contribution margin (fees + ad spend, no COGS)"
+            }
+            value={roasLabel(beRoas)}
+          />
+          <MetricCard
+            label="Break-even CPA"
+            source={
+              beCpa === null
+                ? "AOV × contribution margin % · needs positive margin"
+                : "Most you can pay per order before contribution turns negative"
+            }
+            value={
+              beCpa === null
+                ? null
+                : formatMoney({ amount: beCpa, currencyCode: currency })
+            }
           />
           <MetricCard
             label="Unknown first-touch orders"

@@ -5,6 +5,7 @@ import {
 } from "@/lib/dashboard/aligned-period";
 import {
   blendedCpa,
+  contributionMargin,
   contributionProfit,
   merRatio,
   netAfterFees,
@@ -14,6 +15,12 @@ import {
   shopifyStapeMismatch,
   unknownFirstTouch,
 } from "@/lib/dashboard/kpis";
+import {
+  breakEvenCpa,
+  breakEvenRoas,
+  newCustomerCac,
+  profitRoas,
+} from "@/lib/metrics/formulas";
 import { getAverageOrderValue, getConversionRate } from "@/lib/dashboard/conversion";
 import { pacificDaysInRange, pacificYmd, previousDashboardPeriod } from "@/lib/period";
 import { getMetaPaste, getGooglePaste } from "@/lib/ads/spend-paste";
@@ -143,6 +150,17 @@ export async function getCoreDashboard() {
   const blendedRoas = ratio(alignedShopify.revenue, totalSpend);
   const cpa = blendedCpa(totalSpend, alignedShopify.paidOrders);
   const ncRoas = ratio(alignedShopify.newCustomerRevenue, totalSpend);
+  const ncCac = newCustomerCac(totalSpend, alignedShopify.newCustomerOrders);
+  const margin = contributionMargin(profit, alignedShopify.revenue);
+  const marginAfterCogs = contributionMargin(
+    profitAfterCogs,
+    alignedShopify.revenue,
+  );
+  const beMargin = cogsRange.complete ? marginAfterCogs : margin;
+  const profitRoasValue = profitRoas(profit, totalSpend);
+  const profitRoasAfterCogs = profitRoas(profitAfterCogs, totalSpend);
+  const beRoas = breakEvenRoas(beMargin);
+  const beCpa = breakEvenCpa(aov, beMargin);
   const spendByLabel = {
     "Facebook / Meta Ads": ads.facebook.spend,
     "Google Ads": ads.google.spend,
@@ -200,6 +218,13 @@ export async function getCoreDashboard() {
     blendedRoas,
     cpa,
     ncRoas,
+    ncCac,
+    margin,
+    marginAfterCogs,
+    profitRoasValue,
+    profitRoasAfterCogs,
+    beRoas,
+    beCpa,
     byChannel,
     bySource,
     bySourceMedium,
