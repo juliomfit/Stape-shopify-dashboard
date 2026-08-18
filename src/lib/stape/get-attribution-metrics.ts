@@ -283,6 +283,7 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
             p.transaction_id,
             p.person_key,
             p.revenue,
+            p.purchase_ts,
             e.timestamp,
             e.channel
           FROM purchases p
@@ -296,6 +297,8 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
           transaction_id AS transactionId,
           ANY_VALUE(person_key) AS personKey,
           ANY_VALUE(revenue) AS revenue,
+          ANY_VALUE(purchase_ts) AS purchaseTs,
+          ARRAY_AGG(STRUCT(timestamp AS ts, channel AS channel) ORDER BY timestamp) AS touches,
           IFNULL(
             ARRAY_AGG(IF(channel = 'Direct', NULL, channel) IGNORE NULLS ORDER BY timestamp LIMIT 1)[SAFE_OFFSET(0)],
             'Direct'
@@ -402,14 +405,24 @@ export async function getAttributionMetrics(): Promise<AttributionMetrics> {
     }[];
     const totals = models.find((row) => row.model === "totals");
     const identityStats = (identityRows[0] ?? {}) as Record<string, unknown>;
-    const orders = (orderRows as Record<string, unknown>[]).map((row) => ({
-      transactionId: String(row.transactionId ?? ""),
-      revenue: toNumber(row.revenue),
-      firstNonDirect: String(row.firstNonDirect ?? "Direct"),
-      lastNonDirect: String(row.lastNonDirect ?? "Direct"),
-      lastClick: String(row.lastClick ?? "Direct"),
-      personKey: String(row.personKey ?? ""),
-    }));
+    const orders = (orderRows as Record<string, unknown>[]).map((row) => {
+      const touches = (
+        Array.isArray(row.touches) ? row.touches : []
+      ) as { ts?: unknown; channel?: unknown }[];
+      return {
+        transactionId: String(row.transactionId ?? ""),
+        revenue: toNumber(row.revenue),
+        firstNonDirect: String(row.firstNonDirect ?? "Direct"),
+        lastNonDirect: String(row.lastNonDirect ?? "Direct"),
+        lastClick: String(row.lastClick ?? "Direct"),
+        personKey: String(row.personKey ?? ""),
+        purchaseTs: toNumber(row.purchaseTs),
+        touches: touches.map((touch) => ({
+          ts: toNumber(touch.ts),
+          channel: String(touch.channel ?? "Direct"),
+        })),
+      };
+    });
     const gaps: string[] = [];
 
     if (toNumber(tracking.gclid) === 0) {

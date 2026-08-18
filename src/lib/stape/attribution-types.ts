@@ -13,6 +13,12 @@ export type ChannelContribution = {
   revenue: number;
 };
 
+export type JourneyTouch = {
+  /** Unix epoch milliseconds. */
+  ts: number;
+  channel: string;
+};
+
 export type AttributedOrder = {
   transactionId: string;
   revenue: number;
@@ -20,6 +26,10 @@ export type AttributedOrder = {
   lastNonDirect: string;
   lastClick: string;
   personKey: string;
+  /** Unix epoch milliseconds of the purchase event. */
+  purchaseTs: number;
+  /** Ordered touch list (oldest first) within the attribution lookback. */
+  touches: JourneyTouch[];
 };
 
 export type IdentityStats = {
