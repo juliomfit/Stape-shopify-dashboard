@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
 import { ConversionFunnel } from "@/components/dashboard/ConversionFunnel";
 import { DailyTrendChart } from "@/components/dashboard/DailyTrendChart";
+import { DonutChart } from "@/components/dashboard/DonutChart";
+import { HorizontalBarList } from "@/components/dashboard/HorizontalBarList";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { TopProductsPanel } from "@/components/dashboard/TopProductsPanel";
@@ -62,8 +64,19 @@ export default async function OverviewPage() {
     cpa,
     ncRoas,
     ads,
+    byChannel,
     deltas,
   } = data;
+
+  const channelRevenue = byChannel.map((row) => ({
+    label: row.channel,
+    value: row.revenue,
+  }));
+  const channelOrders = byChannel.map((row) => ({
+    label: row.channel,
+    value: row.orders,
+    secondary: formatMoney({ amount: row.revenue, currencyCode: currency }),
+  }));
 
   let health: Awaited<ReturnType<typeof getDataHealth>> = [];
   try {
@@ -435,6 +448,21 @@ export default async function OverviewPage() {
             values: dailyOrders,
           }}
         />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <DonutChart
+            title="Revenue by first-touch channel"
+            description="Shopify gn_* first-touch · selected range"
+            slices={channelRevenue}
+            currencyCode={currency}
+            emptyLabel="Channel revenue appears once Shopify orders carry gn_* attribution."
+          />
+          <HorizontalBarList
+            title="Orders by first-touch channel"
+            description="Shopify gn_* first-touch · selected range"
+            rows={channelOrders}
+            emptyLabel="Channel orders appear once Shopify orders carry gn_* attribution."
+          />
+        </div>
         {shopifyConnected ? (
           <RevenueBreakdown
             periodLabel={period.label}
