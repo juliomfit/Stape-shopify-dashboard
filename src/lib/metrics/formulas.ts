@@ -151,3 +151,71 @@ export function coverageRatio(captured: number | null, shopify: number | null): 
   }
   return captured / shopify;
 }
+
+/** New-customer CAC = ad spend ÷ attributed new customers. Alias of newCustomerCpa at the customer grain. */
+export function newCustomerCac(
+  spend: number | null,
+  newCustomers: number | null,
+): number | null {
+  return newCustomerCpa(spend, newCustomers);
+}
+
+/** New-customer ROAS = attributed new-customer revenue ÷ ad spend. */
+export function newCustomerRoas(
+  newCustomerRevenue: number,
+  spend: number | null,
+): number | null {
+  return ratio(newCustomerRevenue, spend);
+}
+
+/** Profit ROAS = attributed contribution profit ÷ ad spend. Can be negative. */
+export function profitRoas(
+  attributedProfit: number | null,
+  spend: number | null,
+): number | null {
+  if (attributedProfit === null || spend === null || spend <= 0) {
+    return null;
+  }
+  return attributedProfit / spend;
+}
+
+/** LTV:CAC ratio. Null when CAC is missing or non-positive. */
+export function ltvToCac(ltv: number | null, cac: number | null): number | null {
+  if (ltv === null || cac === null || cac <= 0) {
+    return null;
+  }
+  return ltv / cac;
+}
+
+/**
+ * Break-even ROAS = 1 ÷ contribution margin %. The revenue-per-ad-dollar needed
+ * to cover variable costs. Requires a positive contribution margin (0..1).
+ */
+export function breakEvenRoas(contributionMarginPct: number | null): number | null {
+  if (
+    contributionMarginPct === null ||
+    contributionMarginPct <= 0 ||
+    !Number.isFinite(contributionMarginPct)
+  ) {
+    return null;
+  }
+  return 1 / contributionMarginPct;
+}
+
+/**
+ * Break-even CPA = contribution dollars per order (AOV × contribution margin %).
+ * The most you can pay to acquire an order before it turns unprofitable.
+ */
+export function breakEvenCpa(
+  aovValue: number | null,
+  contributionMarginPct: number | null,
+): number | null {
+  if (
+    aovValue === null ||
+    contributionMarginPct === null ||
+    contributionMarginPct <= 0
+  ) {
+    return null;
+  }
+  return aovValue * contributionMarginPct;
+}
