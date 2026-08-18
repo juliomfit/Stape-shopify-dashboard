@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Activity,
   Boxes,
+  Columns3,
   Database,
   Funnel,
   Images,
@@ -51,6 +52,8 @@ export function NavIcon({
       return <Images className={className} />;
     case "/attribution":
       return <Target className={className} />;
+    case "/attribution-models":
+      return <Columns3 className={className} />;
     case "/journeys":
       return <Route className={className} />;
     case "/traffic":
