@@ -16,9 +16,9 @@ WITH meta_credit AS (
 )
 SELECT
   COUNT(*) AS meta_credited_orders,
-  COUNTIF(meta_credit < 0) AS negative_credit_orders,
-  COUNTIF(meta_credit > 1.000001) AS orders_meta_credit_gt_1,
-  COUNTIF(min_touch_credit < 0) AS negative_touch_credit,
+  COUNTIF(mc.meta_credit < 0) AS negative_credit_orders,
+  COUNTIF(mc.meta_credit > 1.000001) AS orders_meta_credit_gt_1,
+  COUNTIF(mc.min_touch_credit < 0) AS negative_touch_credit,
   "VALIDATION REQUIRED" AS status,
   "Attributed nCAC is spend / fractional new-customer credit in the app, only when HIGH/PARTIAL ID mapping and spend exist. No-spend = —." AS note
-FROM meta_credit;
+FROM meta_credit AS mc;
