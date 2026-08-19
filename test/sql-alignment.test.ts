@@ -152,3 +152,15 @@ test("validation 11a tells Julio to re-run migration 005, not 002", () => {
   assert.match(body, /Re-run migration 005/);
   assert.doesNotMatch(body, /Re-run migration 002/);
 });
+
+test("migration 003 explicitly clears dashboard_events view expiration", () => {
+  const body = readFileSync(
+    "bigquery/migrations/2026_08_18_003_dashboard_events_lifecycle.sql",
+    "utf8",
+  );
+  assert.match(
+    body,
+    /CREATE OR REPLACE VIEW `stape-analytics-487802\.stape_data\.dashboard_events` AS[\s\S]*?;\s*ALTER VIEW `stape-analytics-487802\.stape_data\.dashboard_events`\s+SET OPTIONS \(expiration_timestamp = NULL\);/,
+  );
+  assert.match(body, /ALTER VIEW[\s\S]*expiration_timestamp = NULL/);
+});
