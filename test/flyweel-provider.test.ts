@@ -12,8 +12,9 @@ import {
   unwrapRows,
 } from "../src/lib/ads/providers/normalize.ts";
 import { midpointYmd, queryDateRangeChunked, SilentTruncationError } from "../src/lib/ads/providers/chunk.ts";
-import { FLYWEEL_WRITE_TOOLS, assertFlyweelReadOnly, FlyweelWriteRefusedError, resolveActiveMetaProviderId, sanitizeFlyweelApiKey, flyweelApiKeyProblem } from "../src/lib/ads/providers/config.ts";
+import { FLYWEEL_WRITE_TOOLS, FLYWEEL_CAMPAIGN_ONLY_WARNING, assertFlyweelReadOnly, FlyweelWriteRefusedError, flyweelCampaignOnlyWarning, flyweelDeepIngestEnabled, metaInsightLevelsToFetch, resolveActiveMetaProviderId, sanitizeFlyweelApiKey, flyweelApiKeyProblem, shouldFetchDeepMetaInsights } from "../src/lib/ads/providers/config.ts";
 import { buildFlyweelAdsQuery, summarizeFlyweelSetup } from "../src/lib/ads/providers/flyweel-query.ts";
+import { formatMetaFactTableCounts } from "../src/lib/ads/meta-fact-format.ts";
 import { cpc, ctr, platformCpa, platformRoas } from "../src/lib/metrics/formulas.ts";
 
 test("parseNumber handles nulls and string money", () => {
@@ -247,6 +248,73 @@ test("Flyweel API key sanitizes quotes and rejects prefixes", () => {
   assert.match(flyweelApiKeyProblem("fwl_79d4...") || "", /masked prefix/);
   assert.match(flyweelApiKeyProblem("fwl_short") || "", /too short/);
   assert.equal(flyweelApiKeyProblem(`fwl_${"a".repeat(64)}`), null);
+});
+
+test("Flyweel campaign-only vs all-level ingest", () => {
+  const prev = process.env.FLYWEEL_INGEST_LEVELS;
+  try {
+    delete process.env.FLYWEEL_INGEST_LEVELS;
+    assert.equal(flyweelDeepIngestEnabled(), false);
+    assert.equal(shouldFetchDeepMetaInsights("flyweel"), false);
+    assert.deepEqual(metaInsightLevelsToFetch("flyweel"), ["campaign"]);
+    assert.equal(flyweelCampaignOnlyWarning("flyweel"), FLYWEEL_CAMPAIGN_ONLY_WARNING);
+    assert.equal(
+      flyweelCampaignOnlyWarning("flyweel"),
+      "Campaign-only Meta ingest — ad set/ad deterministic attribution unavailable.",
+    );
+    assert.equal(shouldFetchDeepMetaInsights("meta_graph"), true);
+    assert.deepEqual(metaInsightLevelsToFetch("meta_graph"), ["campaign", "adset", "ad"]);
+    assert.equal(flyweelCampaignOnlyWarning("meta_graph"), null);
+
+    process.env.FLYWEEL_INGEST_LEVELS = "all";
+    assert.equal(flyweelDeepIngestEnabled(), true);
+    assert.equal(shouldFetchDeepMetaInsights("flyweel"), true);
+    assert.deepEqual(metaInsightLevelsToFetch("flyweel"), ["campaign", "adset", "ad"]);
+    assert.equal(flyweelCampaignOnlyWarning("flyweel"), null);
+
+    process.env.FLYWEEL_INGEST_LEVELS = "campaign";
+    assert.equal(shouldFetchDeepMetaInsights("flyweel"), false);
+    assert.deepEqual(metaInsightLevelsToFetch("flyweel"), ["campaign"]);
+    assert.equal(flyweelCampaignOnlyWarning("flyweel"), FLYWEEL_CAMPAIGN_ONLY_WARNING);
+
+    process.env.FLYWEEL_INGEST_LEVELS = "ALL";
+    assert.equal(shouldFetchDeepMetaInsights("flyweel"), false);
+    process.env.FLYWEEL_INGEST_LEVELS = " all ";
+    assert.equal(shouldFetchDeepMetaInsights("flyweel"), false);
+  } finally {
+    if (prev === undefined) delete process.env.FLYWEEL_INGEST_LEVELS;
+    else process.env.FLYWEEL_INGEST_LEVELS = prev;
+  }
+});
+
+test("fact table count formatter never invents a zero for unavailable tables", () => {
+  assert.equal(
+    formatMetaFactTableCounts({
+      available: false,
+      campaigns: null,
+      adsets: null,
+      ads: null,
+    }),
+    null,
+  );
+  assert.equal(
+    formatMetaFactTableCounts({
+      available: true,
+      campaigns: 15,
+      adsets: 0,
+      ads: 0,
+    }),
+    "meta_campaign_insights_daily=15 · meta_adset_insights_daily=0 · meta_ad_insights_daily=0",
+  );
+  assert.equal(
+    formatMetaFactTableCounts({
+      available: true,
+      campaigns: 15,
+      adsets: null,
+      ads: 0,
+    }),
+    null,
+  );
 });
 
 test("active provider prefers Flyweel when key would be set via resolver inputs", () => {

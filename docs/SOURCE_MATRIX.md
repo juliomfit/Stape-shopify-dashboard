@@ -6,7 +6,7 @@ Header date cookie `dashboard_range` (America/Los_Angeles) is the period on ever
 |---|---|---|---|
 | Overview | `/` | Shopify Admin + Stape BQ (`stape_data`) + `getPlatformReported` | Blended = Meta warehouse (`goodsnova_platform.meta_campaign_insights_daily`) + Google paste. Missing = —. Not gn_*. |
 | Sales | `/sales` | Shopify Admin orders + gn_* cart attributes | Same blended spend as Overview. First-touch is gn_*. |
-| Meta Ads | `/meta` | Warehouse campaign facts (Flyweel ingest). Charts never call Flyweel on GET. | Platform Ads Manager matching. Same Meta dollars as Overview Meta. |
+| Meta Ads | `/meta` | Warehouse campaign facts (Flyweel ingest). Charts never call Flyweel on GET. Ad set/ad facts require `FLYWEEL_INGEST_LEVELS=all`. | Platform Ads Manager matching. Same Meta dollars as Overview Meta. |
 | Creatives | `/meta/creatives` | Campaign warehouse fallback; Graph thumbnails if stored | Campaign CPA from warehouse. No Flyweel thumbnails. |
 | Traffic | `/traffic` | Stape BQ sessions plus GA4 device/country/landing after Refresh GA4 | No ad spend. Same session definition as Overview. |
 | Conversions | `/conversions` | Shopify + Stape funnel from `getCoreDashboard` | Blended CPA same formula as Overview. |

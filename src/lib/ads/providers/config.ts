@@ -65,6 +65,38 @@ export function flyweelConfigured() {
   return Boolean(flyweelApiKey());
 }
 
+/** Exact UI/health copy when Flyweel is campaign-only. */
+export const FLYWEEL_CAMPAIGN_ONLY_WARNING =
+  "Campaign-only Meta ingest — ad set/ad deterministic attribution unavailable.";
+
+export type MetaInsightLevel = "campaign" | "adset" | "ad";
+
+/**
+ * Flyweel defaults to campaign-only unless FLYWEEL_INGEST_LEVELS=all.
+ * Graph always fetches campaign + adset + ad. Do not invent rows for skipped levels.
+ */
+export function flyweelDeepIngestEnabled() {
+  return process.env.FLYWEEL_INGEST_LEVELS === "all";
+}
+
+export function shouldFetchDeepMetaInsights(providerId: string) {
+  return providerId !== "flyweel" || flyweelDeepIngestEnabled();
+}
+
+export function metaInsightLevelsToFetch(providerId: string): MetaInsightLevel[] {
+  if (shouldFetchDeepMetaInsights(providerId)) {
+    return ["campaign", "adset", "ad"];
+  }
+  return ["campaign"];
+}
+
+export function flyweelCampaignOnlyWarning(providerId: string): string | null {
+  if (providerId === "flyweel" && !flyweelDeepIngestEnabled()) {
+    return FLYWEEL_CAMPAIGN_ONLY_WARNING;
+  }
+  return null;
+}
+
 export function requestedMetaProvider(): "auto" | "flyweel" | "meta_graph" {
   const raw = (process.env.META_ADS_PROVIDER || process.env.ACTIVE_PROVIDER || "auto")
     .trim()

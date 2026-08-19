@@ -13,7 +13,10 @@ import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import { getBigQueryConfig } from "@/lib/stape/config";
 import { WarehouseQualityPanel } from "@/components/dashboard/WarehouseQualityPanel";
+import { MetaIngestHealthPanel } from "@/components/dashboard/MetaIngestHealthPanel";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
+import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
+import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export default async function DataQualityPage() {
-  const [shopify, funnel, attribution, period, spendCoverage, warehouse] =
+  const [shopify, funnel, attribution, period, spendCoverage, warehouse, ingestCounts, metaConnection] =
     await Promise.all([
     getShopifyOverviewMetrics(),
     getStapeFunnelMetrics(),
@@ -30,6 +33,8 @@ export default async function DataQualityPage() {
     getAlignedPeriod(),
     listSpendCoverage(),
     getWarehouseMetrics(),
+    getMetaFactTableCounts(),
+    getMetaConnectionPublic(),
   ]);
   const config = (() => {
     try {
@@ -59,6 +64,7 @@ export default async function DataQualityPage() {
     "dashboard_events previously expired 2026-10-11. Recreate it with bigquery/migrations/2026_08_18_003_dashboard_events_lifecycle.sql. raw_events_full partitions were ~60 days; that migration extends retention. 90-day attribution stays hidden until retained_days ≥ 90.",
     "MER = Shopify revenue ÷ ad spend. Marketing cost ratio = spend ÷ revenue. Unknown ≠ Direct. Assists = middle touches, not Linear.",
     "Meta channel attribution can be valid while campaign mapping is 0%. Exact gn_meta_campaign_id / gn_meta_adset_id / gn_meta_ad_id are HIGH. Campaign-name match is legacy PARTIAL. Adset/ad OUR metrics stay hidden until those IDs exist. Unmapped Meta credit stays visible. Do not fuzzy-map or infer IDs from spend.",
+    "Flyweel ingest defaults to campaign-only unless FLYWEEL_INGEST_LEVELS=all. Campaign-only leaves meta_adset_insights_daily and meta_ad_insights_daily empty. That is not invented spend. Set FLYWEEL_INGEST_LEVELS=all on Vercel for ad set/ad fact parents.",
   ];
 
   return (
@@ -88,6 +94,10 @@ export default async function DataQualityPage() {
         <WarehouseQualityPanel
           quality={warehouse.quality}
           totalOrders={warehouse.orders}
+        />
+        <MetaIngestHealthPanel
+          providerId={metaConnection.provider}
+          counts={ingestCounts}
         />
       </section>
     </>

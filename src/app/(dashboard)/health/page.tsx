@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DataHealthStrip } from "@/components/dashboard/DataHealthStrip";
 import { Header } from "@/components/layout/Header";
 import { RefreshControls } from "@/components/dashboard/RefreshControls";
+import { MetaIngestHealthPanel } from "@/components/dashboard/MetaIngestHealthPanel";
 import { getDataHealth } from "@/lib/platform/health";
 import { listSyncRuns, latestSuccessfulSync } from "@/lib/platform/sync-runs";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
@@ -79,6 +80,17 @@ export default async function HealthPage() {
       />
       <section className="dash-page gap-6">
         <DataHealthStrip sources={sources} />
+        <MetaIngestHealthPanel
+          providerId={sources.find((source) => source.source === "meta")?.providerId || "none"}
+          counts={
+            sources.find((source) => source.source === "meta")?.factCounts ?? {
+              available: false,
+              campaigns: null,
+              adsets: null,
+              ads: null,
+            }
+          }
+        />
         <RefreshControls />
         <Ga4CaptureCompare
           shopifyOrders={shopifyOrders}

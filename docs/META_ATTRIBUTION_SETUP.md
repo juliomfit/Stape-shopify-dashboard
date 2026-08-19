@@ -18,6 +18,8 @@ This document is the Ads Manager handoff so **future** Meta clicks carry:
 
 Those IDs are the join keys. Names are diagnostic only. Do not fuzzy-match. Do not allocate spend proportionally. Do not invent IDs for the current 80 unmapped historical touches.
 
+Flyweel warehouse facts: ingest is **campaign-only unless** Vercel has `FLYWEEL_INGEST_LEVELS=all`. Without that, `meta_adset_insights_daily` and `meta_ad_insights_daily` stay empty (campaign facts can still exist). Ad set/ad deterministic attribution is then unavailable. Set `FLYWEEL_INGEST_LEVELS=all` and Refresh Meta. Do not invent ad set/ad rows.
+
 Cursor cannot edit live Meta ads.
 
 # MANUAL META UI VERIFICATION REQUIRED
@@ -125,14 +127,15 @@ https://goodsnova.com/?utm_source=facebook&utm_medium=cpc&utm_campaign=...&utm_c
 
 1. Repository/app support (this branch)
 2. BigQuery migration 006 (additive columns)
-3. Web GTM **click-by-click in the live workspace** (`docs/GTM_MANUAL_CHANGES.md`). **DO NOT MERGE AN OLD EXPORT OVER A NEWER LIVE CONTAINER.**
-4. Server GTM field map (`bigquery/analytics/GTM_CHANGES.md`) — session `gn_meta_*` → typed `meta_*`
-5. ONE Meta ad URL-parameter test
-6. Validate first live Meta IDs in `raw_events_full` (query 13)
-7. Validate canonical touch in the dashboard
-8. Validate exact Meta fact match (query 14)
-9. Treat campaign OUR attribution as HAS HIGH-ID MAPS only after step 8
-10. Roll URL parameters to remaining ads
+3. Vercel `FLYWEEL_INGEST_LEVELS=all` then Refresh Meta (required for ad set/ad fact tables; default is campaign-only)
+4. Web GTM **click-by-click in the live workspace** (`docs/GTM_MANUAL_CHANGES.md`). **DO NOT MERGE AN OLD EXPORT OVER A NEWER LIVE CONTAINER.**
+5. Server GTM field map (`bigquery/analytics/GTM_CHANGES.md`) — session `gn_meta_*` → typed `meta_*`
+6. ONE Meta ad URL-parameter test
+7. Validate first live Meta IDs in `raw_events_full` (query 13)
+8. Validate canonical touch in the dashboard
+9. Validate exact Meta fact match (query 14) — ad set/ad matches stay 0 until Flyweel deep ingest has rows
+10. Treat campaign OUR attribution as HAS HIGH-ID MAPS only after step 9
+11. Roll URL parameters to remaining ads
 
 Do not mark campaign attribution production verified before Stage 8.
 

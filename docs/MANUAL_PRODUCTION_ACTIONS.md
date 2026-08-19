@@ -120,7 +120,7 @@ Warehouse SQL already extracts IDs from `page_location`. 006 is still required s
 # Vercel
 
 - [ ] Redeploy after merging this branch to `main`.
-- [ ] No new env vars.
+- [ ] Set `FLYWEEL_INGEST_LEVELS=all` on Vercel Production for campaign + ad set + ad Flyweel ingest. Default is campaign-only (`meta_adset_insights_daily` / `meta_ad_insights_daily` stay empty). Then Refresh Meta. Do not invent rows.
 
 # After you paste validation results
 

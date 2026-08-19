@@ -1,5 +1,8 @@
 import { getMetaCredentials } from "@/lib/ads/meta-credentials";
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
+import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
+import { formatMetaFactTableCounts, type MetaFactTableCounts } from "@/lib/ads/meta-fact-format";
+import { flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { isStapeConfigured } from "@/lib/stape/config";
 import { isOpenAiConfigured } from "@/lib/platform/config";
@@ -23,6 +26,9 @@ export type SourceHealth = {
   message: string;
   href: string;
   provider?: string;
+  providerId?: "flyweel" | "meta_graph" | "none";
+  warning?: string | null;
+  factCounts?: MetaFactTableCounts;
 };
 
 function fromRun(run: SyncRun | null, success: SyncRun | null): {
@@ -81,6 +87,7 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
     stapeRun,
     ga4Run,
     googleRun,
+    metaFactCounts,
   ] = await Promise.all([
     getMetaCredentials(),
     getPlatformReported(period),
@@ -90,6 +97,7 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
     latestSync("stape"),
     latestSync("ga4"),
     latestSync("google_ads"),
+    getMetaFactTableCounts(),
   ]);
 
   const metaFromRun = fromRun(metaRun, metaOk);
@@ -100,7 +108,13 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
   let metaStatus: SourceHealthStatus = "disconnected";
   let metaMessage = "Not connected. Use Flyweel API key or Integrations Graph OAuth, or paste spend.";
   const flyweelOn = Boolean(process.env.FLYWEEL_API_KEY?.trim());
-  const metaProvider = flyweelOn ? "Flyweel" : metaCreds.credentials ? "Meta Graph" : "none";
+  const metaProviderId: "flyweel" | "meta_graph" | "none" = flyweelOn
+    ? "flyweel"
+    : metaCreds.credentials
+      ? "meta_graph"
+      : "none";
+  const metaProvider =
+    metaProviderId === "flyweel" ? "Flyweel" : metaProviderId === "meta_graph" ? "Meta Graph" : "none";
   if (metaFromRun.runStatus === "syncing") {
     metaStatus = "syncing";
     metaMessage = "Meta sync in progress.";
@@ -121,6 +135,12 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
     metaMessage = flyweelOn
       ? "FLYWEEL_API_KEY is set but no successful warehouse sync yet. Press Refresh Meta."
       : "Token saved but no successful platform sync yet. Press Refresh Meta.";
+  }
+
+  const metaWarning = flyweelCampaignOnlyWarning(metaProviderId);
+  const factLine = formatMetaFactTableCounts(metaFactCounts);
+  if (factLine) {
+    metaMessage = `${metaMessage} Facts: ${factLine}`.trim();
   }
 
   const shopify: SourceHealth = {
@@ -207,6 +227,9 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
       message: metaMessage,
       href: "/meta",
       provider: metaProvider,
+      providerId: metaProviderId,
+      warning: metaWarning,
+      factCounts: metaFactCounts,
     },
     google,
     ga4,
