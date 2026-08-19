@@ -26,7 +26,8 @@ Run after 002/003:
 2. `bigquery/validation/01_shopify_vs_bigquery_orders.sql`
 3. `bigquery/validation/02_identity_coverage.sql`
 4. `bigquery/validation/03_order_credit_integrity.sql`
-5. `bigquery/validation/05_meta_campaign_mapping_coverage.sql`
+5. `bigquery/validation/11a_credit_view_rowcount.sql`
 6. `bigquery/validation/11_conversion_lag_distribution.sql`
+7. `bigquery/validation/05_meta_campaign_mapping_coverage.sql`
 
 Campaign mapping coverage and conversion-lag default remain **VALIDATION REQUIRED** until those queries return.

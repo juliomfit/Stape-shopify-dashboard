@@ -107,3 +107,12 @@ test("conversion-lag validation uses view columns that exist", () => {
   assert.match(sql, /MAX\(hours_to_conversion\)/);
   assert.doesNotMatch(sql, /TIMESTAMP_DIFF\s*\(\s*order_timestamp/);
 });
+
+test("credit view stitches GA4 sessions via dim_person", () => {
+  const sql = readFileSync(
+    "bigquery/migrations/2026_08_18_002_attribution_credit.sql",
+    "utf8",
+  );
+  assert.match(sql, /dim_person AS \(/);
+  assert.match(sql, /INTERVAL 60 DAY/);
+});

@@ -9,8 +9,8 @@
 --   attributed_revenue
 -- There is no purchase-time or touch-time column on the view.
 -- hours_to_conversion = TIMESTAMP_DIFF(purchase, that touch, HOUR).
--- Linear keeps every eligible touch, so MAX(hours_to_conversion) per order
--- is first-touch lag (the window we actually need).
+-- If this returns orders = 0, the view is empty. Recreate 002 (dim_person
+-- revision), then run 11a_credit_view_rowcount.sql before this query.
 
 WITH first_marketing AS (
   SELECT

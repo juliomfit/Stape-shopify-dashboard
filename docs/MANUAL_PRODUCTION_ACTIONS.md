@@ -15,10 +15,10 @@ Use checkboxes. Do not mark production verified without evidence.
 
 - [ ] **002 Attribution credit view** — required? yes for production validation — priority: P0
   - Reason: Warehouse-scale credit matching the TypeScript engine.
-  - Action: Re-run `bigquery/migrations/2026_08_18_002_attribution_credit.sql` (CREATE OR REPLACE VIEW). The first version selected `fbc`, which is **not** a column on `raw_events_full` (`Unrecognized name: fbc`). Meta is detected from `fbclid` + URL `fbclid` only.
-  - Expected: View `analytics.v_attribution_credit_v1` exists. No `Unrecognized name: fbc`.
-  - Validation: `bigquery/validation/03_order_credit_integrity.sql` → zero `orders_credit_ne_1` for models other than paid_only.
-  - App code complete: yes (dashboard already computes this on the fly; missing view does not 500).
+  - Action: Re-run `bigquery/migrations/2026_08_18_002_attribution_credit.sql` (CREATE OR REPLACE VIEW). (1) Do not select `fbc` — it is not a column. (2) The first working view still returned 0 credit rows because Data Client orders used `cust:` person keys and GA4 sessions used `cid:` keys. This revision stitches via `dim_person` like the dashboard warehouse SQL.
+  - Expected: View exists. `bigquery/validation/11a_credit_view_rowcount.sql` shows `credit_rows` > 0 when `purchase_transaction_ids` > 0.
+  - Validation: `11a` then `03_order_credit_integrity.sql` then `11_conversion_lag_distribution.sql`.
+  - App code complete: yes (dashboard on-the-fly SQL already uses dim_person; missing/empty view does not 500).
 
 - [ ] **003 dashboard_events lifecycle + retention** — required? yes — priority: P0
   - Reason: View expires 2026-10-11; partitions ~60 days block 60d+ windows.
@@ -36,9 +36,9 @@ Use checkboxes. Do not mark production verified without evidence.
 
 - [ ] **Conversion-lag default** — required? yes before promoting window default — priority: P1
   - Reason: 7-day default is temporary.
-  - Action: Re-run `bigquery/validation/11_conversion_lag_distribution.sql` after 002. The first version referenced `order_timestamp` / `touchpoint_timestamp`, which are **not** on the view. Use `hours_to_conversion` (already on `v_attribution_credit_v1`).
-  - Expected: P50/P75/P90/P95/P99 hours plus an order count.
-  - Validation: same file.
+  - Action: After recreating 002, run `bigquery/validation/11a_credit_view_rowcount.sql`. If `credit_rows` > 0, run `bigquery/validation/11_conversion_lag_distribution.sql`.
+  - Expected: 11a shows credited orders; 11 shows P50/P75/P90/P95/P99 hours. If 11a `credit_rows` = 0 and `purchase_transaction_ids` > 0, 002 was not replaced with the dim_person revision.
+  - Validation: same files.
   - App code complete: yes; UI labeled VALIDATION REQUIRED.
 
 - [ ] **Meta campaign mapping coverage** — required? yes before trusting campaign OUR nCAC — priority: P3
