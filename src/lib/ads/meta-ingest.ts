@@ -1,7 +1,7 @@
 import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
 import { persistMetaWarehouse } from "@/lib/ads/meta-persist";
 import { getMetaAdsProvider } from "@/lib/ads/providers";
-import { flyweelApiKeyProblem } from "@/lib/ads/providers/config";
+import { flyweelApiKeyProblem, shouldFetchDeepMetaInsights } from "@/lib/ads/providers/config";
 import { FlyweelMetaAdsProvider, preferredFlyweelAccount } from "@/lib/ads/providers/flyweel";
 import { resolveFlyweelAccountId, resolveFlyweelApiKey } from "@/lib/ads/providers/flyweel-credentials";
 import type { MetaAccount, MetaAdsProvider, MetaInsightResult, MetaInsightRow } from "@/lib/ads/providers/types";
@@ -225,7 +225,7 @@ export async function ingestMetaRange(input: {
       requests += campaign.requests;
       let adset: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
       let ad: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
-      const deep = provider.id !== "flyweel" || process.env.FLYWEEL_INGEST_LEVELS === "all";
+      const deep = shouldFetchDeepMetaInsights(provider.id);
       if (deep) {
         try {
           adset = await provider.getInsights({

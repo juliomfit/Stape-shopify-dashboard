@@ -29,6 +29,7 @@ import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { OurCampaignTable } from "@/components/dashboard/OurCampaignTable";
 import { MetaMappingCoverage } from "@/components/dashboard/MetaMappingCoverage";
 import { UnmappedMetaBucket } from "@/components/dashboard/UnmappedMetaBucket";
+import { MetaIngestHealthPanel } from "@/components/dashboard/MetaIngestHealthPanel";
 import { joinMetaAndOurCampaigns } from "@/lib/attribution/campaign-map";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import {
@@ -37,6 +38,8 @@ import {
   toMetaCreditOrders,
 } from "@/lib/warehouse/canonical-orders";
 import { getAdsetFacts, getAdFacts, getAdCreativeMap } from "@/lib/ads/meta-query";
+import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
+import { FLYWEEL_CAMPAIGN_ONLY_WARNING, flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
 import {
   buildMetaFactIndexes,
   metaCreditForOrders,
@@ -70,7 +73,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify, adsetFacts, adFacts, creativeByAdId] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify, adsetFacts, adFacts, creativeByAdId, ingestCounts] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -96,6 +99,7 @@ async function renderMetaPage() {
     getAdsetFacts(period).catch(() => []),
     getAdFacts(period).catch(() => []),
     getAdCreativeMap().catch(() => new Map<string, string>()),
+    getMetaFactTableCounts(),
   ]);
   let attrWarehouse: Awaited<ReturnType<typeof getWarehouseMetrics>> | null = null;
   let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
@@ -206,6 +210,11 @@ async function renderMetaPage() {
             Last sync error: {lastAttempt.error_message}
           </p>
         ) : null}
+        {flyweelCampaignOnlyWarning(connection.provider) ? (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {FLYWEEL_CAMPAIGN_ONLY_WARNING}
+          </p>
+        ) : null}
         {lastSync && totals.spend === 0 && weekTotals.spend > 0 ? (
           <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
             <h2 className="font-semibold text-foreground">Spend is in BigQuery — this date is $0</h2>
@@ -258,6 +267,10 @@ async function renderMetaPage() {
           />
         ) : null}
         <RefreshControls />
+        <MetaIngestHealthPanel
+          providerId={connection.provider}
+          counts={ingestCounts}
+        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Spend"
