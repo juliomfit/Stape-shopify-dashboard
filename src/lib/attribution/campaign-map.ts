@@ -1,4 +1,9 @@
 import { attributedNcac, platformRoas, ratio } from "../metrics/formulas.ts";
+import {
+  formatMappingCoverageLabel,
+  mappingCoverageStatus,
+  type MappingCoverageStatus,
+} from "./meta-ids.ts";
 
 export const CAMPAIGN_MAPPING_STATUS = "VALIDATION REQUIRED" as const;
 
@@ -162,10 +167,12 @@ function emptyOurRow(
 
 /**
  * Join Meta daily facts to OUR campaign credit.
- * Priority: exact campaign ID, then exact UNIQUE normalized name, else unmapped.
- * Duplicate Meta names → ambiguous_name (not mapped). No fuzzy match.
- * Never allocate spend proportionally to unmapped OUR revenue.
+ * Priority: exact campaign ID (HIGH), then exact UNIQUE normalized name
+ * (PARTIAL, legacy fallback only), else unmapped. Duplicate Meta names →
+ * ambiguous_name (not mapped). No fuzzy match. Never allocate spend
+ * proportionally to unmapped OUR revenue.
  * Attributed nCAC is only computed when mapping confidence is HIGH or PARTIAL.
+ * Name fallback is legacy — prefer gn_meta_campaign_id once it exists.
  */
 export function joinMetaAndOurCampaigns(
   metaFacts: CampaignMapMetaFact[],
@@ -260,4 +267,20 @@ export function campaignMappingSummary(rows: OurCampaignRow[]) {
     mapped,
     mappingRate: our.length > 0 ? mapped / our.length : null,
   };
+}
+
+export function campaignMappingUiStatus(
+  summary: ReturnType<typeof campaignMappingSummary>,
+): MappingCoverageStatus {
+  return mappingCoverageStatus({
+    highIdMappedTouches: summary.exactId,
+    nameFallbackTouches: summary.uniqueName,
+    unmappedTouches: summary.unmapped + summary.ambiguous,
+  });
+}
+
+export function campaignMappingUiLabel(
+  summary: ReturnType<typeof campaignMappingSummary>,
+): string {
+  return formatMappingCoverageLabel(campaignMappingUiStatus(summary));
 }

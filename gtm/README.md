@@ -116,6 +116,16 @@ On each `[Stape] DT - *` tag, append the same `gn_*` rows (name / value / transf
 
 Shop Pay still will not run this HTML. That gap is unchanged.
 
+## Meta identity (Phase 2) — PREPARED FOR IMPORT
+
+Do not re-import `GTM-MVWKFXH2_stitch-fill.json`. For `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id`:
+
+- Import file: `gtm/import/GTM-MVWKFXH2_meta-ids.json`
+- Exact steps: `docs/GTM_MANUAL_CHANGES.md`
+- Ads Manager URL contract: `docs/META_ATTRIBUTION_SETUP.md`
+
+This is not live until Julio imports + Preview + Publish.
+
 ## After publish: Query 1 (Pacific day)
 
 Use **2026** dates, not 2024.

@@ -1,18 +1,32 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
+import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { MetaEntityTable } from "@/components/dashboard/MetaEntityTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
+import { OurGrainTable } from "@/components/dashboard/OurGrainTable";
+import { OurAttributedOrders } from "@/components/dashboard/OurAttributedOrders";
 import { Header } from "@/components/layout/Header";
 import {
   getAdsetFacts,
   getCampaignFacts,
+  getAdFacts,
+  getAdCreativeMap,
   rollupAdsets,
   rollupCampaigns,
   totalsFromFacts,
 } from "@/lib/ads/meta-query";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { getSelectedPeriod } from "@/lib/period-server";
+import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
+import {
+  getCanonicalAttributedOrders,
+  toMetaCreditOrders,
+} from "@/lib/warehouse/canonical-orders";
+import {
+  buildMetaFactIndexes,
+  metaCreditForOrders,
+} from "@/lib/attribution/meta-credit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +39,11 @@ export default async function MetaCampaignPage({
 }) {
   const { campaignId } = await params;
   const period = await getSelectedPeriod();
-  const [campaignFacts, adsetFacts] = await Promise.all([
+  const [campaignFacts, adsetFacts, adFacts, creativeByAdId] = await Promise.all([
     getCampaignFacts(period).catch(() => []),
     getAdsetFacts(period, campaignId).catch(() => []),
+    getAdFacts(period, { campaignId }).catch(() => []),
+    getAdCreativeMap().catch(() => new Map<string, string>()),
   ]);
   const campaign = rollupCampaigns(campaignFacts).find((row) => row.id === campaignId);
   const adsets = rollupAdsets(adsetFacts);
@@ -44,11 +60,42 @@ export default async function MetaCampaignPage({
       : totalsFromFacts(adsetFacts);
   const currency = "USD";
 
+  let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
+  let ourError: string | null = null;
+  try {
+    canonical = await getCanonicalAttributedOrders({
+      lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    });
+  } catch (error) {
+    ourError = error instanceof Error ? error.message : "OUR attribution unavailable.";
+  }
+  const indexes = buildMetaFactIndexes({
+    campaigns: campaignFacts.map((row) => ({
+      campaign_id: row.campaign_id,
+      campaign_name: row.campaign_name,
+    })),
+    adsetIds: adsetFacts.map((row) => row.adset_id || "").filter(Boolean),
+    adIds: adFacts.map((row) => row.ad_id || "").filter(Boolean),
+    creativeByAdId,
+  });
+  const metaOur = metaCreditForOrders({
+    orders: toMetaCreditOrders(canonical),
+    model: "last_non_direct",
+    windowDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    indexes,
+  });
+  const ourByAdset = new Map(metaOur.byAdset.map((row) => [row.key, row]));
+  const showOurAdsets = ourByAdset.size > 0;
+  const campaignCredits = metaOur.credits.filter(
+    (credit) => credit.metaCampaignId === campaignId,
+  );
+  const ordersById = new Map(canonical.map((order) => [order.transactionId, order]));
+
   return (
     <>
       <Header
         title={campaign?.name || "Campaign"}
-        description={`Ad sets for campaign ${campaignId}. Platform-attributed. ${period.label}.`}
+        description={`Ad sets for campaign ${campaignId}. PLATFORM = Ads Manager. OUR = first-party IDs when present. ${period.label}.`}
       />
       <section className="dash-page gap-6">
         <p className="text-sm text-muted">
@@ -95,7 +142,7 @@ export default async function MetaCampaignPage({
           />
         </div>
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-foreground">Ad sets</h2>
+          <h2 className="text-sm font-semibold text-foreground">Ad sets · platform</h2>
           <div className="mt-4">
             <MetaEntityTable
               rows={adsets}
@@ -110,6 +157,27 @@ export default async function MetaCampaignPage({
             />
           </div>
         </article>
+        {ourError ? (
+          <EmptyPanel title="OUR ad-set attribution unavailable" description={ourError} />
+        ) : (
+          <OurGrainTable
+            title="Ad sets · OUR (exact adset_id only)"
+            grain="adset"
+            platformRows={adsets}
+            ourById={ourByAdset}
+            currencyCode={currency}
+            hrefPrefix={`/meta/${campaignId}`}
+            showOur={showOurAdsets}
+          />
+        )}
+        {!ourError ? (
+          <OurAttributedOrders
+            title="Orders behind OUR campaign revenue"
+            credits={campaignCredits}
+            ordersById={ordersById}
+            currencyCode={currency}
+          />
+        ) : null}
         <AskAiPanel
           viewContext={`Meta campaign ${campaign?.name || campaignId} · ${period.label}`}
         />

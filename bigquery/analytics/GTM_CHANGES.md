@@ -26,7 +26,10 @@ ALTER TABLE `stape-analytics-487802.stape_data.raw_events_full`
   ADD COLUMN IF NOT EXISTS purchase_count INT64,
   ADD COLUMN IF NOT EXISTS session_count INT64,
   ADD COLUMN IF NOT EXISTS fb_first_click STRING,
-  ADD COLUMN IF NOT EXISTS google_first_click STRING;
+  ADD COLUMN IF NOT EXISTS google_first_click STRING,
+  ADD COLUMN IF NOT EXISTS meta_campaign_id STRING,
+  ADD COLUMN IF NOT EXISTS meta_adset_id STRING,
+  ADD COLUMN IF NOT EXISTS meta_ad_id STRING;
 
 -- Optional: keep history longer than 60 days (warehouse lookbacks).
 -- ALTER TABLE `stape-analytics-487802.stape_data.raw_events_full`
@@ -52,12 +55,24 @@ sending it.
 | `gbraid` / `wbraid` | Event or `{{gn_gbraid}}` / `{{gn_wbraid}}` | yes |
 | `ttclid` / `msclkid` | Event or gn_* equivalents | yes |
 | `utm_source` … `utm_term` | Event or `{{gn_utm_*}}` (do not overwrite URL-parsed raw in warehouse) | yes |
+| `meta_campaign_id` | Event / cookie `gn_meta_campaign_id` — **do not** map into `utm_campaign` | yes (after migration 006) |
+| `meta_adset_id` | Event / cookie `gn_meta_adset_id` | yes (after migration 006) |
+| `meta_ad_id` | Event / cookie `gn_meta_ad_id` | yes (after migration 006) |
+| `is_new_customer` | `{{purchase_count}} == 1` (Stape Store email collection) | yes |
 | `is_new_customer` | `{{purchase_count}} == 1` (Stape Store email collection) | yes |
 | `purchase_count` | Stape Store `purchase_count` | yes |
 | `session_count` | Stape Store `session_count` keyed by X-Stape-User-Id | no |
 | `fb_first_click` | Stape Store `fb_first_click` | no |
 | `google_first_click` | Stape Store `google_first_click` | no |
 | `event_id` | Send on **GA4 client** too (today 0%) | yes |
+
+## 2b. Meta identity columns (Phase 2 — PREPARED FOR IMPORT)
+
+After `bigquery/migrations/2026_08_19_006_meta_touch_ids.sql`, map these on the **same** BigQuery writer tag. Do not overload `utm_campaign` / `utm_content`.
+
+Web GTM (`GTM-MVWKFXH2`) must already send `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id` on GA4 + Data Tags (`docs/GTM_MANUAL_CHANGES.md`). Adding cookies on web does **not** automatically create BigQuery columns.
+
+Canonical attribution extracts IDs from `page_location` even before this map. Typed columns are for cookie backfill and query 13 after 006.
 
 ## 3. Recreate `dashboard_events` before 2026-10-11
 

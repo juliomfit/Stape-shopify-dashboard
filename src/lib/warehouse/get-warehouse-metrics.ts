@@ -52,6 +52,10 @@ function emptyQuality(): WarehouseQuality {
     paidSessionsWithClickId: 0,
     metaSessions: 0,
     metaSessionsWithFbclid: 0,
+    metaSessionsWithCampaignId: 0,
+    metaSessionsWithAdsetId: 0,
+    metaSessionsWithAdId: 0,
+    metaSessionsFbclidWithoutIds: 0,
     googleSessions: 0,
     googleSessionsWithGoogleClickId: 0,
     purchaseEventCopies: 0,
@@ -283,6 +287,16 @@ export async function getWarehouseMetrics(options: {
           COUNTIF(is_paid AND (gclid IS NOT NULL OR gbraid IS NOT NULL OR wbraid IS NOT NULL OR fbclid IS NOT NULL)) AS paid_with_click,
           COUNTIF(channel = "Facebook / Meta Ads") AS meta_sessions,
           COUNTIF(channel = "Facebook / Meta Ads" AND fbclid IS NOT NULL) AS meta_with_fbclid,
+          COUNTIF(channel = "Facebook / Meta Ads" AND meta_campaign_id IS NOT NULL) AS meta_with_campaign_id,
+          COUNTIF(channel = "Facebook / Meta Ads" AND meta_adset_id IS NOT NULL) AS meta_with_adset_id,
+          COUNTIF(channel = "Facebook / Meta Ads" AND meta_ad_id IS NOT NULL) AS meta_with_ad_id,
+          COUNTIF(
+            channel = "Facebook / Meta Ads"
+            AND fbclid IS NOT NULL
+            AND meta_campaign_id IS NULL
+            AND meta_adset_id IS NULL
+            AND meta_ad_id IS NULL
+          ) AS meta_fbclid_without_ids,
           COUNTIF(channel = "Google Ads") AS google_sessions,
           COUNTIF(channel = "Google Ads" AND (gclid IS NOT NULL OR gbraid IS NOT NULL OR wbraid IS NOT NULL)) AS google_with_click,
           (SELECT COUNT(*) FROM touchpoints t
@@ -440,6 +454,10 @@ export async function getWarehouseMetrics(options: {
       paidSessionsWithClickId: toNumber(sess.paid_with_click),
       metaSessions: toNumber(sess.meta_sessions),
       metaSessionsWithFbclid: toNumber(sess.meta_with_fbclid),
+      metaSessionsWithCampaignId: toNumber(sess.meta_with_campaign_id),
+      metaSessionsWithAdsetId: toNumber(sess.meta_with_adset_id),
+      metaSessionsWithAdId: toNumber(sess.meta_with_ad_id),
+      metaSessionsFbclidWithoutIds: toNumber(sess.meta_fbclid_without_ids),
       googleSessions: toNumber(sess.google_sessions),
       googleSessionsWithGoogleClickId: toNumber(sess.google_with_click),
       purchaseEventCopies: toNumber(copies.purchase_event_copies),
@@ -458,6 +476,7 @@ export async function getWarehouseMetrics(options: {
       "Shopify currentTotalPriceSet is money truth. Event purchase value is QA only and is never labeled net_revenue.",
       "Canonical grain is one eligible session acquisition touch. Checkout / web-pixels / own-domain noise is not Direct.",
       "Conversion-lag default stays 7d until query 11 is re-run after migration 005 (prior lag used the old touch grain).",
+      "Meta channel attribution can be valid while campaign/adset/ad IDs are missing. Exact gn_meta_* IDs are the only HIGH-confidence join. Campaign-name match is legacy PARTIAL. Unmapped Meta credit stays visible. Do not infer ad/adset IDs from aggregate Meta facts.",
     ];
     if (platform.facebook.spend === null && platform.google.spend === null) {
       gaps.push(

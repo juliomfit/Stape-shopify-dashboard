@@ -120,6 +120,14 @@ test("legacy event queries alias fbc as CAST NULL, never raw_events_full.fbc", (
   }
 });
 
+test("warehouse SQL extracts gn_meta_* from page_location and does not require typed columns", () => {
+  assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]gn_meta_campaign_id=/);
+  assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]gn_meta_adset_id=/);
+  assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]gn_meta_ad_id=/);
+  assert.match(warehouse, /meta_campaign_id_conflict/);
+  assert.doesNotMatch(creditFix, /gn_meta_campaign_id/);
+});
+
 test("7-day default is pending revalidation after canonicalization", () => {
   assert.equal(
     ATTRIBUTION_WINDOW_PRODUCTION_DEFAULT_STATUS,

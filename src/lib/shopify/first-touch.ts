@@ -2,7 +2,7 @@
  * First-touch comes from storefront gn_* cart attributes on the Shopify
  * order (customAttributes / note_attributes), not Shopify session details.
  */
-import { isEmailTraffic, observedSource } from "@/lib/tracking/observed-source";
+import { isEmailTraffic, observedSource } from "../tracking/observed-source.ts";
 
 export type ShopifyAttribute = {
   key?: string | null;
@@ -26,6 +26,12 @@ export type FirstTouch = {
   fbclid: string;
   msclkid: string;
   ttclid: string;
+  metaCampaignId: string;
+  metaAdsetId: string;
+  metaAdId: string;
+  metaCampaignName: string;
+  metaAdsetName: string;
+  metaAdName: string;
 };
 
 export const EMPTY_FIRST_TOUCH: FirstTouch = {
@@ -44,6 +50,12 @@ export const EMPTY_FIRST_TOUCH: FirstTouch = {
   fbclid: "",
   msclkid: "",
   ttclid: "",
+  metaCampaignId: "",
+  metaAdsetId: "",
+  metaAdId: "",
+  metaCampaignName: "",
+  metaAdsetName: "",
+  metaAdName: "",
 };
 
 const KEY_MAP: Record<string, keyof FirstTouch> = {
@@ -62,6 +74,12 @@ const KEY_MAP: Record<string, keyof FirstTouch> = {
   gn_fbclid: "fbclid",
   gn_msclkid: "msclkid",
   gn_ttclid: "ttclid",
+  gn_meta_campaign_id: "metaCampaignId",
+  gn_meta_adset_id: "metaAdsetId",
+  gn_meta_ad_id: "metaAdId",
+  gn_meta_campaign_name: "metaCampaignName",
+  gn_meta_adset_name: "metaAdsetName",
+  gn_meta_ad_name: "metaAdName",
 };
 
 export function normalizeOrderName(value: string | null | undefined) {
@@ -167,6 +185,9 @@ export function firstTouchChannel(firstTouch: FirstTouch) {
 
   if (
     firstTouch.fbclid ||
+    firstTouch.metaCampaignId ||
+    firstTouch.metaAdsetId ||
+    firstTouch.metaAdId ||
     (containsAny(firstTouch.utmSource, ["facebook", "fb", "ig", "instagram", "meta"]) &&
       paidMedium(firstTouch.utmMedium))
   ) {

@@ -56,6 +56,22 @@ export function WarehouseQualityPanel({
       value: rate(quality.metaSessionsWithFbclid, quality.metaSessions),
     },
     {
+      label: "% Meta sessions with campaign_id (URL)",
+      value: rate(quality.metaSessionsWithCampaignId, quality.metaSessions),
+    },
+    {
+      label: "% Meta sessions with adset_id (URL)",
+      value: rate(quality.metaSessionsWithAdsetId, quality.metaSessions),
+    },
+    {
+      label: "% Meta sessions with ad_id (URL)",
+      value: rate(quality.metaSessionsWithAdId, quality.metaSessions),
+    },
+    {
+      label: "Meta sessions with fbclid but no Meta IDs",
+      value: formatNumber(quality.metaSessionsFbclidWithoutIds),
+    },
+    {
       label: "% Google Ads sessions with gclid/gbraid/wbraid",
       value: rate(
         quality.googleSessionsWithGoogleClickId,

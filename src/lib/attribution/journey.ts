@@ -13,6 +13,7 @@ export function orderToTouchpoints(order: AttributedOrder): Touchpoint[] {
     source: touch.source ?? undefined,
     medium: touch.medium ?? undefined,
     campaign: touch.campaign ?? undefined,
+    ad: touch.adId ?? undefined,
     clickId: touch.fbclid ? "fbclid" : touch.gclid ? "gclid" : null,
     isPaid: isPaidChannel(touch.channel),
     isDirect: isDirectChannel(touch.channel),

@@ -1,10 +1,28 @@
 import type { Metadata } from "next";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
+import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { MetaEntityTable } from "@/components/dashboard/MetaEntityTable";
+import { OurGrainTable } from "@/components/dashboard/OurGrainTable";
+import { OurAttributedOrders } from "@/components/dashboard/OurAttributedOrders";
 import { Header } from "@/components/layout/Header";
 import Link from "next/link";
-import { getAdFacts, rollupAds } from "@/lib/ads/meta-query";
+import {
+  getAdFacts,
+  getAdsetFacts,
+  getCampaignFacts,
+  getAdCreativeMap,
+  rollupAds,
+} from "@/lib/ads/meta-query";
 import { getSelectedPeriod } from "@/lib/period-server";
+import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
+import {
+  getCanonicalAttributedOrders,
+  toMetaCreditOrders,
+} from "@/lib/warehouse/canonical-orders";
+import {
+  buildMetaFactIndexes,
+  metaCreditForOrders,
+} from "@/lib/attribution/meta-credit";
 
 export const dynamic = "force-dynamic";
 
@@ -17,13 +35,50 @@ export default async function MetaAdsetPage({
 }) {
   const { campaignId, adsetId } = await params;
   const period = await getSelectedPeriod();
-  const ads = rollupAds(await getAdFacts(period, { campaignId, adsetId }).catch(() => []));
+  const [ads, campaignFacts, adsetFacts, allAdFacts, creativeByAdId] = await Promise.all([
+    getAdFacts(period, { campaignId, adsetId }).catch(() => []),
+    getCampaignFacts(period).catch(() => []),
+    getAdsetFacts(period, campaignId).catch(() => []),
+    getAdFacts(period, { campaignId }).catch(() => []),
+    getAdCreativeMap().catch(() => new Map<string, string>()),
+  ]);
+  const rolled = rollupAds(ads);
+  const currency = "USD";
+
+  let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
+  let ourError: string | null = null;
+  try {
+    canonical = await getCanonicalAttributedOrders({
+      lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    });
+  } catch (error) {
+    ourError = error instanceof Error ? error.message : "OUR attribution unavailable.";
+  }
+  const indexes = buildMetaFactIndexes({
+    campaigns: campaignFacts.map((row) => ({
+      campaign_id: row.campaign_id,
+      campaign_name: row.campaign_name,
+    })),
+    adsetIds: adsetFacts.map((row) => row.adset_id || "").filter(Boolean),
+    adIds: allAdFacts.map((row) => row.ad_id || "").filter(Boolean),
+    creativeByAdId,
+  });
+  const metaOur = metaCreditForOrders({
+    orders: toMetaCreditOrders(canonical),
+    model: "last_non_direct",
+    windowDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    indexes,
+  });
+  const ourByAd = new Map(metaOur.byAd.map((row) => [row.key, row]));
+  const showOurAds = ourByAd.size > 0;
+  const adsetCredits = metaOur.credits.filter((credit) => credit.metaAdsetId === adsetId);
+  const ordersById = new Map(canonical.map((order) => [order.transactionId, order]));
 
   return (
     <>
       <Header
         title="Ads"
-        description={`Ads in ad set ${adsetId}. Thumbnails appear after creatives sync into BigQuery. ${period.label}.`}
+        description={`Ads in ad set ${adsetId}. PLATFORM = Ads Manager. OUR ad credit requires exact ad_id. ${period.label}.`}
       />
       <section className="dash-page gap-6">
         <p className="text-sm text-muted">
@@ -36,16 +91,39 @@ export default async function MetaAdsetPage({
           </Link>
         </p>
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-          <MetaEntityTable
-            rows={ads}
-            emptyTitle="No ads in the warehouse"
-            emptyWhy="Flyweel campaign ingest does not write ad-level rows. Thumbnails need Meta Graph later. Use Creatives for campaign CPA in this period."
-            emptyNext={[
-              { kind: "href", href: "/meta/creatives", label: "Creatives" },
-              { kind: "href", href: `/meta/${campaignId}`, label: "Campaign" },
-            ]}
-          />
+          <h2 className="text-sm font-semibold text-foreground">Ads · platform</h2>
+          <div className="mt-4">
+            <MetaEntityTable
+              rows={rolled}
+              emptyTitle="No ads in the warehouse"
+              emptyWhy="Flyweel campaign ingest does not write ad-level rows. Thumbnails need Meta Graph later. Use Creatives for campaign CPA in this period."
+              emptyNext={[
+                { kind: "href", href: "/meta/creatives", label: "Creatives" },
+                { kind: "href", href: `/meta/${campaignId}`, label: "Campaign" },
+              ]}
+            />
+          </div>
         </article>
+        {ourError ? (
+          <EmptyPanel title="OUR ad attribution unavailable" description={ourError} />
+        ) : (
+          <OurGrainTable
+            title="Ads · OUR (exact ad_id only)"
+            grain="ad"
+            platformRows={rolled}
+            ourById={ourByAd}
+            currencyCode={currency}
+            showOur={showOurAds}
+          />
+        )}
+        {!ourError ? (
+          <OurAttributedOrders
+            title="Orders behind OUR ad-set revenue"
+            credits={adsetCredits}
+            ordersById={ordersById}
+            currencyCode={currency}
+          />
+        ) : null}
         <AskAiPanel
           viewContext={`Meta ads · campaign ${campaignId} · adset ${adsetId} · ${period.label}`}
         />

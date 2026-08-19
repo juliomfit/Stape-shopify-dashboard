@@ -123,6 +123,14 @@ export function OrderAttributionDebugger({
                         ? ` · ${gapDays < 1 ? "same day" : `${gapDays.toFixed(1)}d later`}`
                         : " · first touch"}
                       {original?.campaign ? ` · ${original.campaign}` : ""}
+                      {original?.campaignId ? ` · campaign ${original.campaignId}` : ""}
+                      {original?.adsetId ? ` · adset ${original.adsetId}` : ""}
+                      {original?.adId ? ` · ad ${original.adId}` : ""}
+                      {original?.campaignIdConflict ||
+                      original?.adsetIdConflict ||
+                      original?.adIdConflict
+                        ? " · Meta ID conflict (landing kept)"
+                        : ""}
                       {original?.landingPage ? ` · ${original.landingPage}` : ""}
                       {original?.fbclid ? " · fbclid" : ""}
                       {original?.gclid ? " · gclid" : ""}

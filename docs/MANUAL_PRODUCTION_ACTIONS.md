@@ -83,7 +83,38 @@ Canonical attribution does **not** use this view (it uses `raw_events_full`). 00
 
 # Web GTM / Server GTM / Meta CAPI / GA4
 
-- [x] No changes. Do not publish GTM for this pass.
+- [x] Prior stitch-fill for GTM-MVWKFXH2 is already published. Do not re-import `gtm/import/GTM-MVWKFXH2_stitch-fill.json`.
+- [ ] **PREPARED FOR IMPORT** — Web GTM Meta IDs: `docs/GTM_MANUAL_CHANGES.md` and `gtm/import/GTM-MVWKFXH2_meta-ids.json`.
+- [ ] **PREPARED FOR IMPORT** — Server GTM BQ writer field map for `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` (`bigquery/analytics/GTM_CHANGES.md`).
+- [ ] Do not change Meta CAPI, event_id, Purchase_New_Customer, or Purchase_Return_Customer.
+
+# META ADS MANAGER
+
+Cursor cannot edit live ads. Exact steps: `docs/META_ATTRIBUTION_SETUP.md`.
+
+- [ ] MANUAL META UI VERIFICATION REQUIRED: confirm `{{campaign.id}}` / `{{adset.id}}` / `{{ad.id}}` still appear in the ad-level URL parameters builder.
+- [ ] TEST ONE ACTIVE/CONTROLLED AD FIRST. Do not mass-edit.
+- [ ] Paste the contract (merge, do not blindly overwrite existing parameters):
+
+```
+utm_source=facebook&utm_medium=cpc&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&gn_meta_campaign_id={{campaign.id}}&gn_meta_adset_id={{adset.id}}&gn_meta_ad_id={{ad.id}}
+```
+
+- [ ] Confirm landing URL contains the three `gn_meta_*` IDs plus `fbclid`.
+- [ ] Confirm cookies + GTM Preview + BigQuery query 13.
+- [ ] Run `bigquery/validation/14_meta_id_fact_match.sql` before treating campaign OUR attribution as HAS HIGH-ID MAPS.
+- [ ] Only then roll URL parameters to remaining ads.
+
+Changing URL parameters on existing ads can be an ad edit. Prefer new ads + one live test ad first.
+
+# BigQuery — Meta identity (006) — required for typed columns — P1
+
+Warehouse SQL already extracts IDs from `page_location`. 006 is still required so sGTM can persist cookies as columns.
+
+- [ ] Run `bigquery/migrations/2026_08_19_006_meta_touch_ids.sql`
+- Expected: `raw_events_full` has nullable STRING columns `meta_campaign_id`, `meta_adset_id`, `meta_ad_id`.
+- Validation (after one test click): `bigquery/validation/13_meta_id_capture.sql` then `14_meta_id_fact_match.sql`.
+- Do not mark VALIDATED without pasted output.
 
 # Vercel
 
@@ -94,11 +125,11 @@ Canonical attribution does **not** use this view (it uses `raw_events_full`). 00
 
 Send back:
 
-1. 04 `mismatch_count`
-2. 11a `credit_rows` / `purchase_transaction_ids`
-3. 11 lag P50/P75/P90/P95/P99 and n
-4. 07 coverage rates
-5. 05 mapping counts
-6. 06 status line
+1. 13 capture counts (`with_campaign_id` / coverage)
+2. 14 exact fact matches
+3. 15 mapping rates
+4. 16 `negative_credit_orders` and `orders_meta_credit_gt_1` (expect 0)
+5. 17 channel credit non-negative per model
 
-If any query fails, paste the **full error plus the query filename**. Do not infer a fix from a screenshot of one number.
+If any query fails, paste the **full error plus the query filename**.
+

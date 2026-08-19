@@ -21,6 +21,12 @@ export type JourneyTouch = {
   medium?: string | null;
   campaign?: string | null;
   content?: string | null;
+  campaignId?: string | null;
+  adsetId?: string | null;
+  adId?: string | null;
+  campaignIdConflict?: boolean;
+  adsetIdConflict?: boolean;
+  adIdConflict?: boolean;
   landingPage?: string | null;
   referrer?: string | null;
   sessionKey?: string | null;

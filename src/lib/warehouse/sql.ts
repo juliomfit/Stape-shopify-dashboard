@@ -3,8 +3,11 @@ import { CHANNEL_SQL, INTERNAL_NOISE_SQL, PAID_CHANNELS } from "@/lib/stape/chan
 /**
  * On-the-fly warehouse CTEs against raw_events_full.
  * Canonical grain: identity → GA4 session → one eligible acquisition touch.
- * Must match bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql.
- * Channel CASE is CHANNEL_SQL; noise is INTERNAL_NOISE_SQL.
+ * Must match bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql
+ * for eligibility / session grain / model formulas. Meta campaign/adset/ad IDs are
+ * Phase 2 additive: extracted from landing `gn_meta_*` query params on
+ * page_location. Do not reference typed raw_events_full.meta_* columns here until
+ * migration 006 is confirmed in production.
  */
 export function warehouseCtes(rawTable: string) {
   const paidList = PAID_CHANNELS.map((channel) => `"${channel}"`).join(", ");
@@ -44,6 +47,9 @@ WITH stg AS (
     CAST(NULL AS STRING) AS fbc,
     NULLIF(REGEXP_EXTRACT(page_location, r"[?&]msclkid=([^&]+)"), "") AS msclkid,
     NULLIF(REGEXP_EXTRACT(page_location, r"[?&]ttclid=([^&]+)"), "") AS ttclid,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_campaign_id=([0-9]{1,32})"), "") AS meta_campaign_id,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_adset_id=([0-9]{1,32})"), "") AS meta_adset_id,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_ad_id=([0-9]{1,32})"), "") AS meta_ad_id,
     value AS event_purchase_value,
     currency,
     tax,
@@ -143,6 +149,9 @@ sessions AS (
     ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
     ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
     ARRAY_AGG(e.fbclid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS fbclid,
+    ARRAY_AGG(e.meta_campaign_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_campaign_id,
+    ARRAY_AGG(e.meta_adset_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_adset_id,
+    ARRAY_AGG(e.meta_ad_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_ad_id,
     ARRAY_AGG(e.channel IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS channel,
     ARRAY_AGG(e.is_paid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_paid,
     ARRAY_AGG(e.is_direct IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_direct,
@@ -170,6 +179,12 @@ eligible_session_landing AS (
     ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
     ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
     ARRAY_AGG(e.fbclid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS fbclid,
+    ARRAY_AGG(e.meta_campaign_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_campaign_id,
+    ARRAY_AGG(e.meta_adset_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_adset_id,
+    ARRAY_AGG(e.meta_ad_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_ad_id,
+    COUNT(DISTINCT e.meta_campaign_id) > 1 AS meta_campaign_id_conflict,
+    COUNT(DISTINCT e.meta_adset_id) > 1 AS meta_adset_id_conflict,
+    COUNT(DISTINCT e.meta_ad_id) > 1 AS meta_ad_id_conflict,
     ARRAY_AGG(e.channel IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS channel,
     ARRAY_AGG(e.is_paid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_paid,
     ARRAY_AGG(e.is_direct IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_direct,
@@ -204,6 +219,12 @@ touchpoints AS (
     END AS click_id_type,
     COALESCE(l.gclid, l.gbraid, l.wbraid, l.fbclid) AS click_id,
     l.landing_page,
+    l.meta_campaign_id,
+    l.meta_adset_id,
+    l.meta_ad_id,
+    l.meta_campaign_id_conflict,
+    l.meta_adset_id_conflict,
+    l.meta_ad_id_conflict,
     l.is_paid,
     l.is_direct,
     FALSE AS is_internal_noise,
@@ -260,6 +281,12 @@ order_touches AS (
     t.click_id_type,
     t.click_id,
     t.landing_page,
+    t.meta_campaign_id,
+    t.meta_adset_id,
+    t.meta_ad_id,
+    t.meta_campaign_id_conflict,
+    t.meta_adset_id_conflict,
+    t.meta_ad_id_conflict,
     t.is_paid,
     t.is_direct,
     t.session_key,

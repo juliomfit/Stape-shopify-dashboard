@@ -24,11 +24,19 @@ import type { AttributedOrder, JourneyTouch } from "@/lib/stape/attribution-type
 import { warehouseCtes } from "@/lib/warehouse/sql";
 import type { WarehouseChannelRow, WarehouseCampaignRow, WarehouseJourneyRow } from "@/lib/warehouse/types";
 import { DEFAULT_LOOKBACK } from "@/lib/warehouse/constants";
+import { campaignGrainKey } from "@/lib/attribution/meta-ids";
+import type { MetaCreditOrder } from "@/lib/attribution/meta-credit";
 
 export type CanonicalTouchpoint = JourneyTouch & {
   touchpointId: string;
   isPaid: boolean;
   isDirect: boolean;
+  campaignId?: string | null;
+  adsetId?: string | null;
+  adId?: string | null;
+  campaignIdConflict?: boolean;
+  adsetIdConflict?: boolean;
+  adIdConflict?: boolean;
 };
 
 export type CanonicalAttributedOrder = Omit<AttributedOrder, "touches"> & {
@@ -145,6 +153,12 @@ async function loadCanonicalAttributedOrdersUnguarded(options?: {
             ot.source AS source,
             ot.medium AS medium,
             ot.campaign AS campaign,
+            ot.meta_campaign_id AS campaignId,
+            ot.meta_adset_id AS adsetId,
+            ot.meta_ad_id AS adId,
+            ot.meta_campaign_id_conflict AS campaignIdConflict,
+            ot.meta_adset_id_conflict AS adsetIdConflict,
+            ot.meta_ad_id_conflict AS adIdConflict,
             ot.landing_page AS landingPage,
             ot.session_key AS sessionKey,
             ot.click_id_type = "fbclid" AS fbclid,
@@ -188,6 +202,12 @@ async function loadCanonicalAttributedOrdersUnguarded(options?: {
         source: (touch.source as string | null) ?? null,
         medium: (touch.medium as string | null) ?? null,
         campaign: (touch.campaign as string | null) ?? null,
+        campaignId: (touch.campaignId as string | null) ?? null,
+        adsetId: (touch.adsetId as string | null) ?? null,
+        adId: (touch.adId as string | null) ?? null,
+        campaignIdConflict: Boolean(touch.campaignIdConflict),
+        adsetIdConflict: Boolean(touch.adsetIdConflict),
+        adIdConflict: Boolean(touch.adIdConflict),
         landingPage: (touch.landingPage as string | null) ?? null,
         sessionKey: (touch.sessionKey as string | null) ?? null,
         fbclid: Boolean(touch.fbclid),
@@ -280,7 +300,7 @@ export function aggregateCampaignsFromCanonical(
     const touches = order.touches as CanonicalTouchpoint[];
     for (const credit of credits) {
       const touch = touches.find((item) => item.touchpointId === credit.touchpointId);
-      const campaign = touch?.campaign?.trim() ? touch.campaign : "(unmapped)";
+      const campaign = campaignGrainKey(touch ?? {});
       const key = `${campaign}||${credit.channel}`;
       const cell = cells.get(key) ?? {
         campaign,
@@ -368,7 +388,7 @@ export function newCustomerCreditByCampaign(
     const touches = order.touches as CanonicalTouchpoint[];
     for (const credit of credits) {
       const touch = touches.find((item) => item.touchpointId === credit.touchpointId);
-      const campaign = touch?.campaign?.trim() ? touch.campaign : "(unmapped)";
+      const campaign = campaignGrainKey(touch ?? {});
       byCampaign[campaign] = (byCampaign[campaign] ?? 0) + credit.weight;
     }
   }
@@ -431,4 +451,18 @@ export function attributionResultsAvailable(input: {
   shopifyState: string;
 }): boolean {
   return input.warehouseState === "connected" && input.shopifyState === "connected";
+}
+
+export function toMetaCreditOrders(
+  orders: CanonicalAttributedOrder[],
+): MetaCreditOrder[] {
+  return orders
+    .filter((order) => order.moneySource === "shopify" && order.shopifyNetRevenue != null)
+    .map((order) => ({
+      transactionId: order.transactionId,
+      purchaseTs: order.purchaseTs,
+      revenue: order.shopifyNetRevenue ?? 0,
+      isNewCustomer: order.isNewCustomer,
+      touches: order.touches,
+    }));
 }

@@ -58,6 +58,7 @@ export default async function DataQualityPage() {
     "Warehouse attribution reads raw_events_full. gn_uid, stape_user_id, hashed_email, and shopify_customer_id are BigQuery columns on that table when the sGTM writer fills them. The debugger shows presence, not plaintext email.",
     "dashboard_events previously expired 2026-10-11. Recreate it with bigquery/migrations/2026_08_18_003_dashboard_events_lifecycle.sql. raw_events_full partitions were ~60 days; that migration extends retention. 90-day attribution stays hidden until retained_days ≥ 90.",
     "MER = Shopify revenue ÷ ad spend. Marketing cost ratio = spend ÷ revenue. Unknown ≠ Direct. Assists = middle touches, not Linear.",
+    "Meta channel attribution can be valid while campaign mapping is 0%. Exact gn_meta_campaign_id / gn_meta_adset_id / gn_meta_ad_id are HIGH. Campaign-name match is legacy PARTIAL. Adset/ad OUR metrics stay hidden until those IDs exist. Unmapped Meta credit stays visible. Do not fuzzy-map or infer IDs from spend.",
   ];
 
   return (

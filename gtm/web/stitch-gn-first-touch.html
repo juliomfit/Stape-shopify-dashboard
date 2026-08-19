@@ -50,6 +50,13 @@
     // ===== 2) Capture first-touch attribution (only once) =====
     var qs = new URLSearchParams(location.search);
 
+    var sanitizeMetaId = function (v) {
+      v = (v || "").toString().trim();
+      if (!v) return "";
+      if (!/^[0-9]{1,32}$/.test(v)) return "";
+      return v;
+    };
+
     var cand = {
       utm_source: qs.get("utm_source") || "",
       utm_medium: qs.get("utm_medium") || "",
@@ -63,7 +70,15 @@
       wbraid: qs.get("wbraid") || "",
       msclkid: qs.get("msclkid") || "",
       fbclid: qs.get("fbclid") || "",
-      ttclid: qs.get("ttclid") || ""
+      ttclid: qs.get("ttclid") || "",
+
+      // Deterministic Meta IDs (authoritative). Names are diagnostic only.
+      gn_meta_campaign_id: sanitizeMetaId(qs.get("gn_meta_campaign_id")),
+      gn_meta_adset_id: sanitizeMetaId(qs.get("gn_meta_adset_id")),
+      gn_meta_ad_id: sanitizeMetaId(qs.get("gn_meta_ad_id")),
+      gn_meta_campaign_name: safeSlice(qs.get("gn_meta_campaign_name") || "", 200),
+      gn_meta_adset_name: safeSlice(qs.get("gn_meta_adset_name") || "", 200),
+      gn_meta_ad_name: safeSlice(qs.get("gn_meta_ad_name") || "", 200)
     };
 
     // Referrer hostname only (avoid storing full URL)
@@ -75,7 +90,7 @@
       }
     } catch (e) {}
 
-    var hasAny = !!(cand.utm_source || cand.utm_medium || cand.utm_campaign || cand.gclid || cand.msclkid || cand.fbclid || cand.ttclid || ref);
+    var hasAny = !!(cand.utm_source || cand.utm_medium || cand.utm_campaign || cand.gclid || cand.msclkid || cand.fbclid || cand.ttclid || cand.gn_meta_campaign_id || cand.gn_meta_adset_id || cand.gn_meta_ad_id || ref);
 
     var FT_KEY = "gn_first_touch_v1";
     var ftRaw = getLS(FT_KEY);
@@ -102,6 +117,13 @@
       if (cand.fbclid) ft.fbclid = safeSlice(cand.fbclid, 200);
       if (cand.ttclid) ft.ttclid = safeSlice(cand.ttclid, 200);
 
+      if (cand.gn_meta_campaign_id) ft.gn_meta_campaign_id = cand.gn_meta_campaign_id;
+      if (cand.gn_meta_adset_id) ft.gn_meta_adset_id = cand.gn_meta_adset_id;
+      if (cand.gn_meta_ad_id) ft.gn_meta_ad_id = cand.gn_meta_ad_id;
+      if (cand.gn_meta_campaign_name) ft.gn_meta_campaign_name = cand.gn_meta_campaign_name;
+      if (cand.gn_meta_adset_name) ft.gn_meta_adset_name = cand.gn_meta_adset_name;
+      if (cand.gn_meta_ad_name) ft.gn_meta_ad_name = cand.gn_meta_ad_name;
+
       setLS(FT_KEY, JSON.stringify(ft));
     }
 
@@ -120,7 +142,10 @@
         ["gn_wbraid", ft.wbraid],
         ["gn_msclkid", ft.msclkid],
         ["gn_fbclid", ft.fbclid],
-        ["gn_ttclid", ft.ttclid]
+        ["gn_ttclid", ft.ttclid],
+        ["gn_meta_campaign_id", ft.gn_meta_campaign_id],
+        ["gn_meta_adset_id", ft.gn_meta_adset_id],
+        ["gn_meta_ad_id", ft.gn_meta_ad_id]
       ];
       var ci;
       for (ci = 0; ci < ftCookies.length; ci++) {
@@ -149,6 +174,13 @@
       if (ft.msclkid) attrs.gn_msclkid = safeSlice(ft.msclkid, 200);
       if (ft.fbclid) attrs.gn_fbclid = safeSlice(ft.fbclid, 200);
       if (ft.ttclid) attrs.gn_ttclid = safeSlice(ft.ttclid, 200);
+
+      if (ft.gn_meta_campaign_id) attrs.gn_meta_campaign_id = safeSlice(ft.gn_meta_campaign_id, 32);
+      if (ft.gn_meta_adset_id) attrs.gn_meta_adset_id = safeSlice(ft.gn_meta_adset_id, 32);
+      if (ft.gn_meta_ad_id) attrs.gn_meta_ad_id = safeSlice(ft.gn_meta_ad_id, 32);
+      if (ft.gn_meta_campaign_name) attrs.gn_meta_campaign_name = safeSlice(ft.gn_meta_campaign_name, 200);
+      if (ft.gn_meta_adset_name) attrs.gn_meta_adset_name = safeSlice(ft.gn_meta_adset_name, 200);
+      if (ft.gn_meta_ad_name) attrs.gn_meta_ad_name = safeSlice(ft.gn_meta_ad_name, 200);
     }
 
     // ===== 4) Write to Shopify cart attributes (non-blocking) =====
