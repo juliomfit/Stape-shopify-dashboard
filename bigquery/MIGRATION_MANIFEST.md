@@ -11,7 +11,7 @@ Do not mark `VALIDATED` without production query evidence.
 | 003 | `bigquery/migrations/2026_08_18_003_dashboard_events_lifecycle.sql` | Recreate `dashboard_events` (coalesce identity); extend `raw_events_full` retention to 400 days | `raw_events_full` | Funnel still reads `dashboard_events`. Canonical attribution stays on `raw_events_full`. | YES | USER MUST RUN |
 | 004 | `bigquery/migrations/2026_08_18_004_shopify_history.sql` | Optional Shopify order fact table for future LTV/refund recon | analytics dataset | No. App uses Admin API. | YES | PREPARED |
 | 005 | `bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql` | Forward CREATE OR REPLACE VIEW: session-touch grain, Real Direct, internal noise excluded, credit-only (`event_purchase_value`, not `net_revenue`) | 002 already applied | No. App on-the-fly SQL matches. View is for validation. | YES | USER MUST RUN |
-| 006 | `bigquery/migrations/2026_08_19_006_meta_touch_ids.sql` | Additive `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` STRING columns on `raw_events_full` | `raw_events_full` | App warehouse SQL extracts IDs from `page_location` until this is applied. Typed columns needed for sGTM cookie persist. | YES | USER MUST RUN |
+| 006 | `bigquery/migrations/2026_08_19_006_meta_touch_ids.sql` | Additive `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` STRING columns on `raw_events_full` (**CURRENT SESSION / CLICK** identity, never first-touch cookies) | `raw_events_full` | App warehouse SQL extracts IDs from `page_location` until this is applied. Typed columns needed for sGTM session-cookie persist. | YES | USER MUST RUN |
 
 ## Execution order (this correctness pass)
 

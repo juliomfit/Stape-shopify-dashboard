@@ -7,7 +7,11 @@ import { CHANNEL_SQL, INTERNAL_NOISE_SQL, PAID_CHANNELS } from "@/lib/stape/chan
  * for eligibility / session grain / model formulas. Meta campaign/adset/ad IDs are
  * Phase 2 additive: extracted from landing `gn_meta_*` query params on
  * page_location. Do not reference typed raw_events_full.meta_* columns here until
- * migration 006 is confirmed in production.
+ * migration 006 is confirmed in production. Typed meta_* columns are CURRENT
+ * SESSION / CLICK identity, never first-touch cookies.
+ *
+ * Acquisition ARRAY_AGG picks ORDER BY e.event_timestamp, IFNULL(e.event_id, "")
+ * so same-timestamp rows stay deterministic.
  */
 export function warehouseCtes(rawTable: string) {
   const paidList = PAID_CHANNELS.map((channel) => `"${channel}"`).join(", ");
@@ -141,20 +145,20 @@ sessions AS (
     ANY_VALUE(e.ga_session_id) AS ga_session_id,
     MIN(e.event_timestamp) AS session_start,
     MAX(e.event_timestamp) AS session_end,
-    ARRAY_AGG(e.page_location IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS landing_page,
-    ARRAY_AGG(e.raw_source IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_source,
-    ARRAY_AGG(e.raw_medium IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_medium,
-    ARRAY_AGG(e.raw_campaign IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_campaign,
-    ARRAY_AGG(e.gclid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS gclid,
-    ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
-    ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
-    ARRAY_AGG(e.fbclid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS fbclid,
-    ARRAY_AGG(e.meta_campaign_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_campaign_id,
-    ARRAY_AGG(e.meta_adset_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_adset_id,
-    ARRAY_AGG(e.meta_ad_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_ad_id,
-    ARRAY_AGG(e.channel IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS channel,
-    ARRAY_AGG(e.is_paid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_paid,
-    ARRAY_AGG(e.is_direct IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_direct,
+    ARRAY_AGG(e.page_location IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS landing_page,
+    ARRAY_AGG(e.raw_source IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_source,
+    ARRAY_AGG(e.raw_medium IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_medium,
+    ARRAY_AGG(e.raw_campaign IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_campaign,
+    ARRAY_AGG(e.gclid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS gclid,
+    ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
+    ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
+    ARRAY_AGG(e.fbclid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS fbclid,
+    ARRAY_AGG(e.meta_campaign_id IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS meta_campaign_id,
+    ARRAY_AGG(e.meta_adset_id IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS meta_adset_id,
+    ARRAY_AGG(e.meta_ad_id IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS meta_ad_id,
+    ARRAY_AGG(e.channel IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS channel,
+    ARRAY_AGG(e.is_paid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS is_paid,
+    ARRAY_AGG(e.is_direct IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS is_direct,
     ANY_VALUE(p.identity_method) AS identity_method,
     ANY_VALUE(p.identity_confidence) AS identity_confidence
   FROM enriched AS e
@@ -171,23 +175,23 @@ eligible_session_landing AS (
     CONCAT(e.client_id, "|", e.ga_session_id) AS session_key,
     ANY_VALUE(p.person_id) AS person_id,
     MIN(e.event_timestamp) AS first_eligible_ts,
-    ARRAY_AGG(e.page_location IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS landing_page,
-    ARRAY_AGG(e.raw_source IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_source,
-    ARRAY_AGG(e.raw_medium IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_medium,
-    ARRAY_AGG(e.raw_campaign IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_campaign,
-    ARRAY_AGG(e.gclid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS gclid,
-    ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
-    ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
-    ARRAY_AGG(e.fbclid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS fbclid,
-    ARRAY_AGG(e.meta_campaign_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_campaign_id,
-    ARRAY_AGG(e.meta_adset_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_adset_id,
-    ARRAY_AGG(e.meta_ad_id IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS meta_ad_id,
+    ARRAY_AGG(e.page_location IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS landing_page,
+    ARRAY_AGG(e.raw_source IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_source,
+    ARRAY_AGG(e.raw_medium IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_medium,
+    ARRAY_AGG(e.raw_campaign IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_campaign,
+    ARRAY_AGG(e.gclid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS gclid,
+    ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
+    ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
+    ARRAY_AGG(e.fbclid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS fbclid,
+    ARRAY_AGG(e.meta_campaign_id IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS meta_campaign_id,
+    ARRAY_AGG(e.meta_adset_id IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS meta_adset_id,
+    ARRAY_AGG(e.meta_ad_id IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS meta_ad_id,
     COUNT(DISTINCT e.meta_campaign_id) > 1 AS meta_campaign_id_conflict,
     COUNT(DISTINCT e.meta_adset_id) > 1 AS meta_adset_id_conflict,
     COUNT(DISTINCT e.meta_ad_id) > 1 AS meta_ad_id_conflict,
-    ARRAY_AGG(e.channel IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS channel,
-    ARRAY_AGG(e.is_paid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_paid,
-    ARRAY_AGG(e.is_direct IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_direct,
+    ARRAY_AGG(e.channel IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS channel,
+    ARRAY_AGG(e.is_paid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS is_paid,
+    ARRAY_AGG(e.is_direct IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS is_direct,
     ANY_VALUE(p.identity_method) AS identity_method,
     ANY_VALUE(p.identity_confidence) AS identity_confidence
   FROM enriched AS e

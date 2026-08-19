@@ -116,15 +116,21 @@ On each `[Stape] DT - *` tag, append the same `gn_*` rows (name / value / transf
 
 Shop Pay still will not run this HTML. That gap is unchanged.
 
-## Meta identity (Phase 2) — PREPARED FOR IMPORT
+## Meta identity (Phase 2) — click-by-click in the LIVE workspace
 
-Do not re-import `GTM-MVWKFXH2_stitch-fill.json`. For `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id`:
+Do not re-import `GTM-MVWKFXH2_stitch-fill.json`.
 
-- Import file: `gtm/import/GTM-MVWKFXH2_meta-ids.json`
-- Exact steps: `docs/GTM_MANUAL_CHANGES.md`
-- Ads Manager URL contract: `docs/META_ATTRIBUTION_SETUP.md`
+**PRIMARY:** follow `docs/GTM_MANUAL_CHANGES.md` click-by-click on the current live `GTM-MVWKFXH2` workspace.
 
-This is not live until Julio imports + Preview + Publish.
+**DO NOT MERGE AN OLD EXPORT OVER A NEWER LIVE CONTAINER.**
+
+`gtm/import/GTM-MVWKFXH2_meta-ids.json` is optional only after Julio compares it to a fresh live export.
+
+Ads Manager URL contract: `docs/META_ATTRIBUTION_SETUP.md` (MANUAL META UI VERIFICATION REQUIRED). Token syntax is not independently verified here.
+
+Session cookies `gn_meta_*` = current click. First-touch cookies `gn_first_meta_*` = Shopify audit only.
+
+This is not live until Julio edits Preview + Publish.
 
 ## After publish: Query 1 (Pacific day)
 

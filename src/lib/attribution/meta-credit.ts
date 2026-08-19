@@ -61,6 +61,7 @@ export type EnrichedCredit = {
   adMapped: boolean;
   adsetMapped: boolean;
   adMappingMethod: MetaAdMappingMethod;
+  hierarchyConflict: boolean;
   journey: string;
 };
 
@@ -97,6 +98,9 @@ export type MetaFactIndexes = {
   adsetIds: Set<string>;
   adIds: Set<string>;
   creativeByAdId: Map<string, string>;
+  adsetParentCampaign: Map<string, string>;
+  adParentAdset: Map<string, string>;
+  adParentCampaign: Map<string, string>;
 };
 
 function normalizeName(name: string | null | undefined): string {
@@ -114,11 +118,35 @@ function toEngineTouch(touch: MetaCreditTouch): Touchpoint {
   };
 }
 
+function setUniqueParent(
+  map: Map<string, string>,
+  child: string,
+  parent: string,
+  ambiguous: Set<string>,
+) {
+  if (!child || !parent) return;
+  if (ambiguous.has(child)) return;
+  const existing = map.get(child);
+  if (existing && existing !== parent) {
+    map.delete(child);
+    ambiguous.add(child);
+    return;
+  }
+  map.set(child, parent);
+}
+
 export function buildMetaFactIndexes(args: {
   campaigns: Array<{ campaign_id: string; campaign_name: string }>;
   adsetIds?: Iterable<string>;
   adIds?: Iterable<string>;
   creativeByAdId?: Map<string, string>;
+  adsets?: Array<{ adset_id: string; campaign_id: string }>;
+  ads?: Array<{
+    ad_id: string;
+    adset_id: string;
+    campaign_id: string;
+    creative_id?: string | null;
+  }>;
 }): MetaFactIndexes {
   const campaignById = new Map<string, { campaignId: string; campaignName: string }>();
   const idsByName = new Map<string, Set<string>>();
@@ -148,16 +176,85 @@ export function buildMetaFactIndexes(args: {
     const hit = only ? campaignById.get(only) : undefined;
     if (hit) campaignByUniqueName.set(name, hit);
   }
+
+  const adsetIds = new Set(
+    [...(args.adsetIds ?? [])].map((id) => id.trim()).filter(Boolean),
+  );
+  const adIds = new Set([... (args.adIds ?? [])].map((id) => id.trim()).filter(Boolean));
+  const creativeByAdId = new Map(args.creativeByAdId ?? []);
+  const adsetParentCampaign = new Map<string, string>();
+  const adParentAdset = new Map<string, string>();
+  const adParentCampaign = new Map<string, string>();
+  const ambiguousAdsetParents = new Set<string>();
+  const ambiguousAdParents = new Set<string>();
+
+  for (const row of args.adsets ?? []) {
+    const adsetId = row.adset_id?.trim();
+    const campaignId = row.campaign_id?.trim();
+    if (adsetId) adsetIds.add(adsetId);
+    if (adsetId && campaignId) {
+      setUniqueParent(adsetParentCampaign, adsetId, campaignId, ambiguousAdsetParents);
+    }
+  }
+  for (const row of args.ads ?? []) {
+    const adId = row.ad_id?.trim();
+    const adsetId = row.adset_id?.trim();
+    const campaignId = row.campaign_id?.trim();
+    const creativeId = row.creative_id?.trim();
+    if (adId) adIds.add(adId);
+    if (adId && adsetId) {
+      setUniqueParent(adParentAdset, adId, adsetId, ambiguousAdParents);
+    }
+    if (adId && campaignId) {
+      setUniqueParent(adParentCampaign, adId, campaignId, ambiguousAdParents);
+    }
+    if (adId && creativeId && !creativeByAdId.has(adId)) {
+      creativeByAdId.set(adId, creativeId);
+    }
+  }
+
   return {
     campaignById,
     campaignByUniqueName,
     ambiguousNames,
-    adsetIds: new Set(
-      [...(args.adsetIds ?? [])].map((id) => id.trim()).filter(Boolean),
-    ),
-    adIds: new Set([... (args.adIds ?? [])].map((id) => id.trim()).filter(Boolean)),
-    creativeByAdId: args.creativeByAdId ?? new Map(),
+    adsetIds,
+    adIds,
+    creativeByAdId,
+    adsetParentCampaign,
+    adParentAdset,
+    adParentCampaign,
   };
+}
+
+export function evaluateMetaHierarchy(
+  ids: { campaignId?: string | null; adsetId?: string | null; adId?: string | null },
+  indexes: MetaFactIndexes,
+): { conflict: boolean; reasons: string[] } {
+  const campaignId = sanitizeMetaId(ids.campaignId);
+  const adsetId = sanitizeMetaId(ids.adsetId);
+  const adId = sanitizeMetaId(ids.adId);
+  const reasons: string[] = [];
+
+  if (campaignId && adsetId) {
+    const parent = indexes.adsetParentCampaign.get(adsetId);
+    if (parent && parent !== campaignId) {
+      reasons.push(`adset ${adsetId} parent campaign ${parent} != ${campaignId}`);
+    }
+  }
+  if (adsetId && adId) {
+    const parentAdset = indexes.adParentAdset.get(adId);
+    if (parentAdset && parentAdset !== adsetId) {
+      reasons.push(`ad ${adId} parent adset ${parentAdset} != ${adsetId}`);
+    }
+  }
+  if (campaignId && adId) {
+    const parentCampaign = indexes.adParentCampaign.get(adId);
+    if (parentCampaign && parentCampaign !== campaignId) {
+      reasons.push(`ad ${adId} parent campaign ${parentCampaign} != ${campaignId}`);
+    }
+  }
+
+  return { conflict: reasons.length > 0, reasons };
 }
 
 export function mapCampaignIdentity(
@@ -216,8 +313,11 @@ export function attachMetaIdsToCredits(args: {
       order.touches.find((item) => item.touchpointId === credit.touchpointId) ??
       null;
     const campaign = touch?.campaign?.trim() || "(unmapped)";
+    const hierarchy = touch
+      ? evaluateMetaHierarchy(touch, indexes)
+      : { conflict: false, reasons: [] };
     const mapped =
-      credit.channel === META_CHANNEL && touch
+      credit.channel === META_CHANNEL && touch && !hierarchy.conflict
         ? mapCampaignIdentity(touch, indexes)
         : {
             campaignId: sanitizeMetaId(touch?.campaignId),
@@ -227,9 +327,15 @@ export function attachMetaIdsToCredits(args: {
     const adsetId = sanitizeMetaId(touch?.adsetId);
     const adId = sanitizeMetaId(touch?.adId);
     const adsetMapped =
-      credit.channel === META_CHANNEL && !!adsetId && indexes.adsetIds.has(adsetId);
+      credit.channel === META_CHANNEL &&
+      !hierarchy.conflict &&
+      !!adsetId &&
+      indexes.adsetIds.has(adsetId);
     const adMapped =
-      credit.channel === META_CHANNEL && !!adId && indexes.adIds.has(adId);
+      credit.channel === META_CHANNEL &&
+      !hierarchy.conflict &&
+      !!adId &&
+      indexes.adIds.has(adId);
     return {
       orderName: order.transactionId,
       model,
@@ -251,6 +357,7 @@ export function attachMetaIdsToCredits(args: {
       adsetMapped,
       adMapped,
       adMappingMethod: adMapped ? "ad_id_exact" : "unmapped",
+      hierarchyConflict: hierarchy.conflict,
       journey,
     };
   });
@@ -403,6 +510,7 @@ export type MetaMappingCoverage = {
   adMapped: number;
   fbclidWithoutIds: number;
   conflictingIds: number;
+  hierarchyConflicts: number;
 };
 
 export function summarizeMetaMapping(
@@ -441,5 +549,206 @@ export function summarizeMetaMapping(
     conflictingIds: metaTouches.filter(
       (touch) => touch.campaignIdConflict || touch.adsetIdConflict || touch.adIdConflict,
     ).length,
+    hierarchyConflicts: metaCredits.filter((credit) => credit.hierarchyConflict).length,
+  };
+}
+
+export type MetaOrderMappingRates = {
+  metaAttributedOrders: number;
+  campaignMappedOrders: number;
+  campaignUnmappedOrders: number;
+  campaignMappingRate: number;
+  adsetMappedOrders: number;
+  adsetUnmappedOrders: number;
+  adsetMappingRate: number;
+  adMappedOrders: number;
+  adUnmappedOrders: number;
+  adMappingRate: number;
+  metaChannelCredit: number;
+  campaignMappedCredit: number;
+  campaignUnmappedCredit: number;
+  adsetMappedCredit: number;
+  adsetUnmappedCredit: number;
+  adMappedCredit: number;
+  adUnmappedCredit: number;
+};
+
+function clampRate(numerator: number, denominator: number): number {
+  if (!(denominator > 0)) return 0;
+  const rate = numerator / denominator;
+  if (rate < 0) return 0;
+  if (rate > 1) return 1;
+  return rate;
+}
+
+export function summarizeMetaMappingAtOrderGrain(args: {
+  orders: MetaCreditOrder[];
+  model: AttributionModel;
+  windowDays: number;
+  indexes: MetaFactIndexes;
+}): MetaOrderMappingRates {
+  const rollup = metaCreditForOrders(args);
+  const metaOrderIds = new Set(rollup.credits.map((credit) => credit.orderName));
+  const campaignMapped = new Set<string>();
+  const adsetMapped = new Set<string>();
+  const adMapped = new Set<string>();
+  for (const credit of rollup.credits) {
+    if (credit.campaignMappingMethod === "campaign_id_exact") {
+      campaignMapped.add(credit.orderName);
+    }
+    if (credit.adsetMapped) adsetMapped.add(credit.orderName);
+    if (credit.adMapped) adMapped.add(credit.orderName);
+  }
+  const metaAttributedOrders = metaOrderIds.size;
+  const campaignMappedOrders = campaignMapped.size;
+  const adsetMappedOrders = adsetMapped.size;
+  const adMappedOrders = adMapped.size;
+  return {
+    metaAttributedOrders,
+    campaignMappedOrders,
+    campaignUnmappedOrders: metaAttributedOrders - campaignMappedOrders,
+    campaignMappingRate: clampRate(campaignMappedOrders, metaAttributedOrders),
+    adsetMappedOrders,
+    adsetUnmappedOrders: metaAttributedOrders - adsetMappedOrders,
+    adsetMappingRate: clampRate(adsetMappedOrders, metaAttributedOrders),
+    adMappedOrders,
+    adUnmappedOrders: metaAttributedOrders - adMappedOrders,
+    adMappingRate: clampRate(adMappedOrders, metaAttributedOrders),
+    metaChannelCredit: rollup.channelCredit,
+    campaignMappedCredit: rollup.campaignMappedCredit,
+    campaignUnmappedCredit: rollup.campaignUnmappedCredit,
+    adsetMappedCredit: rollup.adsetMappedCredit,
+    adsetUnmappedCredit: rollup.adsetUnmappedCredit,
+    adMappedCredit: rollup.adMappedCredit,
+    adUnmappedCredit: rollup.adUnmappedCredit,
+  };
+}
+
+export type MetaHierarchyViolation = {
+  kind:
+    | "CHANNEL_BALANCE"
+    | "PARENT_MISMATCH_ADSET"
+    | "PARENT_MISMATCH_AD"
+    | "CHILD_CREDIT_EXCEEDS_PARENT_CAMPAIGN"
+    | "CHILD_CREDIT_EXCEEDS_PARENT_ADSET";
+  orderId?: string;
+  detail: string;
+};
+
+export function validateMetaCreditHierarchy(
+  rollup: MetaCreditRollup,
+  indexes: MetaFactIndexes,
+  epsilon = 1e-6,
+): {
+  metaChannelCredit: number;
+  campaignMappedCredit: number;
+  campaignUnmappedCredit: number;
+  adsetMappedCredit: number;
+  adsetUnmappedCredit: number;
+  adMappedCredit: number;
+  adUnmappedCredit: number;
+  hierarchyViolations: number;
+  violations: MetaHierarchyViolation[];
+} {
+  const violations: MetaHierarchyViolation[] = [];
+  const channel = rollup.channelCredit;
+  if (
+    Math.abs(rollup.campaignMappedCredit + rollup.campaignUnmappedCredit - channel) > epsilon
+  ) {
+    violations.push({
+      kind: "CHANNEL_BALANCE",
+      detail: `campaign mapped+unmapped ${rollup.campaignMappedCredit + rollup.campaignUnmappedCredit} != channel ${channel}`,
+    });
+  }
+  if (Math.abs(rollup.adsetMappedCredit + rollup.adsetUnmappedCredit - channel) > epsilon) {
+    violations.push({
+      kind: "CHANNEL_BALANCE",
+      detail: `adset mapped+unmapped ${rollup.adsetMappedCredit + rollup.adsetUnmappedCredit} != channel ${channel}`,
+    });
+  }
+  if (Math.abs(rollup.adMappedCredit + rollup.adUnmappedCredit - channel) > epsilon) {
+    violations.push({
+      kind: "CHANNEL_BALANCE",
+      detail: `ad mapped+unmapped ${rollup.adMappedCredit + rollup.adUnmappedCredit} != channel ${channel}`,
+    });
+  }
+
+  const campaignCredit = new Map<string, number>();
+  const adsetCredit = new Map<string, number>();
+  const adsetCreditByParentCampaign = new Map<string, number>();
+  const adCreditByParentAdset = new Map<string, number>();
+
+  for (const credit of rollup.credits) {
+    const campaignId = sanitizeMetaId(credit.metaCampaignId);
+    const adsetId = sanitizeMetaId(credit.metaAdsetId);
+    const adId = sanitizeMetaId(credit.metaAdId);
+    const check = evaluateMetaHierarchy(
+      { campaignId, adsetId, adId },
+      indexes,
+    );
+    if (check.conflict && (credit.adsetMapped || credit.adMapped || credit.campaignMappingMethod === "campaign_id_exact")) {
+      const kind = check.reasons.some((reason) => reason.startsWith("adset"))
+        ? "PARENT_MISMATCH_ADSET"
+        : "PARENT_MISMATCH_AD";
+      violations.push({
+        kind,
+        orderId: credit.orderName,
+        detail: check.reasons.join("; "),
+      });
+    }
+
+    if (credit.campaignMappingMethod === "campaign_id_exact" && campaignId) {
+      campaignCredit.set(campaignId, (campaignCredit.get(campaignId) ?? 0) + credit.creditDollars);
+    }
+    if (credit.adsetMapped && adsetId) {
+      adsetCredit.set(adsetId, (adsetCredit.get(adsetId) ?? 0) + credit.creditDollars);
+      const parentCampaign = indexes.adsetParentCampaign.get(adsetId);
+      if (parentCampaign) {
+        adsetCreditByParentCampaign.set(
+          parentCampaign,
+          (adsetCreditByParentCampaign.get(parentCampaign) ?? 0) + credit.creditDollars,
+        );
+      }
+    }
+    if (credit.adMapped && adId) {
+      const parentAdset = indexes.adParentAdset.get(adId);
+      if (parentAdset) {
+        adCreditByParentAdset.set(
+          parentAdset,
+          (adCreditByParentAdset.get(parentAdset) ?? 0) + credit.creditDollars,
+        );
+      }
+    }
+  }
+
+  for (const [campaignId, childCredit] of adsetCreditByParentCampaign) {
+    const parentCredit = campaignCredit.get(campaignId) ?? 0;
+    if (childCredit > parentCredit + epsilon) {
+      violations.push({
+        kind: "CHILD_CREDIT_EXCEEDS_PARENT_CAMPAIGN",
+        detail: `adset credit ${childCredit} under campaign ${campaignId} exceeds campaign credit ${parentCredit}`,
+      });
+    }
+  }
+  for (const [adsetId, childCredit] of adCreditByParentAdset) {
+    const parentCredit = adsetCredit.get(adsetId) ?? 0;
+    if (childCredit > parentCredit + epsilon) {
+      violations.push({
+        kind: "CHILD_CREDIT_EXCEEDS_PARENT_ADSET",
+        detail: `ad credit ${childCredit} under adset ${adsetId} exceeds adset credit ${parentCredit}`,
+      });
+    }
+  }
+
+  return {
+    metaChannelCredit: channel,
+    campaignMappedCredit: rollup.campaignMappedCredit,
+    campaignUnmappedCredit: rollup.campaignUnmappedCredit,
+    adsetMappedCredit: rollup.adsetMappedCredit,
+    adsetUnmappedCredit: rollup.adsetUnmappedCredit,
+    adMappedCredit: rollup.adMappedCredit,
+    adUnmappedCredit: rollup.adUnmappedCredit,
+    hierarchyViolations: violations.length,
+    violations,
   };
 }

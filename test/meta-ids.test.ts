@@ -2,22 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
+  applyMetaLandingIdentity,
   campaignGrainKey,
   collapseSessionMetaIds,
+  compareAcquisitionRowKeys,
+  emptyMetaIdTriple,
   mappingCoverageStatus,
+  META_HIERARCHY_CONFLICT,
   parseMetaIdsFromUrl,
+  pickAcquisitionRow,
   sanitizeMetaId,
 } from "../src/lib/attribution/meta-ids.ts";
 import {
   attachMetaIdsToCredits,
   buildMetaFactIndexes,
+  evaluateMetaHierarchy,
   exactIdMatch,
   grainAttributedNcac,
   grainOurRoas,
   metaCreditForOrders,
   metaCreditHierarchyHolds,
   META_CHANNEL,
+  summarizeMetaMappingAtOrderGrain,
   UNMAPPED_META_LABEL,
+  validateMetaCreditHierarchy,
   type MetaCreditOrder,
 } from "../src/lib/attribution/meta-credit.ts";
 import {
@@ -62,9 +70,8 @@ const indexes = buildMetaFactIndexes({
     { campaign_id: "333", campaign_name: "Same Name" },
     { campaign_id: "444", campaign_name: "Same Name" },
   ],
-  adsetIds: ["555"],
-  adIds: ["666"],
-  creativeByAdId: new Map([["666", "777"]]),
+  adsets: [{ adset_id: "555", campaign_id: "111" }],
+  ads: [{ ad_id: "666", adset_id: "555", campaign_id: "111", creative_id: "777" }],
 });
 
 test("sanitizeMetaId keeps digits and drops junk", () => {
@@ -121,23 +128,28 @@ test("internal checkout noise is not an eligible Direct touch even with Meta IDs
   );
 });
 
-test("IDs persist through first-touch storage contract names in stitch HTML", () => {
+test("IDs persist through first-touch vs session storage contract in stitch HTML", () => {
   const html = readFileSync("gtm/web/stitch-gn-first-touch.html", "utf8");
   assert.match(html, /gn_meta_campaign_id/);
   assert.match(html, /gn_meta_adset_id/);
   assert.match(html, /gn_meta_ad_id/);
+  assert.match(html, /gn_first_meta_campaign_id/);
+  assert.match(html, /gn_first_meta_adset_id/);
+  assert.match(html, /gn_first_meta_ad_id/);
   assert.match(html, /sanitizeMetaId/);
-  assert.match(html, /attrs\.gn_meta_campaign_id/);
-  assert.match(html, /\["gn_meta_campaign_id"/);
+  assert.match(html, /attrs\.gn_first_meta_campaign_id/);
+  assert.match(html, /setSessionCookie\("gn_meta_campaign_id"/);
+  assert.match(html, /gn_session_meta_v1/);
+  assert.doesNotMatch(html, /\["gn_meta_campaign_id", ft\./);
   assert.match(html, /if \(!ft && hasAny\)/);
 });
 
-test("IDs appear in Shopify cart attributes via parseFirstTouch", () => {
+test("IDs appear in Shopify cart attributes via parseFirstTouch first-touch names", () => {
   const ft = parseFirstTouch([
     { key: "gn_uid", value: "u1" },
-    { key: "gn_meta_campaign_id", value: "111" },
-    { key: "gn_meta_adset_id", value: "555" },
-    { key: "gn_meta_ad_id", value: "666" },
+    { key: "gn_first_meta_campaign_id", value: "111" },
+    { key: "gn_first_meta_adset_id", value: "555" },
+    { key: "gn_first_meta_ad_id", value: "666" },
     { key: "gn_fbclid", value: "abc" },
     { key: "gn_utm_source", value: "facebook" },
   ]);
@@ -147,6 +159,16 @@ test("IDs appear in Shopify cart attributes via parseFirstTouch", () => {
   assert.equal(ft.fbclid, "abc");
   assert.equal(ft.utmSource, "facebook");
   assert.equal(ft.uid, "u1");
+});
+
+test("legacy gn_meta_* cart keys remain first-touch fallback; gn_first_meta_* wins", () => {
+  const legacy = parseFirstTouch([{ key: "gn_meta_campaign_id", value: "111" }]);
+  assert.equal(legacy.metaCampaignId, "111");
+  const mixed = parseFirstTouch([
+    { key: "gn_meta_campaign_id", value: "111" },
+    { key: "gn_first_meta_campaign_id", value: "999" },
+  ]);
+  assert.equal(mixed.metaCampaignId, "999");
 });
 
 test("same session repeated event rows collapse to landing IDs", () => {
@@ -393,4 +415,211 @@ test("organic and Direct orders do not create Meta child credit", () => {
 
 test("unmapped Meta label is retained for reporting", () => {
   assert.equal(UNMAPPED_META_LABEL, "Unmapped Meta");
+});
+
+test("Campaign A then Campaign B: first-touch stays A, session and typed event become B", () => {
+  const campaignA = { campaignId: "111", adsetId: "555", adId: "666" };
+  const campaignB = { campaignId: "222", adsetId: "888", adId: "999" };
+  const first = applyMetaLandingIdentity({
+    urlIds: campaignA,
+    firstTouch: emptyMetaIdTriple(),
+    sessionIds: emptyMetaIdTriple(),
+  });
+  assert.equal(first.firstTouch.campaignId, "111");
+  assert.equal(first.sessionIds.campaignId, "111");
+  assert.equal(first.typedEventIds.campaignId, "111");
+
+  const later = applyMetaLandingIdentity({
+    urlIds: campaignB,
+    firstTouch: first.firstTouch,
+    sessionIds: first.sessionIds,
+  });
+  assert.equal(later.firstTouch.campaignId, "111");
+  assert.equal(later.firstTouch.adsetId, "555");
+  assert.equal(later.firstTouch.adId, "666");
+  assert.equal(later.sessionIds.campaignId, "222");
+  assert.equal(later.sessionIds.adsetId, "888");
+  assert.equal(later.sessionIds.adId, "999");
+  assert.equal(later.typedEventIds.campaignId, "222");
+  assert.equal(later.typedEventIds.adId, "999");
+
+  const canonicalB = parseMetaIdsFromUrl(
+    "https://goodsnova.com/?gn_meta_campaign_id=222&gn_meta_adset_id=888&gn_meta_ad_id=999",
+  );
+  assert.equal(canonicalB.campaignId, "222");
+  assert.equal(canonicalB.adsetId, "888");
+  assert.equal(canonicalB.adId, "999");
+
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t-b",
+        campaignId: canonicalB.campaignId,
+        adsetId: canonicalB.adsetId,
+        adId: canonicalB.adId,
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes,
+  });
+  assert.equal(credits[0].metaCampaignId, "222");
+  assert.notEqual(credits[0].metaCampaignId, later.firstTouch.campaignId);
+});
+
+test("same timestamp acquisition row is deterministic via event_id", () => {
+  const rows = [
+    { eventTimestamp: T0, eventId: "evt-b", campaignId: "222" },
+    { eventTimestamp: T0, eventId: "evt-a", campaignId: "111" },
+    { eventTimestamp: T0 + 1, eventId: "evt-c", campaignId: "333" },
+  ];
+  assert.equal(compareAcquisitionRowKeys(rows[0], rows[1]) > 0, true);
+  const picked = pickAcquisitionRow(rows);
+  assert.equal(picked?.eventId, "evt-a");
+  assert.equal(picked?.campaignId, "111");
+  assert.deepEqual(pickAcquisitionRow(rows), pickAcquisitionRow([...rows].reverse()));
+});
+
+test("canonical order mapping rate is <= 100% and stays in [0, 1]", () => {
+  const rates = summarizeMetaMappingAtOrderGrain({
+    orders: [
+      order([
+        touch({
+          touchpointId: "t1",
+          campaignId: "111",
+          adsetId: "555",
+          adId: "666",
+        }),
+      ]),
+      order(
+        [touch({ touchpointId: "t2", campaign: "Nope" })],
+        { transactionId: "1002", isNewCustomer: false },
+      ),
+    ],
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes,
+  });
+  assert.equal(rates.metaAttributedOrders, 2);
+  assert.equal(rates.campaignMappedOrders, 1);
+  assert.equal(rates.campaignUnmappedOrders, 1);
+  assert.equal(rates.campaignMappedOrders + rates.campaignUnmappedOrders, rates.metaAttributedOrders);
+  assert.ok(rates.campaignMappingRate <= 1);
+  assert.ok(rates.adsetMappingRate <= 1);
+  assert.ok(rates.adMappingRate <= 1);
+  assert.equal(rates.campaignMappingRate, 0.5);
+  assert.equal(
+    rates.campaignMappedCredit + rates.campaignUnmappedCredit,
+    rates.metaChannelCredit,
+  );
+});
+
+test("campaign/adset/ad hierarchy relationship maps when parents agree", () => {
+  assert.deepEqual(indexes.adsetParentCampaign.get("555"), "111");
+  assert.deepEqual(indexes.adParentAdset.get("666"), "555");
+  assert.deepEqual(indexes.adParentCampaign.get("666"), "111");
+  const check = evaluateMetaHierarchy(
+    { campaignId: "111", adsetId: "555", adId: "666" },
+    indexes,
+  );
+  assert.equal(check.conflict, false);
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t1",
+        campaignId: "111",
+        adsetId: "555",
+        adId: "666",
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes,
+  });
+  assert.equal(credits[0].campaignMappingMethod, "campaign_id_exact");
+  assert.equal(credits[0].adsetMapped, true);
+  assert.equal(credits[0].adMapped, true);
+  assert.equal(credits[0].hierarchyConflict, false);
+});
+
+test("conflicting campaign/adset pair is META_HIERARCHY_CONFLICT and not fully mapped", () => {
+  const check = evaluateMetaHierarchy(
+    { campaignId: "222", adsetId: "555", adId: null },
+    indexes,
+  );
+  assert.equal(check.conflict, true);
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t1",
+        campaignId: "222",
+        adsetId: "555",
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes,
+  });
+  assert.equal(credits[0].hierarchyConflict, true);
+  assert.equal(credits[0].campaignMappingMethod, "unmapped");
+  assert.equal(credits[0].adsetMapped, false);
+  assert.equal(META_HIERARCHY_CONFLICT, "META_HIERARCHY_CONFLICT");
+});
+
+test("conflicting adset/ad pair is META_HIERARCHY_CONFLICT and not fully mapped", () => {
+  const check = evaluateMetaHierarchy(
+    { campaignId: "111", adsetId: "555", adId: "666" },
+    buildMetaFactIndexes({
+      campaigns: [{ campaign_id: "111", campaign_name: "Prospecting" }],
+      adsets: [{ adset_id: "555", campaign_id: "111" }],
+      ads: [{ ad_id: "666", adset_id: "999", campaign_id: "111" }],
+    }),
+  );
+  assert.equal(check.conflict, true);
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t1",
+        campaignId: "111",
+        adsetId: "555",
+        adId: "666",
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes: buildMetaFactIndexes({
+      campaigns: [{ campaign_id: "111", campaign_name: "Prospecting" }],
+      adsets: [{ adset_id: "555", campaign_id: "111" }],
+      ads: [{ ad_id: "666", adset_id: "999", campaign_id: "111" }],
+    }),
+  });
+  assert.equal(credits[0].hierarchyConflict, true);
+  assert.equal(credits[0].adMapped, false);
+  assert.equal(credits[0].adsetMapped, false);
+});
+
+test("actual Meta child-credit hierarchy has 0 violations when parents agree", () => {
+  const rollup = metaCreditForOrders({
+    orders: [
+      order([
+        touch({
+          touchpointId: "t1",
+          campaignId: "111",
+          adsetId: "555",
+          adId: "666",
+        }),
+      ]),
+    ],
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes,
+  });
+  const result = validateMetaCreditHierarchy(rollup, indexes);
+  assert.equal(result.metaChannelCredit, 100);
+  assert.equal(result.campaignMappedCredit, 100);
+  assert.equal(result.campaignUnmappedCredit, 0);
+  assert.equal(result.adsetMappedCredit, 100);
+  assert.equal(result.adMappedCredit, 100);
+  assert.equal(result.hierarchyViolations, 0);
+  assert.ok(metaCreditHierarchyHolds(rollup));
 });

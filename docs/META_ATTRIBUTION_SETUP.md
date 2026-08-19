@@ -22,12 +22,14 @@ Cursor cannot edit live Meta ads.
 
 # MANUAL META UI VERIFICATION REQUIRED
 
-Official Meta help documents **dynamic URL parameters** on the **ad** object. Commonly supported tokens:
+Official Meta help documents **dynamic URL parameters** on the **ad** object. Commonly cited tokens:
 
 - `{{campaign.id}}`
 - `{{adset.id}}`
 - `{{ad.id}}`
 - `{{campaign.name}}` / `{{adset.name}}` / `{{ad.name}}` (optional display)
+
+Cursor has **not** independently verified official token syntax against the current Ads Manager picker. Do not treat this list as production-verified.
 
 Before publishing, Julio must confirm the live Ads Manager builder still lists those tokens:
 
@@ -99,16 +101,16 @@ Every future ad must inherit this contract. Add the string to the ad template / 
    - `gn_meta_ad_id=<digits>`
    - existing `utm_source` / `utm_medium` if you kept them
    - `fbclid` (Meta-appended)
-3. Confirm first-party cookies (Application → Cookies on goodsnova.com):
-   - `gn_meta_campaign_id`
-   - `gn_meta_adset_id`
-   - `gn_meta_ad_id`
+3. Confirm cookies (Application → Cookies on goodsnova.com):
+   - **session** `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id` match **this** click
+   - **first-touch audit** `gn_first_meta_campaign_id` / `gn_first_meta_adset_id` / `gn_first_meta_ad_id` (365d first-write)
    - `gn_uid` still present
    - existing `gn_utm_*` / `gn_fbclid` not overwritten if they already existed
-4. GTM Preview (`GTM-MVWKFXH2`): stitch tag fires; Event Data / GA4 params include `gn_meta_campaign_id`.
-5. Server GTM Preview (`GTM-NJ4QCWFK`): event data includes the same keys after web GTM is published.
-6. BigQuery `raw_events_full`: `page_location` contains the three IDs. After migration 006 + sGTM field map, typed columns `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` also fill.
-7. Canonical session touch: dashboard `/meta` debugger / OUR order drilldown shows campaign/adset/ad IDs on the Meta touch.
+   - If you already had a prior Meta click, first-touch IDs stay the original campaign; session IDs are this ad
+4. GTM Preview (`GTM-MVWKFXH2`): stitch tag fires; Event Data / GA4 params include **session** `gn_meta_campaign_id` for this click.
+5. Server GTM Preview (`GTM-NJ4QCWFK`): event data includes the same **session** keys after web GTM is published. Map typed BQ `meta_*` from these, never from `gn_first_meta_*`.
+6. BigQuery `raw_events_full`: `page_location` contains the three IDs. After migration 006 + sGTM field map, typed columns `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` also fill with **current session / click** identity.
+7. Canonical session touch: dashboard `/meta` debugger / OUR order drilldown shows campaign/adset/ad IDs on the Meta touch from `page_location`.
 8. Campaign mapping: query `bigquery/validation/14_meta_id_fact_match.sql` — observed IDs exist in Meta facts (`campaign_id_exact_matches` > 0).
 
 If step 2 fails, do not roll out. If step 2 works but 6 fails, the problem is GTM/sGTM, not Ads Manager.
@@ -123,8 +125,8 @@ https://goodsnova.com/?utm_source=facebook&utm_medium=cpc&utm_campaign=...&utm_c
 
 1. Repository/app support (this branch)
 2. BigQuery migration 006 (additive columns)
-3. Web GTM import (`docs/GTM_MANUAL_CHANGES.md`) — PREPARED FOR IMPORT
-4. Server GTM field map (`bigquery/analytics/GTM_CHANGES.md`) — PREPARED FOR IMPORT
+3. Web GTM **click-by-click in the live workspace** (`docs/GTM_MANUAL_CHANGES.md`). **DO NOT MERGE AN OLD EXPORT OVER A NEWER LIVE CONTAINER.**
+4. Server GTM field map (`bigquery/analytics/GTM_CHANGES.md`) — session `gn_meta_*` → typed `meta_*`
 5. ONE Meta ad URL-parameter test
 6. Validate first live Meta IDs in `raw_events_full` (query 13)
 7. Validate canonical touch in the dashboard

@@ -37,6 +37,7 @@ const COOKIE_KEYS = [
   "gn_utm_campaign",
   "gn_utm_content",
   "gn_utm_term",
+  // Current session / click Meta IDs (session cookies). Not first-touch.
   "gn_meta_campaign_id",
   "gn_meta_adset_id",
   "gn_meta_ad_id",

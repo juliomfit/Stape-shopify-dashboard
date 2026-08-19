@@ -1,10 +1,34 @@
-# Web GTM manual changes — Meta identity (PREPARED FOR IMPORT)
+# Web GTM manual changes — Meta identity (click-by-click in the LIVE workspace)
 
-Cursor cannot publish GTM. This is **not live**.
+Cursor cannot publish GTM. This is **not live**. Cursor only has a repository export, which may be older than the published container.
+
+**PRIMARY procedure: click-by-click modifications in the CURRENT LIVE GTM workspace.**
+
+**DO NOT MERGE AN OLD EXPORT OVER A NEWER LIVE CONTAINER.**
+
+Do not import `gtm/import/GTM-MVWKFXH2_meta-ids.json` as the default path. That file is an optional convenience only after Julio exports a **fresh** live workspace and compares it to the patched file. If the live container is newer than the repo export, importing/overwrite will destroy later live edits.
 
 Web container: **GTM-MVWKFXH2** (`Goodsnova CDN Web`).
 
-The stitch-fill workspace is already published. This pass only extends the **existing** Custom HTML tag and adds three cookie variables + GA4/DT params. Do not rebuild the container.
+The stitch-fill workspace is already published. This pass only extends the **existing** Custom HTML tag and cookie / GA4 / DT wiring. Do not rebuild the container.
+
+## Semantics (do not mix these)
+
+Landing URL query params stay:
+
+- `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id` — this click
+
+Durable FIRST TOUCH / Shopify audit (365-day first-write, never overwrite):
+
+- `gn_first_meta_campaign_id` / `gn_first_meta_adset_id` / `gn_first_meta_ad_id`
+
+Current session / click (sessionStorage + session cookies; overwrite when the landing URL contains `gn_meta_*`):
+
+- cookies `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id`
+
+GA4 / Data Tags / typed BigQuery `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` must send the **current session** cookies, not first-touch cookies.
+
+Canonical attribution still extracts IDs from `page_location`. That path is valid and must keep working.
 
 ## Exact tag changed
 
@@ -19,34 +43,22 @@ No new tags. No trigger changes. Keep:
 - Priority 999
 - Setup Tag on every `[Stape] GA4 - *` and `[Stape] DT - *`
 
-## Code change (behavior)
+## PRIMARY — click-by-click in the live workspace
 
-Captures first-write (does not overwrite existing `gn_first_touch_v1`):
+1. Tag Manager → **GTM-MVWKFXH2** → open the **currently published / current live workspace**. Do not start from an old export.
+2. Open tag `[Shopify] Stitching -> Order Attributes (gn_uid + first-touch)`.
+3. Replace Custom HTML with the contents of `gtm/web/stitch-gn-first-touch.html`.
+4. Create 1st Party Cookie variables if missing (decode = false):
 
-- `gn_meta_campaign_id`
-- `gn_meta_adset_id`
-- `gn_meta_ad_id`
-- optional names `gn_meta_campaign_name` / `gn_meta_adset_name` / `gn_meta_ad_name`
+| Variable name | Cookie name | Lifetime |
+|---|---|---|
+| `cookie gn_meta_campaign_id` | `gn_meta_campaign_id` | **session** (current click) |
+| `cookie gn_meta_adset_id` | `gn_meta_adset_id` | **session** (current click) |
+| `cookie gn_meta_ad_id` | `gn_meta_ad_id` | **session** (current click) |
 
-Mirrors IDs into first-party cookies (365d, SameSite=Lax, first-write only) and Shopify cart attributes with the same keys.
+Do **not** map `gn_first_meta_*` into GA4 `meta_*` / `gn_meta_*` event params.
 
-Does not break `gn_uid`, UTMs, `fbclid`, `gclid`, or existing cart attributes.
-
-IDs that are not 1–32 digits are dropped.
-
-## Variable changes
-
-Add 1st Party Cookie variables (decode = false):
-
-| Variable name | Cookie name |
-|---|---|
-| `cookie gn_meta_campaign_id` | `gn_meta_campaign_id` |
-| `cookie gn_meta_adset_id` | `gn_meta_adset_id` |
-| `cookie gn_meta_ad_id` | `gn_meta_ad_id` |
-
-## GA4 shared event settings
-
-Variable **ga4 - shared_event_settings** — append (do not remove existing rows):
+5. Variable **ga4 - shared_event_settings** — append (do not remove existing rows):
 
 | Parameter | Value |
 |---|---|
@@ -56,45 +68,43 @@ Variable **ga4 - shared_event_settings** — append (do not remove existing rows
 
 Do **not** put these IDs into `utm_campaign` / `utm_content`.
 
-## Data Tags
+6. On each `[Stape] DT - *` tag `custom_data`, append the same three `gn_meta_*` rows (transformation none / store none).
+7. Preview (below) then Publish only after Preview passes.
 
-On each `[Stape] DT - *` tag `custom_data`, append the same three `gn_meta_*` rows (transformation none / store none).
+## Optional convenience import (not primary)
 
-## Import procedure (Option A)
+File: `gtm/import/GTM-MVWKFXH2_meta-ids.json`.
 
-File: `gtm/import/GTM-MVWKFXH2_meta-ids.json` (PREPARED FOR IMPORT).
+Use only after:
 
-1. Tag Manager → GTM-MVWKFXH2 → Admin → Import Container.
-2. Workspace: **New** (name it `meta ids`).
-3. Merge → Overwrite conflicting tags, triggers, and variables.
-4. Confirm it updates the stitch tag, `ga4 - shared_event_settings`, DT custom_data, and the three new cookie variables.
-5. Do **not** overwrite the entire container.
-6. Preview → then Publish only after Preview passes.
+1. Admin → Export Container from the **current live** workspace.
+2. Diff that fresh export against the patched file (stitch HTML, the three cookie variables, GA4 shared settings, DT custom_data).
+3. If they diverge, prefer the click-by-click steps. Do not overwrite live tags you did not inspect.
 
-If GTM warns the live version is newer than this export, still Merge, then spot-check tags edited after the stitch-fill publish.
+**DO NOT MERGE AN OLD EXPORT OVER A NEWER LIVE CONTAINER.**
 
-## Option B — click-by-click
-
-1. Open the existing stitch tag. Replace HTML with `gtm/web/stitch-gn-first-touch.html`.
-2. Create the three cookie variables.
-3. Append the three GA4 params.
-4. Append the three DT rows.
+If you still import: Workspace = New, Merge, and only overwrite the stitch tag / cookie variables / GA4+DT params listed above. Never overwrite the entire container.
 
 ## Preview validation
 
 1. `https://goodsnova.com/?utm_source=facebook&utm_medium=cpc&gn_meta_campaign_id=111&gn_meta_adset_id=222&gn_meta_ad_id=333&fbclid=TESTFBCLID`
-2. Initialization: stitch fires. Cookies `gn_meta_campaign_id=111`, `gn_meta_adset_id=222`, `gn_meta_ad_id=333` exist. `gn_uid` still exists.
-3. Reload **without** query params: cookies still hold first-touch IDs (not overwritten).
-4. Second URL with different IDs: first-touch localStorage / cookies stay `111/222/333`.
-5. GA4 `page_view` event params include `gn_meta_campaign_id=111`.
-6. Shopify cart attributes (Network `cart/update.js` or cart page) include `gn_meta_campaign_id`.
+2. Initialization: stitch fires. Session cookies `gn_meta_campaign_id=111` (and adset/ad) exist. First-touch cookies `gn_first_meta_campaign_id=111` exist. `gn_uid` still exists.
+3. Same tab, second URL `...?gn_meta_campaign_id=999&gn_meta_adset_id=888&gn_meta_ad_id=777`:
+   - session cookies become `999/888/777`
+   - first-touch cookies stay `111/222/333`
+   - GA4 `page_view` params are `gn_meta_campaign_id=999` (current session)
+4. Reload **without** query params in the same tab: session cookies still `999/888/777`.
+5. Shopify cart attributes (Network `cart/update.js`) include `gn_first_meta_campaign_id=111`, not the converting campaign.
+6. `gn_uid` / existing `gn_utm_*` / `gn_fbclid` first-touch cookies are not overwritten.
 
 ## Regression risks
 
 - Shop Pay still does not run this HTML.
-- First-write cookies: returning visitors without Meta IDs in first-touch will not pick up IDs from a later click into first-touch storage. Canonical attribution still uses the **session landing URL**, so later Meta sessions are fine.
+- First-touch storage does not pick up a later Meta click. Canonical attribution uses the **session landing URL**, so later Meta sessions are still attributed from that click's `page_location`.
 - Do not publish if stitch no longer fires on Initialization.
 
 ## Server GTM
 
 Web sending `gn_meta_*` event params does **not** automatically create BigQuery columns. See `bigquery/analytics/GTM_CHANGES.md` and migration 006. Warehouse SQL already extracts IDs from `page_location` without those columns.
+
+Typed `meta_*` columns are **CURRENT SESSION / CLICK identity**. Map them from Event Data `gn_meta_*` (session cookies), never from `gn_first_meta_*`.

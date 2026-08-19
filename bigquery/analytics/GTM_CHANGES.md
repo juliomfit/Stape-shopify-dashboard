@@ -55,9 +55,9 @@ sending it.
 | `gbraid` / `wbraid` | Event or `{{gn_gbraid}}` / `{{gn_wbraid}}` | yes |
 | `ttclid` / `msclkid` | Event or gn_* equivalents | yes |
 | `utm_source` … `utm_term` | Event or `{{gn_utm_*}}` (do not overwrite URL-parsed raw in warehouse) | yes |
-| `meta_campaign_id` | Event / cookie `gn_meta_campaign_id` — **do not** map into `utm_campaign` | yes (after migration 006) |
-| `meta_adset_id` | Event / cookie `gn_meta_adset_id` | yes (after migration 006) |
-| `meta_ad_id` | Event / cookie `gn_meta_ad_id` | yes (after migration 006) |
+| `meta_campaign_id` | Event / **session** cookie `gn_meta_campaign_id` — current click, **not** first-touch `gn_first_meta_*`. Do **not** map into `utm_campaign` | yes (after migration 006) |
+| `meta_adset_id` | Event / session cookie `gn_meta_adset_id` | yes (after migration 006) |
+| `meta_ad_id` | Event / session cookie `gn_meta_ad_id` | yes (after migration 006) |
 | `is_new_customer` | `{{purchase_count}} == 1` (Stape Store email collection) | yes |
 | `is_new_customer` | `{{purchase_count}} == 1` (Stape Store email collection) | yes |
 | `purchase_count` | Stape Store `purchase_count` | yes |
@@ -70,9 +70,9 @@ sending it.
 
 After `bigquery/migrations/2026_08_19_006_meta_touch_ids.sql`, map these on the **same** BigQuery writer tag. Do not overload `utm_campaign` / `utm_content`.
 
-Web GTM (`GTM-MVWKFXH2`) must already send `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id` on GA4 + Data Tags (`docs/GTM_MANUAL_CHANGES.md`). Adding cookies on web does **not** automatically create BigQuery columns.
+Web GTM (`GTM-MVWKFXH2`) must already send **session** `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id` on GA4 + Data Tags (`docs/GTM_MANUAL_CHANGES.md`, click-by-click in the live workspace). Adding cookies on web does **not** automatically create BigQuery columns. Do **not** map `gn_first_meta_*` into these typed fields.
 
-Canonical attribution extracts IDs from `page_location` even before this map. Typed columns are for cookie backfill and query 13 after 006.
+Canonical attribution extracts IDs from `page_location` even before this map. Typed columns are CURRENT SESSION / CLICK identity for cookie persist and query 13 after 006.
 
 ## 3. Recreate `dashboard_events` before 2026-10-11
 
@@ -86,14 +86,14 @@ Server BQ already maps `gn_uid` / `gclid` ← `{{gn_gclid}}` / `fbclid` ← `{{g
 Those Event Data keys stay empty until **web** GTM:
 
 1. Setup-tags the stitch HTML before GA4/DT `page_view`
-2. Writes first-touch click IDs to `gn_*` cookies (not only localStorage)
-3. Sends `gn_uid` + first-touch params on **all** GA4 events (`ga4 - shared_event_settings`) and all Data Tags
+2. Writes first-touch click IDs to `gn_*` cookies (not only localStorage). Meta current-click IDs use session `gn_meta_*`; first-touch audit uses `gn_first_meta_*`.
+3. Sends `gn_uid` + first-touch params on **all** GA4 events (`ga4 - shared_event_settings`) and all Data Tags. Session `gn_meta_*` (not `gn_first_meta_*`) become typed `meta_*`.
 
-Import + click-by-click: `gtm/README.md`. Do not change warehouse SQL until Query 1 fill jumps.
+Click-by-click in the live workspace: `docs/GTM_MANUAL_CHANGES.md`. **DO NOT MERGE AN OLD EXPORT OVER A NEWER LIVE CONTAINER.** Do not change warehouse SQL until Query 1 fill jumps.
 
 ## 5. What not to change
 
 - Stape Store keys (`X-Stape-User-Id`, hashed email collection)
 - Existing `source_client`
 - Production pixels / CAPI / Ads tags
-- First-touch = Shopify cart `gn_*` (unchanged; this feed only fills BQ)
+- First-touch = Shopify cart `gn_*` / `gn_first_meta_*` (audit only; this feed only fills BQ session `meta_*`)

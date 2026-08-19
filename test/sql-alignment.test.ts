@@ -125,7 +125,32 @@ test("warehouse SQL extracts gn_meta_* from page_location and does not require t
   assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]gn_meta_adset_id=/);
   assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]gn_meta_ad_id=/);
   assert.match(warehouse, /meta_campaign_id_conflict/);
+  assert.match(warehouse, /ORDER BY e\.event_timestamp, IFNULL\(e\.event_id, ""\) LIMIT 1/);
   assert.doesNotMatch(creditFix, /gn_meta_campaign_id/);
+});
+
+test("validation 15 is order-grain mapping rates, not events divided by orders", () => {
+  const body = readFileSync("bigquery/validation/15_meta_attribution_mapping.sql", "utf8");
+  assert.match(body, /meta_attributed_orders/);
+  assert.match(body, /campaign_mapped_orders/);
+  assert.match(body, /campaign_unmapped_orders/);
+  assert.match(body, /campaign_mapping_rate/);
+  assert.match(body, /adset_mapped_orders/);
+  assert.match(body, /ad_mapped_orders/);
+  assert.match(body, /hierarchy_conflict/);
+  assert.doesNotMatch(body, /events_with_campaign_id/);
+  assert.doesNotMatch(body, /campaign_id_events_per_meta_order/);
+});
+
+test("validation 17 checks fact-parent hierarchy and returns violation counts", () => {
+  const body = readFileSync("bigquery/validation/17_meta_credit_reconciliation.sql", "utf8");
+  assert.match(body, /campaign_mapped_credit/);
+  assert.match(body, /campaign_unmapped_credit/);
+  assert.match(body, /adset_parent_mismatch/);
+  assert.match(body, /ad_parent_mismatch/);
+  assert.match(body, /hierarchy_violations/);
+  assert.match(body, /adset_exceeds_parent_campaign/);
+  assert.doesNotMatch(body, /campaign_mapped_credit_sql_unknown_until_ids/);
 });
 
 test("7-day default is pending revalidation after canonicalization", () => {

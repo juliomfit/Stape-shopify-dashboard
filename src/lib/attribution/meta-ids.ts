@@ -5,6 +5,12 @@
  * join keys. Names are diagnostic/display fallback only — never the
  * preferred campaign join once IDs exist.
  *
+ * Two different identity lifetimes:
+ * - CURRENT SESSION / CLICK (`gn_meta_*` session storage): this landing.
+ *   Typed BigQuery `meta_*` columns and canonical session touches use this.
+ * - FIRST TOUCH / Shopify audit (`gn_first_meta_*`, 365-day first-write):
+ *   the visitor's original Meta click. Never treat as the converting campaign.
+ *
  * Attribution math is NOT here. This module only sanitizes, parses,
  * and collapses Meta identity values.
  */
@@ -16,24 +22,45 @@ export const META_QUERY_CAMPAIGN_NAME = "gn_meta_campaign_name";
 export const META_QUERY_ADSET_NAME = "gn_meta_adset_name";
 export const META_QUERY_AD_NAME = "gn_meta_ad_name";
 
+/** Current session / click cookies. Session-scoped. Overwrite on a new Meta landing. */
 export const META_COOKIE_CAMPAIGN_ID = "gn_meta_campaign_id";
 export const META_COOKIE_ADSET_ID = "gn_meta_adset_id";
 export const META_COOKIE_AD_ID = "gn_meta_ad_id";
 
-export const META_CART_CAMPAIGN_ID = "gn_meta_campaign_id";
-export const META_CART_ADSET_ID = "gn_meta_adset_id";
-export const META_CART_AD_ID = "gn_meta_ad_id";
+/** Durable first-touch cookies / Shopify cart audit keys. First-write only. */
+export const META_FIRST_COOKIE_CAMPAIGN_ID = "gn_first_meta_campaign_id";
+export const META_FIRST_COOKIE_ADSET_ID = "gn_first_meta_adset_id";
+export const META_FIRST_COOKIE_AD_ID = "gn_first_meta_ad_id";
 
+export const META_CART_CAMPAIGN_ID = "gn_first_meta_campaign_id";
+export const META_CART_ADSET_ID = "gn_first_meta_adset_id";
+export const META_CART_AD_ID = "gn_first_meta_ad_id";
+
+/** Legacy cart keys from the 365-day first-write stitch. Read-only fallback. */
+export const META_CART_CAMPAIGN_ID_LEGACY = "gn_meta_campaign_id";
+export const META_CART_ADSET_ID_LEGACY = "gn_meta_adset_id";
+export const META_CART_AD_ID_LEGACY = "gn_meta_ad_id";
+
+/**
+ * Typed BigQuery columns. CURRENT SESSION / CLICK identity, never first-touch
+ * cookies. Canonical warehouse SQL still extracts the same IDs from
+ * `page_location` until migration 006 is confirmed.
+ */
 export const BQ_META_CAMPAIGN_ID = "meta_campaign_id";
 export const BQ_META_ADSET_ID = "meta_adset_id";
 export const BQ_META_AD_ID = "meta_ad_id";
 
+export const META_HIERARCHY_CONFLICT = "META_HIERARCHY_CONFLICT";
+
 const META_ID_RE = /^[0-9]{1,32}$/;
 
-export type MetaTouchIds = {
+export type MetaIdTriple = {
   campaignId: string | null;
   adsetId: string | null;
   adId: string | null;
+};
+
+export type MetaTouchIds = MetaIdTriple & {
   campaignName: string | null;
   adsetName: string | null;
   adName: string | null;
@@ -50,6 +77,11 @@ export type MappingCoverageStatus =
   | "NOT_YET_VALIDATED"
   | "HAS_HIGH_ID_MAPS";
 
+export type AcquisitionRowKey = {
+  eventTimestamp: number;
+  eventId: string;
+};
+
 export function sanitizeMetaId(raw: string | null | undefined): string | null {
   if (raw == null) return null;
   const trimmed = String(raw).trim();
@@ -65,6 +97,14 @@ export function sanitizeMetaName(raw: string | null | undefined): string | null 
   if (!trimmed) return null;
   if (trimmed.toLowerCase() === "(not set)") return null;
   return trimmed;
+}
+
+export function emptyMetaIdTriple(): MetaIdTriple {
+  return { campaignId: null, adsetId: null, adId: null };
+}
+
+export function hasMetaId(ids: MetaIdTriple): boolean {
+  return Boolean(ids.campaignId || ids.adsetId || ids.adId);
 }
 
 export function parseMetaIdsFromQuery(
@@ -103,6 +143,45 @@ export function parseMetaIdsFromUrl(url: string | null | undefined): MetaTouchId
     const q = url.includes("?") ? url.slice(url.indexOf("?") + 1) : url;
     return parseMetaIdsFromQuery(new URLSearchParams(q.split("#")[0]));
   }
+}
+
+/**
+ * Browser identity split used by the stitch HTML.
+ *
+ * When the landing URL contains `gn_meta_*` IDs:
+ * - CURRENT SESSION values become that click (overwrite).
+ * - FIRST TOUCH values are first-write only.
+ *
+ * Typed event identity (`meta_*`) is always the current session triple.
+ */
+export function applyMetaLandingIdentity(args: {
+  urlIds: MetaIdTriple;
+  firstTouch: MetaIdTriple;
+  sessionIds: MetaIdTriple;
+}): {
+  firstTouch: MetaIdTriple;
+  sessionIds: MetaIdTriple;
+  typedEventIds: MetaIdTriple;
+} {
+  const firstTouch: MetaIdTriple = { ...args.firstTouch };
+  let sessionIds: MetaIdTriple = { ...args.sessionIds };
+  if (hasMetaId(args.urlIds)) {
+    sessionIds = {
+      campaignId: args.urlIds.campaignId,
+      adsetId: args.urlIds.adsetId,
+      adId: args.urlIds.adId,
+    };
+    if (!firstTouch.campaignId && args.urlIds.campaignId) {
+      firstTouch.campaignId = args.urlIds.campaignId;
+    }
+    if (!firstTouch.adsetId && args.urlIds.adsetId) {
+      firstTouch.adsetId = args.urlIds.adsetId;
+    }
+    if (!firstTouch.adId && args.urlIds.adId) {
+      firstTouch.adId = args.urlIds.adId;
+    }
+  }
+  return { firstTouch, sessionIds, typedEventIds: sessionIds };
 }
 
 /**
@@ -164,4 +243,19 @@ export function campaignGrainKey(touch: {
   campaign?: string | null;
 }): string {
   return sanitizeMetaId(touch.campaignId) ?? (touch.campaign?.trim() || "(unmapped)");
+}
+
+/**
+ * Stable secondary key after event_timestamp for acquisition/session ARRAY_AGG.
+ * Same timestamp must not pick campaign/adset/ad IDs nondeterministically.
+ */
+export function compareAcquisitionRowKeys(a: AcquisitionRowKey, b: AcquisitionRowKey): number {
+  if (a.eventTimestamp !== b.eventTimestamp) return a.eventTimestamp - b.eventTimestamp;
+  if (a.eventId === b.eventId) return 0;
+  return a.eventId < b.eventId ? -1 : 1;
+}
+
+export function pickAcquisitionRow<T extends AcquisitionRowKey>(rows: T[]): T | undefined {
+  if (rows.length === 0) return undefined;
+  return [...rows].sort(compareAcquisitionRowKeys)[0];
 }

@@ -1,6 +1,6 @@
 {
     "exportFormatVersion": 2,
-    "exportTime": "2026-08-19 07:20:20",
+    "exportTime": "2026-08-19 08:41:34",
     "containerVersion": {
         "path": "accounts/6335898893/containers/241689102/versions/0",
         "accountId": "6335898893",
@@ -117,7 +117,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "15"
                 ],
@@ -1006,7 +1006,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "16"
                 ],
@@ -1920,7 +1920,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "17"
                 ],
@@ -2084,7 +2084,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "14"
                 ],
@@ -2823,7 +2823,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "14"
                 ],
@@ -2926,7 +2926,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "20"
                 ],
@@ -3790,7 +3790,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "21"
                 ],
@@ -4804,7 +4804,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "18"
                 ],
@@ -4902,7 +4902,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "23"
                 ],
@@ -5035,7 +5035,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "22"
                 ],
@@ -5138,7 +5138,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "17"
                 ],
@@ -5953,7 +5953,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "19"
                 ],
@@ -6228,7 +6228,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "24"
                 ],
@@ -6331,7 +6331,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "21"
                 ],
@@ -7245,7 +7245,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "20"
                 ],
@@ -7423,7 +7423,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "18"
                 ],
@@ -7684,7 +7684,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "2147479573"
                 ],
@@ -7757,7 +7757,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "19"
                 ],
@@ -7911,7 +7911,7 @@
                         "value": "{{ga4 - shared_event_settings}}"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "16"
                 ],
@@ -10140,7 +10140,7 @@
                     {
                         "type": "TEMPLATE",
                         "key": "html",
-                        "value": "<script>\n(function () {\n  try {\n    if (!window.fetch) return;\n\n    // ===== Config =====\n    var UID_COOKIE = \"gn_uid\";\n    var UID_DAYS = 365;\n\n    // Stape Click ID Restorer backup param (Google Ads Final URL suffix: qwerty={gclid})\n    var BACKUP_GCLID_PARAM = \"qwerty\";\n\n    // ===== Helpers (ES5-safe: no block-scoped function declarations) =====\n    var nowIso = function () { return new Date().toISOString(); };\n    var safeSlice = function (v, n) {\n      v = (v || \"\").toString().trim();\n      return v.length > n ? v.slice(0, n) : v;\n    };\n\n    var getCookie = function (name) {\n      var m = document.cookie.match(new RegExp(\"(^| )\" + name + \"=([^;]+)\"));\n      return m ? decodeURIComponent(m[2]) : \"\";\n    };\n\n    var setCookie = function (name, value, days) {\n      var d = new Date();\n      d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);\n      document.cookie =\n        name + \"=\" + encodeURIComponent(value) +\n        \"; expires=\" + d.toUTCString() +\n        \"; path=/; SameSite=Lax\";\n    };\n\n    var uuidv4 = function () {\n      return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, function (c) {\n        return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);\n      });\n    };\n\n    var getLS = function (k) { try { return localStorage.getItem(k) || \"\"; } catch (e) { return \"\"; } };\n    var setLS = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };\n\n    // ===== 1) Ensure stitch id cookie =====\n    var gn_uid = getCookie(UID_COOKIE);\n    if (!gn_uid) {\n      gn_uid = uuidv4();\n      setCookie(UID_COOKIE, gn_uid, UID_DAYS);\n    }\n\n    // ===== 2) Capture first-touch attribution (only once) =====\n    var qs = new URLSearchParams(location.search);\n\n    var sanitizeMetaId = function (v) {\n      v = (v || \"\").toString().trim();\n      if (!v) return \"\";\n      if (!/^[0-9]{1,32}$/.test(v)) return \"\";\n      return v;\n    };\n\n    var cand = {\n      utm_source: qs.get(\"utm_source\") || \"\",\n      utm_medium: qs.get(\"utm_medium\") || \"\",\n      utm_campaign: qs.get(\"utm_campaign\") || \"\",\n      utm_content: qs.get(\"utm_content\") || \"\",\n      utm_term: qs.get(\"utm_term\") || \"\",\n\n      // Click IDs\n      gclid: (qs.get(\"gclid\") || qs.get(BACKUP_GCLID_PARAM) || \"\"),\n      gbraid: qs.get(\"gbraid\") || \"\",\n      wbraid: qs.get(\"wbraid\") || \"\",\n      msclkid: qs.get(\"msclkid\") || \"\",\n      fbclid: qs.get(\"fbclid\") || \"\",\n      ttclid: qs.get(\"ttclid\") || \"\",\n\n      // Deterministic Meta IDs (authoritative). Names are diagnostic only.\n      gn_meta_campaign_id: sanitizeMetaId(qs.get(\"gn_meta_campaign_id\")),\n      gn_meta_adset_id: sanitizeMetaId(qs.get(\"gn_meta_adset_id\")),\n      gn_meta_ad_id: sanitizeMetaId(qs.get(\"gn_meta_ad_id\")),\n      gn_meta_campaign_name: safeSlice(qs.get(\"gn_meta_campaign_name\") || \"\", 200),\n      gn_meta_adset_name: safeSlice(qs.get(\"gn_meta_adset_name\") || \"\", 200),\n      gn_meta_ad_name: safeSlice(qs.get(\"gn_meta_ad_name\") || \"\", 200)\n    };\n\n    // Referrer hostname only (avoid storing full URL)\n    var ref = \"\";\n    try {\n      if (document.referrer) {\n        var r = new URL(document.referrer);\n        if (r.hostname && r.hostname !== location.hostname) ref = safeSlice(r.hostname, 200);\n      }\n    } catch (e) {}\n\n    var hasAny = !!(cand.utm_source || cand.utm_medium || cand.utm_campaign || cand.gclid || cand.msclkid || cand.fbclid || cand.ttclid || cand.gn_meta_campaign_id || cand.gn_meta_adset_id || cand.gn_meta_ad_id || ref);\n\n    var FT_KEY = \"gn_first_touch_v1\";\n    var ftRaw = getLS(FT_KEY);\n    var ft = null;\n    try { ft = ftRaw ? JSON.parse(ftRaw) : null; } catch (e) { ft = null; }\n\n    if (!ft && hasAny) {\n      ft = {\n        ts: nowIso(),\n        landing_path: safeSlice(location.pathname, 200),\n        referrer: ref || \"\"\n      };\n\n      if (cand.utm_source) ft.utm_source = safeSlice(cand.utm_source, 200);\n      if (cand.utm_medium) ft.utm_medium = safeSlice(cand.utm_medium, 200);\n      if (cand.utm_campaign) ft.utm_campaign = safeSlice(cand.utm_campaign, 200);\n      if (cand.utm_content) ft.utm_content = safeSlice(cand.utm_content, 200);\n      if (cand.utm_term) ft.utm_term = safeSlice(cand.utm_term, 200);\n\n      if (cand.gclid) ft.gclid = safeSlice(cand.gclid, 200);\n      if (cand.gbraid) ft.gbraid = safeSlice(cand.gbraid, 200);\n      if (cand.wbraid) ft.wbraid = safeSlice(cand.wbraid, 200);\n      if (cand.msclkid) ft.msclkid = safeSlice(cand.msclkid, 200);\n      if (cand.fbclid) ft.fbclid = safeSlice(cand.fbclid, 200);\n      if (cand.ttclid) ft.ttclid = safeSlice(cand.ttclid, 200);\n\n      if (cand.gn_meta_campaign_id) ft.gn_meta_campaign_id = cand.gn_meta_campaign_id;\n      if (cand.gn_meta_adset_id) ft.gn_meta_adset_id = cand.gn_meta_adset_id;\n      if (cand.gn_meta_ad_id) ft.gn_meta_ad_id = cand.gn_meta_ad_id;\n      if (cand.gn_meta_campaign_name) ft.gn_meta_campaign_name = cand.gn_meta_campaign_name;\n      if (cand.gn_meta_adset_name) ft.gn_meta_adset_name = cand.gn_meta_adset_name;\n      if (cand.gn_meta_ad_name) ft.gn_meta_ad_name = cand.gn_meta_ad_name;\n\n      setLS(FT_KEY, JSON.stringify(ft));\n    }\n\n    // ===== 2b) Mirror first-touch into cookies (first-write only) =====\n    // sGTM BQ maps gclid/fbclid from Event Data gn_gclid / gn_fbclid.\n    // Returning visitors who already have localStorage get cookies on this run.\n    if (ft) {\n      var ftCookies = [\n        [\"gn_utm_source\", ft.utm_source],\n        [\"gn_utm_medium\", ft.utm_medium],\n        [\"gn_utm_campaign\", ft.utm_campaign],\n        [\"gn_utm_content\", ft.utm_content],\n        [\"gn_utm_term\", ft.utm_term],\n        [\"gn_gclid\", ft.gclid],\n        [\"gn_gbraid\", ft.gbraid],\n        [\"gn_wbraid\", ft.wbraid],\n        [\"gn_msclkid\", ft.msclkid],\n        [\"gn_fbclid\", ft.fbclid],\n        [\"gn_ttclid\", ft.ttclid],\n        [\"gn_meta_campaign_id\", ft.gn_meta_campaign_id],\n        [\"gn_meta_adset_id\", ft.gn_meta_adset_id],\n        [\"gn_meta_ad_id\", ft.gn_meta_ad_id]\n      ];\n      var ci;\n      for (ci = 0; ci < ftCookies.length; ci++) {\n        var ck = ftCookies[ci];\n        if (ck[1] && !getCookie(ck[0])) setCookie(ck[0], safeSlice(ck[1], 200), UID_DAYS);\n      }\n    }\n\n    // ===== 3) Build Shopify order attributes =====\n    var attrs = { gn_uid: safeSlice(gn_uid, 64) };\n\n    if (ft) {\n      if (ft.ts) attrs.gn_first_touch_ts = safeSlice(ft.ts, 40);\n      if (ft.landing_path) attrs.gn_landing_path = safeSlice(ft.landing_path, 200);\n      if (ft.referrer) attrs.gn_referrer = safeSlice(ft.referrer, 200);\n\n      if (ft.utm_source) attrs.gn_utm_source = safeSlice(ft.utm_source, 200);\n      if (ft.utm_medium) attrs.gn_utm_medium = safeSlice(ft.utm_medium, 200);\n      if (ft.utm_campaign) attrs.gn_utm_campaign = safeSlice(ft.utm_campaign, 200);\n      if (ft.utm_content) attrs.gn_utm_content = safeSlice(ft.utm_content, 200);\n      if (ft.utm_term) attrs.gn_utm_term = safeSlice(ft.utm_term, 200);\n\n      if (ft.gclid) attrs.gn_gclid = safeSlice(ft.gclid, 200);\n      if (ft.gbraid) attrs.gn_gbraid = safeSlice(ft.gbraid, 200);\n      if (ft.wbraid) attrs.gn_wbraid = safeSlice(ft.wbraid, 200);\n      if (ft.msclkid) attrs.gn_msclkid = safeSlice(ft.msclkid, 200);\n      if (ft.fbclid) attrs.gn_fbclid = safeSlice(ft.fbclid, 200);\n      if (ft.ttclid) attrs.gn_ttclid = safeSlice(ft.ttclid, 200);\n\n      if (ft.gn_meta_campaign_id) attrs.gn_meta_campaign_id = safeSlice(ft.gn_meta_campaign_id, 32);\n      if (ft.gn_meta_adset_id) attrs.gn_meta_adset_id = safeSlice(ft.gn_meta_adset_id, 32);\n      if (ft.gn_meta_ad_id) attrs.gn_meta_ad_id = safeSlice(ft.gn_meta_ad_id, 32);\n      if (ft.gn_meta_campaign_name) attrs.gn_meta_campaign_name = safeSlice(ft.gn_meta_campaign_name, 200);\n      if (ft.gn_meta_adset_name) attrs.gn_meta_adset_name = safeSlice(ft.gn_meta_adset_name, 200);\n      if (ft.gn_meta_ad_name) attrs.gn_meta_ad_name = safeSlice(ft.gn_meta_ad_name, 200);\n    }\n\n    // ===== 4) Write to Shopify cart attributes (non-blocking) =====\n    // Avoid spamming /cart/update.js\n    var SENT_KEY = \"gn_cart_attrs_sent_hash_v1\";\n    var payload = JSON.stringify(attrs);\n\n    // quick stable hash (string-based; good enough for \"did it change?\")\n    var hash = \"\";\n    try {\n      var i;\n      for (i = 0; i < payload.length; i++) {\n        hash = (hash + payload.charCodeAt(i).toString(16));\n        if (hash.length > 2048) hash = hash.slice(-2048);\n      }\n    } catch (e) {}\n\n    if (getLS(SENT_KEY) === hash) return;\n\n    fetch(\"/cart/update.js\", {\n      method: \"POST\",\n      headers: { \"Content-Type\": \"application/json\", \"Accept\": \"application/json\" },\n      credentials: \"same-origin\",\n      keepalive: true,\n      body: JSON.stringify({ attributes: attrs })\n    }).then(function () {\n      setLS(SENT_KEY, hash);\n    }).catch(function () {});\n\n  } catch (e) {}\n})();\n</script>\n"
+                        "value": "<script>\n(function () {\n  try {\n    if (!window.fetch) return;\n\n    // ===== Config =====\n    var UID_COOKIE = \"gn_uid\";\n    var UID_DAYS = 365;\n\n    // Stape Click ID Restorer backup param (Google Ads Final URL suffix: qwerty={gclid})\n    var BACKUP_GCLID_PARAM = \"qwerty\";\n\n    // ===== Helpers (ES5-safe: no block-scoped function declarations) =====\n    var nowIso = function () { return new Date().toISOString(); };\n    var safeSlice = function (v, n) {\n      v = (v || \"\").toString().trim();\n      return v.length > n ? v.slice(0, n) : v;\n    };\n\n    var getCookie = function (name) {\n      var m = document.cookie.match(new RegExp(\"(^| )\" + name + \"=([^;]+)\"));\n      return m ? decodeURIComponent(m[2]) : \"\";\n    };\n\n    var setCookie = function (name, value, days) {\n      var d = new Date();\n      d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);\n      document.cookie =\n        name + \"=\" + encodeURIComponent(value) +\n        \"; expires=\" + d.toUTCString() +\n        \"; path=/; SameSite=Lax\";\n    };\n\n    // Session-scoped (no Max-Age). Overwrites leftover 365-day gn_meta_* cookies.\n    var setSessionCookie = function (name, value) {\n      if (!value) return;\n      document.cookie =\n        name + \"=\" + encodeURIComponent(value) +\n        \"; path=/; SameSite=Lax\";\n    };\n\n    var expireCookie = function (name) {\n      document.cookie =\n        name + \"=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax\";\n    };\n\n    var uuidv4 = function () {\n      return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, function (c) {\n        return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);\n      });\n    };\n\n    var getLS = function (k) { try { return localStorage.getItem(k) || \"\"; } catch (e) { return \"\"; } };\n    var setLS = function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} };\n\n    // ===== 1) Ensure stitch id cookie =====\n    var gn_uid = getCookie(UID_COOKIE);\n    if (!gn_uid) {\n      gn_uid = uuidv4();\n      setCookie(UID_COOKIE, gn_uid, UID_DAYS);\n    }\n\n    // ===== 2) Capture first-touch attribution (only once) =====\n    var qs = new URLSearchParams(location.search);\n\n    var sanitizeMetaId = function (v) {\n      v = (v || \"\").toString().trim();\n      if (!v) return \"\";\n      if (!/^[0-9]{1,32}$/.test(v)) return \"\";\n      return v;\n    };\n\n    var cand = {\n      utm_source: qs.get(\"utm_source\") || \"\",\n      utm_medium: qs.get(\"utm_medium\") || \"\",\n      utm_campaign: qs.get(\"utm_campaign\") || \"\",\n      utm_content: qs.get(\"utm_content\") || \"\",\n      utm_term: qs.get(\"utm_term\") || \"\",\n\n      // Click IDs\n      gclid: (qs.get(\"gclid\") || qs.get(BACKUP_GCLID_PARAM) || \"\"),\n      gbraid: qs.get(\"gbraid\") || \"\",\n      wbraid: qs.get(\"wbraid\") || \"\",\n      msclkid: qs.get(\"msclkid\") || \"\",\n      fbclid: qs.get(\"fbclid\") || \"\",\n      ttclid: qs.get(\"ttclid\") || \"\",\n\n      // Deterministic Meta IDs (authoritative). Names are diagnostic only.\n      gn_meta_campaign_id: sanitizeMetaId(qs.get(\"gn_meta_campaign_id\")),\n      gn_meta_adset_id: sanitizeMetaId(qs.get(\"gn_meta_adset_id\")),\n      gn_meta_ad_id: sanitizeMetaId(qs.get(\"gn_meta_ad_id\")),\n      gn_meta_campaign_name: safeSlice(qs.get(\"gn_meta_campaign_name\") || \"\", 200),\n      gn_meta_adset_name: safeSlice(qs.get(\"gn_meta_adset_name\") || \"\", 200),\n      gn_meta_ad_name: safeSlice(qs.get(\"gn_meta_ad_name\") || \"\", 200)\n    };\n\n    // Referrer hostname only (avoid storing full URL)\n    var ref = \"\";\n    try {\n      if (document.referrer) {\n        var r = new URL(document.referrer);\n        if (r.hostname && r.hostname !== location.hostname) ref = safeSlice(r.hostname, 200);\n      }\n    } catch (e) {}\n\n    var hasAny = !!(cand.utm_source || cand.utm_medium || cand.utm_campaign || cand.gclid || cand.msclkid || cand.fbclid || cand.ttclid || cand.gn_meta_campaign_id || cand.gn_meta_adset_id || cand.gn_meta_ad_id || ref);\n\n    var FT_KEY = \"gn_first_touch_v1\";\n    var ftRaw = getLS(FT_KEY);\n    var ft = null;\n    try { ft = ftRaw ? JSON.parse(ftRaw) : null; } catch (e) { ft = null; }\n\n    if (!ft && hasAny) {\n      ft = {\n        ts: nowIso(),\n        landing_path: safeSlice(location.pathname, 200),\n        referrer: ref || \"\"\n      };\n\n      if (cand.utm_source) ft.utm_source = safeSlice(cand.utm_source, 200);\n      if (cand.utm_medium) ft.utm_medium = safeSlice(cand.utm_medium, 200);\n      if (cand.utm_campaign) ft.utm_campaign = safeSlice(cand.utm_campaign, 200);\n      if (cand.utm_content) ft.utm_content = safeSlice(cand.utm_content, 200);\n      if (cand.utm_term) ft.utm_term = safeSlice(cand.utm_term, 200);\n\n      if (cand.gclid) ft.gclid = safeSlice(cand.gclid, 200);\n      if (cand.gbraid) ft.gbraid = safeSlice(cand.gbraid, 200);\n      if (cand.wbraid) ft.wbraid = safeSlice(cand.wbraid, 200);\n      if (cand.msclkid) ft.msclkid = safeSlice(cand.msclkid, 200);\n      if (cand.fbclid) ft.fbclid = safeSlice(cand.fbclid, 200);\n      if (cand.ttclid) ft.ttclid = safeSlice(cand.ttclid, 200);\n\n      if (cand.gn_meta_campaign_id) ft.gn_first_meta_campaign_id = cand.gn_meta_campaign_id;\n      if (cand.gn_meta_adset_id) ft.gn_first_meta_adset_id = cand.gn_meta_adset_id;\n      if (cand.gn_meta_ad_id) ft.gn_first_meta_ad_id = cand.gn_meta_ad_id;\n      if (cand.gn_meta_campaign_name) ft.gn_first_meta_campaign_name = cand.gn_meta_campaign_name;\n      if (cand.gn_meta_adset_name) ft.gn_first_meta_adset_name = cand.gn_meta_adset_name;\n      if (cand.gn_meta_ad_name) ft.gn_first_meta_ad_name = cand.gn_meta_ad_name;\n\n      setLS(FT_KEY, JSON.stringify(ft));\n    }\n\n    var firstMetaCampaign = ft\n      ? (ft.gn_first_meta_campaign_id || ft.gn_meta_campaign_id || \"\")\n      : \"\";\n    var firstMetaAdset = ft\n      ? (ft.gn_first_meta_adset_id || ft.gn_meta_adset_id || \"\")\n      : \"\";\n    var firstMetaAd = ft\n      ? (ft.gn_first_meta_ad_id || ft.gn_meta_ad_id || \"\")\n      : \"\";\n    var firstMetaCampaignName = ft\n      ? (ft.gn_first_meta_campaign_name || ft.gn_meta_campaign_name || \"\")\n      : \"\";\n    var firstMetaAdsetName = ft\n      ? (ft.gn_first_meta_adset_name || ft.gn_meta_adset_name || \"\")\n      : \"\";\n    var firstMetaAdName = ft\n      ? (ft.gn_first_meta_ad_name || ft.gn_meta_ad_name || \"\")\n      : \"\";\n\n    // ===== 2b) Current-session Meta IDs (overwrite on this landing) =====\n    // Typed BQ meta_* and GA4/DT gn_meta_* must be THIS click, not first-touch.\n    var SS_KEY = \"gn_session_meta_v1\";\n    var sessionMeta = null;\n    try {\n      sessionMeta = JSON.parse(sessionStorage.getItem(SS_KEY) || \"null\");\n    } catch (e) {\n      sessionMeta = null;\n    }\n    if (cand.gn_meta_campaign_id || cand.gn_meta_adset_id || cand.gn_meta_ad_id) {\n      sessionMeta = {\n        gn_meta_campaign_id: cand.gn_meta_campaign_id || \"\",\n        gn_meta_adset_id: cand.gn_meta_adset_id || \"\",\n        gn_meta_ad_id: cand.gn_meta_ad_id || \"\"\n      };\n      try { sessionStorage.setItem(SS_KEY, JSON.stringify(sessionMeta)); } catch (e) {}\n    }\n    if (sessionMeta && (sessionMeta.gn_meta_campaign_id || sessionMeta.gn_meta_adset_id || sessionMeta.gn_meta_ad_id)) {\n      if (sessionMeta.gn_meta_campaign_id) setSessionCookie(\"gn_meta_campaign_id\", sessionMeta.gn_meta_campaign_id);\n      else expireCookie(\"gn_meta_campaign_id\");\n      if (sessionMeta.gn_meta_adset_id) setSessionCookie(\"gn_meta_adset_id\", sessionMeta.gn_meta_adset_id);\n      else expireCookie(\"gn_meta_adset_id\");\n      if (sessionMeta.gn_meta_ad_id) setSessionCookie(\"gn_meta_ad_id\", sessionMeta.gn_meta_ad_id);\n      else expireCookie(\"gn_meta_ad_id\");\n    } else {\n      expireCookie(\"gn_meta_campaign_id\");\n      expireCookie(\"gn_meta_adset_id\");\n      expireCookie(\"gn_meta_ad_id\");\n    }\n\n    // ===== 2c) Mirror first-touch into cookies (first-write only) =====\n    // sGTM BQ maps gclid/fbclid from Event Data gn_gclid / gn_fbclid.\n    // Returning visitors who already have localStorage get cookies on this run.\n    // Meta first-touch cookies are gn_first_meta_* — never gn_meta_*.\n    if (ft) {\n      var ftCookies = [\n        [\"gn_utm_source\", ft.utm_source],\n        [\"gn_utm_medium\", ft.utm_medium],\n        [\"gn_utm_campaign\", ft.utm_campaign],\n        [\"gn_utm_content\", ft.utm_content],\n        [\"gn_utm_term\", ft.utm_term],\n        [\"gn_gclid\", ft.gclid],\n        [\"gn_gbraid\", ft.gbraid],\n        [\"gn_wbraid\", ft.wbraid],\n        [\"gn_msclkid\", ft.msclkid],\n        [\"gn_fbclid\", ft.fbclid],\n        [\"gn_ttclid\", ft.ttclid],\n        [\"gn_first_meta_campaign_id\", firstMetaCampaign],\n        [\"gn_first_meta_adset_id\", firstMetaAdset],\n        [\"gn_first_meta_ad_id\", firstMetaAd]\n      ];\n      var ci;\n      for (ci = 0; ci < ftCookies.length; ci++) {\n        var ck = ftCookies[ci];\n        if (ck[1] && !getCookie(ck[0])) setCookie(ck[0], safeSlice(ck[1], 200), UID_DAYS);\n      }\n    }\n\n    // ===== 3) Build Shopify order attributes =====\n    var attrs = { gn_uid: safeSlice(gn_uid, 64) };\n\n    if (ft) {\n      if (ft.ts) attrs.gn_first_touch_ts = safeSlice(ft.ts, 40);\n      if (ft.landing_path) attrs.gn_landing_path = safeSlice(ft.landing_path, 200);\n      if (ft.referrer) attrs.gn_referrer = safeSlice(ft.referrer, 200);\n\n      if (ft.utm_source) attrs.gn_utm_source = safeSlice(ft.utm_source, 200);\n      if (ft.utm_medium) attrs.gn_utm_medium = safeSlice(ft.utm_medium, 200);\n      if (ft.utm_campaign) attrs.gn_utm_campaign = safeSlice(ft.utm_campaign, 200);\n      if (ft.utm_content) attrs.gn_utm_content = safeSlice(ft.utm_content, 200);\n      if (ft.utm_term) attrs.gn_utm_term = safeSlice(ft.utm_term, 200);\n\n      if (ft.gclid) attrs.gn_gclid = safeSlice(ft.gclid, 200);\n      if (ft.gbraid) attrs.gn_gbraid = safeSlice(ft.gbraid, 200);\n      if (ft.wbraid) attrs.gn_wbraid = safeSlice(ft.wbraid, 200);\n      if (ft.msclkid) attrs.gn_msclkid = safeSlice(ft.msclkid, 200);\n      if (ft.fbclid) attrs.gn_fbclid = safeSlice(ft.fbclid, 200);\n      if (ft.ttclid) attrs.gn_ttclid = safeSlice(ft.ttclid, 200);\n\n      if (firstMetaCampaign) attrs.gn_first_meta_campaign_id = safeSlice(firstMetaCampaign, 32);\n      if (firstMetaAdset) attrs.gn_first_meta_adset_id = safeSlice(firstMetaAdset, 32);\n      if (firstMetaAd) attrs.gn_first_meta_ad_id = safeSlice(firstMetaAd, 32);\n      if (firstMetaCampaignName) attrs.gn_first_meta_campaign_name = safeSlice(firstMetaCampaignName, 200);\n      if (firstMetaAdsetName) attrs.gn_first_meta_adset_name = safeSlice(firstMetaAdsetName, 200);\n      if (firstMetaAdName) attrs.gn_first_meta_ad_name = safeSlice(firstMetaAdName, 200);\n    }\n\n    // ===== 4) Write to Shopify cart attributes (non-blocking) =====\n    // Avoid spamming /cart/update.js\n    var SENT_KEY = \"gn_cart_attrs_sent_hash_v1\";\n    var payload = JSON.stringify(attrs);\n\n    // quick stable hash (string-based; good enough for \"did it change?\")\n    var hash = \"\";\n    try {\n      var i;\n      for (i = 0; i < payload.length; i++) {\n        hash = (hash + payload.charCodeAt(i).toString(16));\n        if (hash.length > 2048) hash = hash.slice(-2048);\n      }\n    } catch (e) {}\n\n    if (getLS(SENT_KEY) === hash) return;\n\n    fetch(\"/cart/update.js\", {\n      method: \"POST\",\n      headers: { \"Content-Type\": \"application/json\", \"Accept\": \"application/json\" },\n      credentials: \"same-origin\",\n      keepalive: true,\n      body: JSON.stringify({ attributes: attrs })\n    }).then(function () {\n      setLS(SENT_KEY, hash);\n    }).catch(function () {});\n\n  } catch (e) {}\n})();\n</script>\n"
                     },
                     {
                         "type": "BOOLEAN",
@@ -10148,7 +10148,7 @@
                         "value": "false"
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "firingTriggerId": [
                     "14",
                     "118"
@@ -11761,7 +11761,7 @@
                         ]
                     }
                 ],
-                "fingerprint": "1787124020308",
+                "fingerprint": "1787128894731",
                 "parentFolderId": "4"
             },
             {

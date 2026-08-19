@@ -156,8 +156,15 @@ async function renderMetaPage() {
       campaign_id: row.campaign_id,
       campaign_name: row.campaign_name,
     })),
-    adsetIds: adsetFacts.map((row) => row.adset_id || "").filter(Boolean),
-    adIds: adFacts.map((row) => row.ad_id || "").filter(Boolean),
+    adsets: adsetFacts.map((row) => ({
+      adset_id: row.adset_id || "",
+      campaign_id: row.campaign_id,
+    })),
+    ads: adFacts.map((row) => ({
+      ad_id: row.ad_id || "",
+      adset_id: row.adset_id || "",
+      campaign_id: row.campaign_id,
+    })),
     creativeByAdId,
   });
   const metaOur = metaCreditForOrders({

@@ -59,8 +59,15 @@ export default async function MetaAdsetPage({
       campaign_id: row.campaign_id,
       campaign_name: row.campaign_name,
     })),
-    adsetIds: adsetFacts.map((row) => row.adset_id || "").filter(Boolean),
-    adIds: allAdFacts.map((row) => row.ad_id || "").filter(Boolean),
+    adsets: adsetFacts.map((row) => ({
+      adset_id: row.adset_id || "",
+      campaign_id: row.campaign_id,
+    })),
+    ads: allAdFacts.map((row) => ({
+      ad_id: row.ad_id || "",
+      adset_id: row.adset_id || "",
+      campaign_id: row.campaign_id,
+    })),
     creativeByAdId,
   });
   const metaOur = metaCreditForOrders({

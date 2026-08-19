@@ -84,8 +84,8 @@ Canonical attribution does **not** use this view (it uses `raw_events_full`). 00
 # Web GTM / Server GTM / Meta CAPI / GA4
 
 - [x] Prior stitch-fill for GTM-MVWKFXH2 is already published. Do not re-import `gtm/import/GTM-MVWKFXH2_stitch-fill.json`.
-- [ ] **PREPARED FOR IMPORT** — Web GTM Meta IDs: `docs/GTM_MANUAL_CHANGES.md` and `gtm/import/GTM-MVWKFXH2_meta-ids.json`.
-- [ ] **PREPARED FOR IMPORT** — Server GTM BQ writer field map for `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` (`bigquery/analytics/GTM_CHANGES.md`).
+- [ ] **CLICK-BY-CLICK IN LIVE WEB GTM** — `docs/GTM_MANUAL_CHANGES.md`. Do **not** merge `gtm/import/GTM-MVWKFXH2_meta-ids.json` over a newer live container.
+- [ ] **PREPARED FOR IMPORT** — Server GTM BQ writer field map for **session** `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` (`bigquery/analytics/GTM_CHANGES.md`). Never map `gn_first_meta_*` into those columns.
 - [ ] Do not change Meta CAPI, event_id, Purchase_New_Customer, or Purchase_Return_Customer.
 
 # META ADS MANAGER
@@ -101,7 +101,8 @@ utm_source=facebook&utm_medium=cpc&utm_campaign={{campaign.name}}&utm_content={{
 ```
 
 - [ ] Confirm landing URL contains the three `gn_meta_*` IDs plus `fbclid`.
-- [ ] Confirm cookies + GTM Preview + BigQuery query 13.
+- [ ] Confirm session cookies + first-touch `gn_first_meta_*` cookies + GTM Preview + BigQuery query 13.
+- [ ] Confirm a later Meta click updates session IDs but does **not** overwrite first-touch IDs.
 - [ ] Run `bigquery/validation/14_meta_id_fact_match.sql` before treating campaign OUR attribution as HAS HIGH-ID MAPS.
 - [ ] Only then roll URL parameters to remaining ads.
 
@@ -109,7 +110,7 @@ Changing URL parameters on existing ads can be an ad edit. Prefer new ads + one 
 
 # BigQuery — Meta identity (006) — required for typed columns — P1
 
-Warehouse SQL already extracts IDs from `page_location`. 006 is still required so sGTM can persist cookies as columns.
+Warehouse SQL already extracts IDs from `page_location`. 006 is still required so sGTM can persist **session** cookies as columns. `meta_*` = current session / click identity, never first-touch.
 
 - [ ] Run `bigquery/migrations/2026_08_19_006_meta_touch_ids.sql`
 - Expected: `raw_events_full` has nullable STRING columns `meta_campaign_id`, `meta_adset_id`, `meta_ad_id`.
