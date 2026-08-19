@@ -85,21 +85,21 @@ fact_campaign AS (
 ),
 fact_adset AS (
   SELECT
-    CAST(adset_id AS STRING) AS adset_id,
-    ANY_VALUE(CAST(campaign_id AS STRING)) AS campaign_id
-  FROM `stape-analytics-487802.goodsnova_platform.meta_adset_insights_daily`
-  GROUP BY 1
-  HAVING COUNT(DISTINCT CAST(campaign_id AS STRING)) = 1
+    CAST(src.adset_id AS STRING) AS adset_id,
+    ANY_VALUE(CAST(src.campaign_id AS STRING)) AS campaign_id
+  FROM `stape-analytics-487802.goodsnova_platform.meta_adset_insights_daily` AS src
+  GROUP BY CAST(src.adset_id AS STRING)
+  HAVING COUNT(DISTINCT CAST(src.campaign_id AS STRING)) = 1
 ),
 fact_ad AS (
   SELECT
-    CAST(ad_id AS STRING) AS ad_id,
-    ANY_VALUE(CAST(adset_id AS STRING)) AS adset_id,
-    ANY_VALUE(CAST(campaign_id AS STRING)) AS campaign_id
-  FROM `stape-analytics-487802.goodsnova_platform.meta_ad_insights_daily`
-  GROUP BY 1
-  HAVING COUNT(DISTINCT CAST(adset_id AS STRING)) = 1
-     AND COUNT(DISTINCT CAST(campaign_id AS STRING)) = 1
+    CAST(src.ad_id AS STRING) AS ad_id,
+    ANY_VALUE(CAST(src.adset_id AS STRING)) AS adset_id,
+    ANY_VALUE(CAST(src.campaign_id AS STRING)) AS campaign_id
+  FROM `stape-analytics-487802.goodsnova_platform.meta_ad_insights_daily` AS src
+  GROUP BY CAST(src.ad_id AS STRING)
+  HAVING COUNT(DISTINCT CAST(src.adset_id AS STRING)) = 1
+     AND COUNT(DISTINCT CAST(src.campaign_id AS STRING)) = 1
 ),
 classified AS (
   SELECT
