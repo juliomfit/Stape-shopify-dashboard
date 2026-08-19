@@ -10,6 +10,7 @@
 -- DEPENDENCIES: stape_data.raw_events_full
 -- EXPECTED RESULT: dashboard_events has no expiration_timestamp. Identity columns
 --   (gn_uid, stape_user_id, hashed_email, fbclid) are queryable on the view.
+--   fbc / fbp are CAST NULL — they are not columns on raw_events_full.
 --   raw_events_full partition_expiration_days = 400 if the ALTER is run.
 -- ROLLBACK STRATEGY: Recreate the previous view definition if known. Reducing
 --   partition_expiration_days is MANUAL REVIEW REQUIRED — DESTRUCTIVE for old
@@ -38,11 +39,11 @@ WITH ranked AS (
     gbraid,
     wbraid,
     dclid,
-    fbclid,
-    fbc,
-    fbp,
-    ttclid,
-    msclkid,
+    COALESCE(NULLIF(fbclid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]fbclid=([^&]+)"), "")) AS fbclid,
+    CAST(NULL AS STRING) AS fbc,
+    CAST(NULL AS STRING) AS fbp,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]ttclid=([^&]+)"), "") AS ttclid,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]msclkid=([^&]+)"), "") AS msclkid,
     transaction_id,
     value,
     currency,

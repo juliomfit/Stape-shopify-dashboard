@@ -15,8 +15,8 @@ Use checkboxes. Do not mark production verified without evidence.
 
 - [ ] **002 Attribution credit view** — required? yes for production validation — priority: P0
   - Reason: Warehouse-scale credit matching the TypeScript engine.
-  - Action: Run `bigquery/migrations/2026_08_18_002_attribution_credit.sql`.
-  - Expected: View `analytics.v_attribution_credit_v1` exists.
+  - Action: Re-run `bigquery/migrations/2026_08_18_002_attribution_credit.sql` (CREATE OR REPLACE VIEW). The first version selected `fbc`, which is **not** a column on `raw_events_full` (`Unrecognized name: fbc`). Meta is detected from `fbclid` + URL `fbclid` only.
+  - Expected: View `analytics.v_attribution_credit_v1` exists. No `Unrecognized name: fbc`.
   - Validation: `bigquery/validation/03_order_credit_integrity.sql` → zero `orders_credit_ne_1` for models other than paid_only.
   - App code complete: yes (dashboard already computes this on the fly; missing view does not 500).
 

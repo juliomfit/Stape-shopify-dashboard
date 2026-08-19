@@ -15,8 +15,13 @@
 --   analytics.v_attribution_credit_v1 (app does not require this view at runtime).
 -- VALIDATION QUERY: bigquery/validation/03_order_credit_integrity.sql
 --
+-- SCHEMA NOTE (2026-08-19): raw_events_full has fbclid (column + URL). It does
+-- NOT have fbc / fbp cookie columns. Selecting `fbc` yields Unrecognized name.
+-- Meta paid is detected from fbclid / URL fbclid only.
+--
 -- App rollout: the dashboard already computes this in
 -- src/lib/warehouse/get-warehouse-metrics.ts. Missing view does not 500 the app.
+-- Re-run this file after the fbc fix; CREATE OR REPLACE VIEW is idempotent.
 
 CREATE OR REPLACE VIEW `stape-analytics-487802.analytics.v_attribution_credit_v1` AS
 WITH stg AS (
@@ -41,10 +46,10 @@ WITH stg AS (
     COALESCE(NULLIF(wbraid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]wbraid=([^&]+)"), "")) AS wbraid,
     NULLIF(dclid, "") AS dclid,
     COALESCE(NULLIF(fbclid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]fbclid=([^&]+)"), "")) AS fbclid,
-    NULLIF(fbc, "") AS fbc,
-    COALESCE(NULLIF(msclkid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]msclkid=([^&]+)"), "")) AS msclkid,
-    COALESCE(NULLIF(ttclid, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]ttclid=([^&]+)"), "")) AS ttclid,
-    COALESCE(NULLIF(utm_campaign, ""), NULLIF(REGEXP_EXTRACT(page_location, r"[?&]utm_campaign=([^&]+)"), "")) AS campaign,
+    CAST(NULL AS STRING) AS fbc,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]msclkid=([^&]+)"), "") AS msclkid,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]ttclid=([^&]+)"), "") AS ttclid,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]utm_campaign=([^&]+)"), "") AS campaign,
     value,
     LOWER(IFNULL(event_name, "")) = "purchase" AND IFNULL(transaction_id, "") != "" AS is_purchase
   FROM `stape-analytics-487802.stape_data.raw_events_full`

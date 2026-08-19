@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { identityEvidence } from "../src/lib/attribution/identity.ts";
 import { joinMetaAndOurCampaigns } from "../src/lib/attribution/campaign-map.ts";
 import { attributionCoverage } from "../src/lib/attribution/coverage.ts";
@@ -84,4 +85,16 @@ test("policy forbids calling spend/revenue MER", () => {
   assert.equal(merRatio(40_000, 100_000), 2.5);
   assert.equal(marketingCostRatio(40_000, 100_000), 0.4);
   assert.match(POLICY_RULES.unknownIsNotDirect, /Unknown/);
+});
+
+test("BigQuery credit SQL does not select raw fbc/fbp columns", () => {
+  const sql = readFileSync(
+    "bigquery/migrations/2026_08_18_002_attribution_credit.sql",
+    "utf8",
+  );
+  assert.match(sql, /CAST\(NULL AS STRING\) AS fbc/);
+  assert.equal(sql.includes("NULLIF(fbc,"), false);
+  const warehouse = readFileSync("src/lib/warehouse/sql.ts", "utf8");
+  assert.match(warehouse, /CAST\(NULL AS STRING\) AS fbc/);
+  assert.equal(warehouse.includes("NULLIF(fbc,"), false);
 });
