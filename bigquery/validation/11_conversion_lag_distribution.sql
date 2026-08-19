@@ -1,6 +1,6 @@
 -- 11 Conversion lag distribution (marketing touch → purchase).
 -- Used to choose the production default attribution window.
--- Status until run: VALIDATION REQUIRED.
+-- Status: ran 2026-08-19. P50/P75/P90=0h P95=3h P99=69h n=69. Keep 7d default.
 -- Temporary app default remains 7 days.
 --
 -- VIEW COLUMNS on analytics.v_attribution_credit_v1 (do not invent others):

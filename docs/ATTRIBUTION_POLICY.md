@@ -42,7 +42,7 @@ Assists (warehouse panel): touches that are neither first nor last on a 3+ touch
 
 Supported in the app: 1 / 7 / 14 / 30 / 60 days.
 
-Default: **7 days** (temporary). Production recommendation: **VALIDATION REQUIRED** (`bigquery/validation/11_conversion_lag_distribution.sql`).
+Default: **7 days**. Validated 2026-08-19 (`bigquery/validation/11_conversion_lag_distribution.sql`): P50/P75/P90 = 0h, P95 = 3h, P99 = 69h, n = 69. Sub-hour conversions show as 0h (`TIMESTAMP_DIFF` hour grain).
 
 90-day is hidden until `raw_events_full` retention covers it.
 

@@ -7,6 +7,7 @@ import { attributionCoverage } from "../src/lib/attribution/coverage.ts";
 import { rollupLtvCohorts } from "../src/lib/shopify/ltv.ts";
 import { merRatio, marketingCostRatio } from "../src/lib/metrics/formulas.ts";
 import { POLICY_RULES } from "../src/lib/attribution/policy.ts";
+import { ATTRIBUTION_WINDOW_PRODUCTION_DEFAULT_STATUS } from "../src/lib/attribution/windows.ts";
 
 test("identity confidence is deterministic", () => {
   const high = identityEvidence({
@@ -85,6 +86,7 @@ test("policy forbids calling spend/revenue MER", () => {
   assert.equal(merRatio(40_000, 100_000), 2.5);
   assert.equal(marketingCostRatio(40_000, 100_000), 0.4);
   assert.match(POLICY_RULES.unknownIsNotDirect, /Unknown/);
+  assert.equal(ATTRIBUTION_WINDOW_PRODUCTION_DEFAULT_STATUS, "7d validated");
 });
 
 test("BigQuery credit SQL does not select raw fbc/fbp columns", () => {

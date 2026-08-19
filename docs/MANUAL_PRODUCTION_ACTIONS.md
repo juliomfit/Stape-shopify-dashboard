@@ -13,7 +13,7 @@ Use checkboxes. Do not mark production verified without evidence.
   - Validation: `SELECT * FROM \`stape-analytics-487802.analytics.dim_attribution_settings\` ORDER BY setting_key;`
   - App code complete: yes (app does not require this table at runtime).
 
-- [ ] **002 Attribution credit view** — required? yes for production validation — priority: P0
+- [x] **002 Attribution credit view** — required? done for current revision — priority: P0
   - Reason: Warehouse-scale credit matching the TypeScript engine.
   - Action: Re-run `bigquery/migrations/2026_08_18_002_attribution_credit.sql` (CREATE OR REPLACE VIEW). (1) Do not select `fbc` — it is not a column. (2) The first working view still returned 0 credit rows because Data Client orders used `cust:` person keys and GA4 sessions used `cid:` keys. This revision stitches via `dim_person` like the dashboard warehouse SQL.
   - Expected: View exists. `bigquery/validation/11a_credit_view_rowcount.sql` shows `credit_rows` > 0 when `purchase_transaction_ids` > 0.
@@ -34,18 +34,17 @@ Use checkboxes. Do not mark production verified without evidence.
   - Validation: `SELECT COUNT(*) FROM \`stape-analytics-487802.analytics.fct_shopify_orders\`;`
   - App code complete: table unused by the app yet (Admin API is money truth).
 
-- [ ] **Conversion-lag default** — required? yes before promoting window default — priority: P1
-  - Reason: 7-day default is temporary.
-  - Action: After recreating 002, run `bigquery/validation/11a_credit_view_rowcount.sql`. If `credit_rows` > 0, run `bigquery/validation/11_conversion_lag_distribution.sql`.
-  - Expected: 11a shows credited orders; 11 shows P50/P75/P90/P95/P99 hours. If 11a `credit_rows` = 0 and `purchase_transaction_ids` > 0, 002 was not replaced with the dim_person revision.
-  - Validation: same files.
-  - App code complete: yes; UI labeled VALIDATION REQUIRED.
+- [x] **Conversion-lag default** — required? done — priority: P1
+  - Reason: Choose production window from real lag.
+  - Action: Ran `bigquery/validation/11_conversion_lag_distribution.sql` after dim_person 002.
+  - Result (2026-08-19): P50=0 P75=0 P90=0 P95=3 P99=69 hours, orders=69. Keep **7d** default.
+  - App code complete: yes. Default remains 7 days.
 
-- [ ] **Meta campaign mapping coverage** — required? yes before trusting campaign OUR nCAC — priority: P3
-  - Reason: UI must not invent coverage %.
-  - Action: Run `bigquery/validation/05_meta_campaign_mapping_coverage.sql`.
-  - Expected: counts of fbclid / utm_campaign / Meta campaigns. Coverage stays VALIDATION REQUIRED until you record the result.
-  - App code complete: yes (`src/lib/attribution/campaign-map.ts` joins only on id/name match).
+- [ ] **Meta campaign mapping coverage (touch grain)** — required? yes before trusting campaign OUR nCAC — priority: P3
+  - Reason: First 05 run used purchase-event URLs. 72 purchases, 39 with fbclid, **0 with utm_campaign on the purchase row** (expected: checkout), **1** Meta campaign fact row in range.
+  - Action: Re-run updated `bigquery/validation/05_meta_campaign_mapping_coverage.sql` (measures campaign on credited touches, not checkout URLs).
+  - Expected: `orders_with_campaign_on_touch` / `touch_campaign_rate` / `orders_with_meta_paid_touch`.
+  - App code complete: yes (`campaign-map.ts` joins only on id/name). UI still says VALIDATION REQUIRED until this re-run.
 
 # Web GTM
 
@@ -73,4 +72,4 @@ Use checkboxes. Do not mark production verified without evidence.
 
 # Other
 
-- [ ] Paste validation query results anywhere you want them recorded; the UI will keep saying VALIDATION REQUIRED until then.
+- [ ] Paste touch-grain campaign mapping results from updated `05`; the UI will keep saying VALIDATION REQUIRED for campaign coverage until then. Conversion-lag default is already 7d.
