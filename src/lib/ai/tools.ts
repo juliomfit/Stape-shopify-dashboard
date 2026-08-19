@@ -72,7 +72,7 @@ export const AI_TOOLS: AiTool[] = [
   },
   {
     name: "get_profit_summary",
-    description: "Contribution profit (revenue − fees − ad spend) plus profit after COGS only when every Pacific day in the range has a typed supplier row. Never invents COGS or uses typicalCogs.",
+    description: "Pre-COGS contribution (revenue − fees − ad spend) plus profit after COGS only when every Pacific day in the range has a typed supplier row. Never invents COGS or uses typicalCogs. Incomplete costs are not labeled Contribution Profit.",
     parameters: { type: "object", properties: {}, additionalProperties: false },
   },
   {

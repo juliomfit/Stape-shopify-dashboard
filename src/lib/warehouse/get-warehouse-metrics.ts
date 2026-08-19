@@ -12,10 +12,15 @@ import {
   type WarehouseModel,
 } from "@/lib/warehouse/constants";
 import { warehouseCtes } from "@/lib/warehouse/sql";
+import {
+  aggregateAssistsFromCanonical,
+  aggregateCampaignsFromCanonical,
+  aggregateChannelsFromCanonical,
+  aggregateJourneyPaths,
+  getCanonicalAttributedOrders,
+} from "@/lib/warehouse/canonical-orders";
+import { ATTRIBUTION_MODELS, type AttributionModel } from "@/lib/attribution/engine";
 import type {
-  WarehouseChannelRow,
-  WarehouseJourneyRow,
-  WarehouseCampaignRow,
   WarehouseLandingRow,
   WarehouseMetrics,
   WarehouseQuality,
@@ -104,7 +109,7 @@ credited_raw AS (
   SELECT
     ot.transaction_id,
     ot.person_id,
-    ot.net_revenue,
+    ot.event_purchase_value,
     ot.order_timestamp,
     ot.touchpoint_timestamp,
     ot.channel,
@@ -126,8 +131,6 @@ credited_raw AS (
     STRUCT("first_touch" AS model_name),
     STRUCT("last_touch" AS model_name),
     STRUCT("last_non_direct" AS model_name),
-    STRUCT("last_paid" AS model_name),
-    STRUCT("first_paid" AS model_name),
     STRUCT("paid_only" AS model_name),
     STRUCT("linear" AS model_name),
     STRUCT("position_based" AS model_name),
@@ -145,12 +148,6 @@ credited_raw AS (
         MAX(IF(NOT ot.is_direct, ot.touchpoint_timestamp, NULL)) OVER (PARTITION BY ot.transaction_id),
         MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id)
       ))
-    OR (model.model_name = "last_paid"
-      AND ot.is_paid
-      AND ot.touchpoint_timestamp = MAX(IF(ot.is_paid, ot.touchpoint_timestamp, NULL)) OVER (PARTITION BY ot.transaction_id))
-    OR (model.model_name = "first_paid"
-      AND ot.is_paid
-      AND ot.touchpoint_timestamp = MIN(IF(ot.is_paid, ot.touchpoint_timestamp, NULL)) OVER (PARTITION BY ot.transaction_id))
     OR (model.model_name = "paid_only" AND ot.is_paid)
     OR (model.model_name IN ("linear", "position_based", "time_decay"))
     OR (model.model_name = "assist"
@@ -236,7 +233,7 @@ export async function getWarehouseMetrics(options: {
         ${ctes}
         SELECT
           COUNT(*) AS orders,
-          IFNULL(SUM(net_revenue), 0) AS revenue,
+          IFNULL(SUM(event_purchase_value), 0) AS event_purchase_value,
           COUNTIF(person_id IS NOT NULL) AS with_person,
           COUNTIF(shopify_customer_id IS NOT NULL) AS with_customer,
           COUNTIF(hashed_email IS NOT NULL) AS with_email,
@@ -284,44 +281,6 @@ export async function getWarehouseMetrics(options: {
       `,
     });
 
-    const [attrRows] = await client.query({
-      ...queryOptions,
-      query: `
-        ${ctes},
-        ${ATTRIBUTION_SQL}
-        SELECT
-          model_name,
-          IFNULL(channel, "Unknown") AS channel,
-          SUM(credit) AS orders,
-          SUM(net_revenue * credit) AS revenue
-        FROM credited
-        WHERE UNIX_MILLIS(order_timestamp) >= @startMs
-          AND UNIX_MILLIS(order_timestamp) < @endMs
-        GROUP BY 1, 2
-      `,
-    });
-
-    const [campaignRows] = await client.query({
-      ...queryOptions,
-      query: `
-        ${ctes},
-        ${ATTRIBUTION_SQL}
-        SELECT
-          IFNULL(NULLIF(campaign, ""), "(unmapped)") AS campaign,
-          IFNULL(channel, "Unknown") AS channel,
-          SUM(credit) AS orders,
-          SUM(net_revenue * credit) AS revenue
-        FROM credited
-        WHERE UNIX_MILLIS(order_timestamp) >= @startMs
-          AND UNIX_MILLIS(order_timestamp) < @endMs
-          AND model_name = @model
-        GROUP BY 1, 2
-        ORDER BY revenue DESC
-        LIMIT 200
-      `,
-      params: { ...params, model },
-    });
-
     const [landingRows] = await client.query({
       ...queryOptions,
       query: `
@@ -356,7 +315,7 @@ export async function getWarehouseMetrics(options: {
           ), o.transaction_id, NULL)) AS unknown_orders,
           AVG(c.days_to_conversion) AS avg_days,
           AVG(touch_n) AS avg_touches,
-          SUM(c.net_revenue * c.credit) AS attributed_revenue,
+          SUM(c.event_purchase_value * c.credit) AS event_attributed_value,
           SUM(c.credit) AS attributed_order_credit
         FROM orders AS o
         LEFT JOIN credited AS c
@@ -387,34 +346,6 @@ export async function getWarehouseMetrics(options: {
          AND s.session_start >= TIMESTAMP_SUB(o.order_timestamp, INTERVAL @lookbackDays DAY)
         WHERE UNIX_MILLIS(o.order_timestamp) >= @startMs
           AND UNIX_MILLIS(o.order_timestamp) < @endMs
-      `,
-    });
-
-    const [journeyRows] = await client.query({
-      ...queryOptions,
-      query: `
-        ${ctes}
-        SELECT
-          IFNULL(NULLIF(path, ""), "Unknown") AS path,
-          COUNT(*) AS orders,
-          SUM(net_revenue) AS revenue
-        FROM (
-          SELECT
-            o.transaction_id,
-            ANY_VALUE(o.net_revenue) AS net_revenue,
-            STRING_AGG(ot.channel, " → " ORDER BY ot.touchpoint_timestamp) AS path
-          FROM orders AS o
-          LEFT JOIN order_touches AS ot
-            ON ot.transaction_id = o.transaction_id
-           AND ot.touchpoint_id IS NOT NULL
-           AND NOT IFNULL(ot.is_direct, FALSE)
-          WHERE UNIX_MILLIS(o.order_timestamp) >= @startMs
-            AND UNIX_MILLIS(o.order_timestamp) < @endMs
-          GROUP BY o.transaction_id
-        )
-        GROUP BY 1
-        ORDER BY orders DESC
-        LIMIT 12
       `,
     });
 
@@ -455,27 +386,25 @@ export async function getWarehouseMetrics(options: {
     const timing = (timingRows[0] ?? {}) as Record<string, unknown>;
 
     const orders = toNumber(order.orders);
-    const revenue = toNumber(order.revenue);
-    const attributedOrders = toNumber(conf.attributed_order_credit);
-    const attributedRevenue = toNumber(conf.attributed_revenue);
+    const shopifyConnected = shopify.status.state === "connected";
+    const revenue = shopifyConnected ? aligned.revenue : 0;
     const unknownOrders = Math.max(orders - toNumber(conf.attributed_orders), 0);
 
-    const attr = attrRows as {
-      model_name: string;
-      channel: string;
-      orders: number;
-      revenue: number;
-    }[];
-
-    const toRows = (modelName: string): WarehouseChannelRow[] =>
-      attr
-        .filter((row) => row.model_name === modelName)
-        .map((row) => ({
-          channel: row.channel,
-          orders: toNumber(row.orders),
-          revenue: toNumber(row.revenue),
-        }))
-        .sort((a, b) => b.revenue - a.revenue);
+    const engineModel: AttributionModel = ATTRIBUTION_MODELS.includes(
+      model as AttributionModel,
+    )
+      ? (model as AttributionModel)
+      : "last_non_direct";
+    const canonical = await getCanonicalAttributedOrders({ lookbackDays }).catch(
+      () => [],
+    );
+    const byChannel = aggregateChannelsFromCanonical(
+      canonical,
+      engineModel,
+      lookbackDays,
+    );
+    const attributedRevenue = byChannel.reduce((sum, row) => sum + row.revenue, 0);
+    const attributedOrders = byChannel.reduce((sum, row) => sum + row.orders, 0);
 
     const quality: WarehouseQuality = {
       totalOrders: orders,
@@ -515,7 +444,9 @@ export async function getWarehouseMetrics(options: {
       "gn_uid and stape_user_id now come from raw_events_full (Data Client). GA4 collect hits may still lack gn_uid until that tag also sends it.",
       "hashed_email and shopify_customer_id usually fill on purchase, not page_view.",
       "gclid/gbraid/wbraid columns are often empty; Meta is mostly URL UTMs plus fbclid when present.",
-      "raw_events_full partitions expire after ~60 days, so 90-day lookbacks are not offered until retention is extended (migration 003).",
+      "Shopify currentTotalPriceSet is money truth. Event purchase value is QA only and is never labeled net_revenue.",
+      "Canonical grain is one eligible session acquisition touch. Checkout / web-pixels / own-domain noise is not Direct.",
+      "Conversion-lag default stays 7d until query 11 is re-run after migration 005 (prior lag used the old touch grain).",
     ];
     if (platform.facebook.spend === null && platform.google.spend === null) {
       gaps.push(
@@ -549,26 +480,17 @@ export async function getWarehouseMetrics(options: {
       highConfidenceRate: orders > 0 ? quality.highConfidenceOrders / orders : null,
       directRate: orders > 0 ? quality.directOrders / orders : null,
       unknownRate: orders > 0 ? unknownOrders / orders : null,
-      byChannel: toRows(model),
-      acquiring: toRows("first_touch"),
-      closing: toRows("last_non_direct"),
-      assisting: toRows("assist"),
-      campaigns: (campaignRows as WarehouseCampaignRow[]).map((row) => ({
-        campaign: String(row.campaign),
-        channel: String(row.channel),
-        orders: toNumber(row.orders),
-        revenue: toNumber(row.revenue),
-      })),
+      byChannel,
+      acquiring: aggregateChannelsFromCanonical(canonical, "first_touch", lookbackDays),
+      closing: aggregateChannelsFromCanonical(canonical, "last_non_direct", lookbackDays),
+      assisting: aggregateAssistsFromCanonical(canonical, lookbackDays),
+      campaigns: aggregateCampaignsFromCanonical(canonical, engineModel, lookbackDays),
       landings: (landingRows as WarehouseLandingRow[]).map((row) => ({
         landingPage: String(row.landingPage),
         channel: String(row.channel),
         sessions: toNumber(row.sessions),
       })),
-      journeys: (journeyRows as WarehouseJourneyRow[]).map((row) => ({
-        path: String(row.path),
-        orders: toNumber(row.orders),
-        revenue: toNumber(row.revenue),
-      })),
+      journeys: aggregateJourneyPaths(canonical),
       avgDaysToPurchase: timing.avg_days == null ? null : toNumber(timing.avg_days),
       avgTouchesToPurchase: timing.avg_touches == null ? null : toNumber(timing.avg_touches),
       avgSessionsToPurchase: timing.avg_sessions == null ? null : toNumber(timing.avg_sessions),

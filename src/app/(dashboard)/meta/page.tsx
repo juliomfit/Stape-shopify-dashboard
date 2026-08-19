@@ -23,11 +23,16 @@ import { getDashboardPeriod, pacificDaysInRange } from "@/lib/period";
 import { loadMetaCache } from "@/lib/ads/meta-query";
 import { latestSuccessfulSync, latestSync } from "@/lib/platform/sync-runs";
 import { shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
+import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
 import { newCustomerCac, newCustomerRoas } from "@/lib/metrics/formulas";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { OurCampaignTable } from "@/components/dashboard/OurCampaignTable";
 import { joinMetaAndOurCampaigns } from "@/lib/attribution/campaign-map";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
+import {
+  getCanonicalAttributedOrders,
+  newCustomerCreditByCampaign,
+} from "@/lib/warehouse/canonical-orders";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +60,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify, attrWarehouse] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify, attrWarehouse, canonical] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -78,7 +83,8 @@ async function renderMetaPage() {
       message: "Warehouse check failed.",
     })),
     getShopifyOverviewMetrics().catch(() => null),
-    getWarehouseMetrics().catch(() => null),
+    getWarehouseMetrics({ lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS }).catch(() => null),
+    getCanonicalAttributedOrders({ lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS }).catch(() => []),
   ]);
   const totals = totalsFromFacts(facts);
   const claimed = resolveMetaClaim({
@@ -120,7 +126,7 @@ async function renderMetaPage() {
     <>
       <Header
         title="Meta Ads"
-        description="Platform-attributed Meta reporting (Ads Manager matching). Not Shopify gn_* first-touch. Timezone America/Los_Angeles."
+        description="Platform-attributed Meta reporting (Ads Manager matching). Not Shopify gn_* first-touch. OUR first-party credit is campaign-grain only. Timezone America/Los_Angeles."
       />
       <section className="dash-page gap-6">
         <p className="text-xs text-muted">
@@ -259,8 +265,8 @@ async function renderMetaPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="New-customer CAC"
-            source="Meta spend ÷ Shopify new-customer orders (store-wide, not campaign-attributed)"
+            label="Blended nCAC (Meta is current paid spend source)"
+            source="Meta spend ÷ Shopify new-customer orders (store-wide, not Meta-attributed new customers)"
             value={
               metaNcCac === null
                 ? null
@@ -268,8 +274,8 @@ async function renderMetaPage() {
             }
           />
           <MetricCard
-            label="New-customer ROAS"
-            source="Shopify new-customer revenue ÷ Meta spend (store-wide)"
+            label="New-customer ROAS (store-wide)"
+            source="Shopify new-customer revenue ÷ Meta spend. Not Meta-attributed new-customer ROAS."
             value={metaNcRoas === null ? null : `${metaNcRoas.toFixed(2)}x`}
           />
           <MetricCard
@@ -329,8 +335,9 @@ async function renderMetaPage() {
           <Link className="underline" href="/meta/creatives">
             Creatives
           </Link>
-          . Campaign nCAC is not invented from store-wide Shopify new customers.
-          OUR campaign revenue is shown below only where UTM/name mapping exists.
+          . The table below is <strong>Meta platform ad performance</strong>{" "}
+          (Ads Manager matching). OUR independent attribution stops at campaign
+          until ad-set/ad IDs exist on first-party touches.
         </p>
           <div className="mt-4">
             <MetaEntityTable
@@ -346,6 +353,11 @@ async function renderMetaPage() {
             attrWarehouse?.campaigns.filter(
               (row: { channel: string }) => row.channel === "Facebook / Meta Ads",
             ) ?? [],
+            newCustomerCreditByCampaign(
+              canonical,
+              "last_non_direct",
+              DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+            ),
           )}
           currencyCode={currency}
         />

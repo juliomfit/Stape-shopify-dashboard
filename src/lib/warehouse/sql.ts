@@ -1,10 +1,10 @@
-import { CHANNEL_SQL, PAID_CHANNELS } from "@/lib/stape/channel-sql";
+import { CHANNEL_SQL, INTERNAL_NOISE_SQL, PAID_CHANNELS } from "@/lib/stape/channel-sql";
 
 /**
  * On-the-fly warehouse CTEs against raw_events_full.
- * Same logic as bigquery/analytics/*.sql (views require Editor).
- * Channel CASE is CHANNEL_SQL (TikTok not "TikTok Ads") so TypeScript and
- * warehouse taxonomy cannot drift.
+ * Canonical grain: identity → GA4 session → one eligible acquisition touch.
+ * Must match bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql.
+ * Channel CASE is CHANNEL_SQL; noise is INTERNAL_NOISE_SQL.
  */
 export function warehouseCtes(rawTable: string) {
   const paidList = PAID_CHANNELS.map((channel) => `"${channel}"`).join(", ");
@@ -44,7 +44,7 @@ WITH stg AS (
     CAST(NULL AS STRING) AS fbc,
     NULLIF(REGEXP_EXTRACT(page_location, r"[?&]msclkid=([^&]+)"), "") AS msclkid,
     NULLIF(REGEXP_EXTRACT(page_location, r"[?&]ttclid=([^&]+)"), "") AS ttclid,
-    value,
+    value AS event_purchase_value,
     currency,
     tax,
     shipping,
@@ -55,6 +55,7 @@ WITH stg AS (
 classified AS (
   SELECT
     stg.*,
+    ${INTERNAL_NOISE_SQL} AS is_internal_noise,
     ${CHANNEL_SQL} AS channel
   FROM stg
 ),
@@ -62,7 +63,9 @@ enriched AS (
   SELECT
     classified.*,
     classified.channel IN (${paidList}) AS is_paid,
-    classified.channel = "Direct" AS is_direct
+    classified.channel = "Direct" AND NOT classified.is_internal_noise AS is_direct,
+    NOT classified.is_internal_noise
+      AND classified.channel != "Unknown" AS is_touch_eligible
   FROM classified
 ),
 colliding AS (
@@ -154,36 +157,64 @@ sessions AS (
     AND LOWER(IFNULL(e.event_name, "")) != "shopify_order"
   GROUP BY session_key
 ),
+eligible_session_landing AS (
+  SELECT
+    CONCAT(e.client_id, "|", e.ga_session_id) AS session_key,
+    ANY_VALUE(p.person_id) AS person_id,
+    MIN(e.event_timestamp) AS first_eligible_ts,
+    ARRAY_AGG(e.page_location IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS landing_page,
+    ARRAY_AGG(e.raw_source IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_source,
+    ARRAY_AGG(e.raw_medium IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_medium,
+    ARRAY_AGG(e.raw_campaign IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS first_campaign,
+    ARRAY_AGG(e.gclid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS gclid,
+    ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
+    ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
+    ARRAY_AGG(e.fbclid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS fbclid,
+    ARRAY_AGG(e.channel IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS channel,
+    ARRAY_AGG(e.is_paid IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_paid,
+    ARRAY_AGG(e.is_direct IGNORE NULLS ORDER BY e.event_timestamp LIMIT 1)[SAFE_OFFSET(0)] AS is_direct,
+    ANY_VALUE(p.identity_method) AS identity_method,
+    ANY_VALUE(p.identity_confidence) AS identity_confidence
+  FROM enriched AS e
+  LEFT JOIN dim_person AS p
+    ON p.client_id = e.client_id
+  WHERE IFNULL(e.source_client, "GA4") = "GA4"
+    AND e.client_id IS NOT NULL
+    AND e.ga_session_id IS NOT NULL
+    AND LOWER(IFNULL(e.event_name, "")) != "shopify_order"
+    AND e.is_touch_eligible
+  GROUP BY session_key
+),
 touchpoints AS (
   SELECT
-    TO_HEX(SHA256(CONCAT(session_key, CAST(session_start AS STRING)))) AS touchpoint_id,
-    person_id,
-    session_key,
-    session_start AS touchpoint_timestamp,
-    first_source AS source,
-    first_medium AS medium,
-    first_campaign AS campaign,
-    channel,
+    TO_HEX(SHA256(CONCAT(l.session_key, CAST(IFNULL(s.session_start, l.first_eligible_ts) AS STRING)))) AS touchpoint_id,
+    l.person_id,
+    l.session_key,
+    l.first_eligible_ts AS touchpoint_timestamp,
+    l.first_source AS source,
+    l.first_medium AS medium,
+    l.first_campaign AS campaign,
+    l.channel,
     CASE
-      WHEN gclid IS NOT NULL THEN "gclid"
-      WHEN gbraid IS NOT NULL THEN "gbraid"
-      WHEN wbraid IS NOT NULL THEN "wbraid"
-      WHEN fbclid IS NOT NULL THEN "fbclid"
+      WHEN l.gclid IS NOT NULL THEN "gclid"
+      WHEN l.gbraid IS NOT NULL THEN "gbraid"
+      WHEN l.wbraid IS NOT NULL THEN "wbraid"
+      WHEN l.fbclid IS NOT NULL THEN "fbclid"
       ELSE NULL
     END AS click_id_type,
-    COALESCE(gclid, gbraid, wbraid, fbclid) AS click_id,
-    landing_page,
-    is_paid,
-    is_direct,
-    identity_method,
-    identity_confidence
-  FROM sessions
-  WHERE is_paid
-     OR NOT is_direct
-     OR gclid IS NOT NULL
-     OR fbclid IS NOT NULL
-     OR IFNULL(first_source, "") != ""
-     OR IFNULL(first_campaign, "") != ""
+    COALESCE(l.gclid, l.gbraid, l.wbraid, l.fbclid) AS click_id,
+    l.landing_page,
+    l.is_paid,
+    l.is_direct,
+    FALSE AS is_internal_noise,
+    TRUE AS is_touch_eligible,
+    l.identity_method,
+    l.identity_confidence
+  FROM eligible_session_landing AS l
+  LEFT JOIN sessions AS s
+    ON s.session_key = l.session_key
+  WHERE l.channel IS NOT NULL
+    AND l.channel != "Unknown"
 ),
 orders AS (
   SELECT * EXCEPT (source_rank)
@@ -198,7 +229,7 @@ orders AS (
       e.gn_uid,
       e.stape_user_id,
       e.client_id,
-      e.value AS net_revenue,
+      e.event_purchase_value,
       e.currency,
       e.source_client AS order_source,
       p.identity_method,

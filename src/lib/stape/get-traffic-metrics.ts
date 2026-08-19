@@ -105,7 +105,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
             IFNULL(wbraid, '') AS wbraid,
             IFNULL(dclid, '') AS dclid,
             IFNULL(fbclid, '') AS fbclid,
-            IFNULL(fbc, '') AS fbc,
+            CAST(NULL AS STRING) AS fbc,
             IFNULL(ttclid, '') AS ttclid,
             IFNULL(msclkid, '') AS msclkid
           FROM ${table}
@@ -149,7 +149,7 @@ export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
             IFNULL(wbraid, '') AS wbraid,
             IFNULL(dclid, '') AS dclid,
             IFNULL(fbclid, '') AS fbclid,
-            IFNULL(fbc, '') AS fbc,
+            CAST(NULL AS STRING) AS fbc,
             IFNULL(ttclid, '') AS ttclid,
             IFNULL(msclkid, '') AS msclkid
           FROM ${table}

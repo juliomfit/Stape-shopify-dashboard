@@ -24,12 +24,15 @@ export type JourneyTouch = {
   landingPage?: string | null;
   referrer?: string | null;
   sessionKey?: string | null;
+  /** Canonical session touchpoint id. Never transactionId-index. */
+  touchpointId?: string | null;
   fbclid?: boolean;
   gclid?: boolean;
 };
 
 export type AttributedOrder = {
   transactionId: string;
+  /** Shopify currentTotalPriceSet when matched; 0 if unmatched (never event value). */
   revenue: number;
   firstNonDirect: string;
   lastNonDirect: string;
@@ -37,13 +40,17 @@ export type AttributedOrder = {
   personKey: string;
   /** Unix epoch milliseconds of the purchase event. */
   purchaseTs: number;
-  /** Ordered touch list (oldest first) within the attribution lookback. */
+  /** Ordered canonical session touches (oldest first) within the lookback. */
   touches: JourneyTouch[];
   gnUid?: string | null;
   stapeUserId?: string | null;
   shopifyCustomerId?: string | null;
   hashedEmailPresent?: boolean | null;
   clientId?: string | null;
+  eventPurchaseValue?: number | null;
+  shopifyNetRevenue?: number | null;
+  moneySource?: "shopify" | "unmatched";
+  isNewCustomer?: boolean | null;
 };
 
 export type IdentityStats = {

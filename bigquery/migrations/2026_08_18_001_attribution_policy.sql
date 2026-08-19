@@ -25,14 +25,17 @@ MERGE `stape-analytics-487802.analytics.dim_attribution_settings` AS t
 USING (
   SELECT * FROM UNNEST([
     STRUCT("policy_id" AS setting_key, "attribution_policy_v1" AS setting_value, "string" AS value_type, "Canonical contract id. TypeScript engine and warehouse SQL must match." AS description),
-    STRUCT("default_lookback_days", "7", "int", "Production default. Validated 2026-08-19: P90=0h P99=69h n=69 (query 11)."),
+    STRUCT("default_lookback_days", "7", "int", "Provisional after canonicalization. Re-run query 11 after migration 005. Do not mark PRODUCTION VERIFIED until that re-run."),
     STRUCT("lookback_days_options", "1,7,14,30,60", "int_list", "Windows the app may expose. 90 omitted until retention covers it."),
     STRUCT("time_decay_half_life_hours", "168", "float", "weight = POW(2, -hours_to_purchase / 168)"),
     STRUCT("position_first_weight", "0.4", "float", "Position-based first touch (index 1)"),
     STRUCT("position_last_weight", "0.4", "float", "Position-based last touch"),
     STRUCT("position_middle_weight", "0.2", "float", "Remainder split equally across middle touches"),
-    STRUCT("revenue_definition", "net_after_refund", "string", "Shopify currentTotalPriceSet. Not Meta/GA4 purchase value."),
+    STRUCT("revenue_definition", "net_after_refund", "string", "Shopify currentTotalPriceSet. Event value is event_purchase_value, not net_revenue."),
     STRUCT("unknown_is_not_direct", "true", "bool", "Missing tracking stays Unknown. Never coerce to Direct."),
+    STRUCT("real_direct_is_eligible", "true", "bool", "Storefront empty-referrer Direct is eligible for FT/LT/linear/position/time-decay."),
+    STRUCT("internal_noise_excluded", "true", "bool", "Checkout, web-pixels@, payment processors, own-domain self-referral are not Direct and not touches."),
+    STRUCT("credit_view_is_credit_only", "true", "bool", "v_attribution_credit_v1 exposes credit, not Shopify money."),
     STRUCT("linear_includes_direct", "true", "bool", "Direct is an eligible touch for linear/position/time_decay."),
     STRUCT("view_through", "false", "bool", "No view-through. Impressions are not person-level touches."),
     STRUCT("logic_version", "attribution_policy_v1", "string", "Must match src/lib/attribution/policy.ts")

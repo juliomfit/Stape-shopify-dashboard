@@ -134,7 +134,7 @@ export function RevenueBreakdown({
           </p>
         ) : null}
         <Row
-          label="Contribution (no COGS)"
+          label="Pre-COGS contribution"
           amount={netProfit}
           currencyCode={currencyCode}
         />

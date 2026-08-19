@@ -13,8 +13,9 @@
  * Missing spend is null (shown as —), never 0.
  * Missing gn_* is Unknown, not Direct.
  * COGS is never invented and never filled from typicalCogs.
- * Contribution profit without cogs is revenue − fees − ad spend.
+ * Pre-COGS contribution without cogs is revenue − fees − ad spend.
  * Pass cogs only when every Pacific day in the range has a typed supplier row.
+ * Do not label the incomplete figure Contribution Profit.
  *
  * MER = revenue ÷ spend (ecommerce standard). The old spend÷revenue ratio is
  * marketingCostRatio (Ad spend % of revenue). Never call both MER.
@@ -111,9 +112,11 @@ export function netAfterFees(
 }
 
 /**
- * Contribution profit (not net profit): Shopify total − Shopify Payments fees − ad spend.
- * Does not subtract COGS, shipping expense, or other opex unless those values are supplied.
- * Callers must omit `cogs` when the daily ledger is incomplete so this does not treat missing days as $0.
+ * Pre-COGS contribution (not full contribution profit): Shopify total −
+ * Shopify Payments fees − ad spend. Does not subtract COGS, shipping expense,
+ * or other opex unless those values are supplied. Callers must omit `cogs`
+ * when the daily ledger is incomplete so this does not treat missing days as $0.
+ * UI must not label the incomplete figure "Contribution Profit".
  */
 export function contributionProfit(input: {
   totalRevenue: number;

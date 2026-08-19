@@ -3,14 +3,14 @@
 -- Status: ran 2026-08-19. P50/P75/P90=0h P95=3h P99=69h n=69. Keep 7d default.
 -- Temporary app default remains 7 days.
 --
--- VIEW COLUMNS on analytics.v_attribution_credit_v1 (do not invent others):
+-- Status: VALIDATION REQUIRED after migration 005 (prior 2026-08-19 lag used
+-- the old event/touch grain). Keep the 7-day default until this re-run.
+-- VIEW COLUMNS after 005 (do not invent others):
 --   transaction_id, model_name, touchpoint_id, channel, campaign,
---   is_paid, is_direct, net_revenue, hours_to_conversion, credit,
---   attributed_revenue
--- There is no purchase-time or touch-time column on the view.
+--   is_paid, is_direct, event_purchase_value, hours_to_conversion, credit
+-- There is no net_revenue / attributed_revenue on the credit-only view.
 -- hours_to_conversion = TIMESTAMP_DIFF(purchase, that touch, HOUR).
--- If this returns orders = 0, the view is empty. Recreate 002 (dim_person
--- revision), then run 11a_credit_view_rowcount.sql before this query.
+-- If this returns orders = 0, the view is empty. Run 005, then 11a.
 
 WITH first_marketing AS (
   SELECT
@@ -35,3 +35,4 @@ FROM first_marketing;
 -- If P90 <= 14d (336h) → promote 14d.
 -- If P90 > 14d and retention covers it → 30d.
 -- Do not promote 90d until migration 003 retention is validated.
+-- Do not mark PRODUCTION VERIFIED without pasting this result after 005.

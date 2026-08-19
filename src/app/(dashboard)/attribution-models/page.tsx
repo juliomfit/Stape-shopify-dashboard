@@ -11,17 +11,20 @@ import {
   ATTRIBUTION_MODEL_LABELS,
   compareModels,
   type AttributionModel,
-  type OrderInput,
 } from "@/lib/attribution/engine";
-import { orderToTouchpoints } from "@/lib/attribution/journey";
+import { ATTRIBUTION_GLOSSARY } from "@/lib/attribution/policy";
 import {
   PLATFORM_ENGINE_CHANNELS,
   buildPlatformVsOurRows,
 } from "@/lib/attribution/platform-compare";
 import { parseAttributionLookback } from "@/lib/attribution/windows";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
-import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
+import {
+  canonicalToEngineOrders,
+  getCanonicalAttributedOrders,
+} from "@/lib/warehouse/canonical-orders";
 
 export const dynamic = "force-dynamic";
 
@@ -48,23 +51,20 @@ type PageProps = {
 export default async function AttributionModelsPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const lookbackDays = parseAttributionLookback(params.lookback);
-  const [attribution, shopify, period] = await Promise.all([
-    getAttributionMetrics({ lookbackDays }),
+  const [canonical, warehouse, shopify, period] = await Promise.all([
+    getCanonicalAttributedOrders({ lookbackDays }),
+    getWarehouseMetrics({ lookbackDays }),
     getShopifyOverviewMetrics(),
     getAlignedPeriod(),
   ]);
   const platform = await getPlatformReported(period);
   const currency = shopify.revenue?.currencyCode || "USD";
 
-  const orders: OrderInput[] = attribution.orders.map((order) => ({
-    id: order.transactionId,
-    revenue: order.revenue,
-    purchaseTs: order.purchaseTs,
-    touchpoints: orderToTouchpoints(order),
-  }));
-  const comparison = compareModels(orders, DISPLAY_MODELS, {
-    windowDays: lookbackDays,
-  });
+  const comparison = compareModels(
+    canonicalToEngineOrders(canonical),
+    DISPLAY_MODELS,
+    { windowDays: lookbackDays },
+  );
   const ourLastNonDirect = comparison.cells[COMPARE_MODEL] ?? {};
   const platformRows = buildPlatformVsOurRows(
     [
@@ -88,10 +88,10 @@ export default async function AttributionModelsPage({ searchParams }: PageProps)
     <>
       <Header
         title="Attribution models"
-        description="How much revenue each channel earns under every first-party model, over the same stitched orders. See how attribution assumptions change the decision — before trusting a single number."
+        description="How much Shopify revenue each channel earns under every first-party model, over the same canonical session journeys. See how attribution assumptions change the decision — before trusting a single number."
       />
       <section className="dash-page gap-6">
-        <ConnectionStatus shopify={shopify.status} stape={attribution.status} />
+        <ConnectionStatus shopify={shopify.status} stape={warehouse.status} />
         <Suspense fallback={null}>
           <AttributionControls lookbackDays={lookbackDays} />
         </Suspense>
@@ -101,14 +101,22 @@ export default async function AttributionModelsPage({ searchParams }: PageProps)
           modelLabel={ATTRIBUTION_MODEL_LABELS[COMPARE_MODEL]}
           currencyCode={currency}
         />
-        <IdentityMatchPanel identity={attribution.identity} />
+        <IdentityMatchPanel
+          identity={{
+            purchases: canonical.length,
+            purchasesWithPerson: canonical.filter((order) => order.personKey).length,
+            uniquePeople: new Set(canonical.map((order) => order.personKey).filter(Boolean)).size,
+            uniqueBrowsers: new Set(canonical.map((order) => order.clientId).filter(Boolean)).size,
+            crossDevicePeople: 0,
+          }}
+        />
         <p className="text-xs leading-5 text-muted">
-          Orders are credited by our engine from first-party touches within a{" "}
-          {lookbackDays}-day lookback. Linear / position / time-decay credit
-          non-direct marketing touches (Direct is excluded unless the whole
-          journey is Direct). Platform vs our uses {ATTRIBUTION_MODEL_LABELS[COMPARE_MODEL]}{" "}
-          — not Ads Manager matching and not Shopify gn_* first-touch. Expand
-          any order on{" "}
+          Orders are credited by the canonical engine from one eligible session
+          touch per acquisition session within a {lookbackDays}-day lookback.
+          Shopify currentTotalPriceSet is money truth.{" "}
+          {ATTRIBUTION_GLOSSARY.realDirect} {ATTRIBUTION_GLOSSARY.internalNoise} Platform vs our uses{" "}
+          {ATTRIBUTION_MODEL_LABELS[COMPARE_MODEL]} — not Ads Manager matching
+          and not Shopify gn_* first-touch. Expand any order on{" "}
           <a className="underline" href="/journeys">
             Journeys
           </a>{" "}

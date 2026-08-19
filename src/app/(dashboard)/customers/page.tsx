@@ -63,7 +63,7 @@ export default async function CustomersPage() {
     <>
       <Header
         title="Customers"
-        description="Shopify customers who ordered in the selected date range."
+        description="Shopify customers who ordered in the selected date range. LTV below is selected-history only — not complete lifetime."
       />
       <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} />
@@ -150,13 +150,19 @@ export default async function CustomersPage() {
               New vs returning here is unique people (lifetime numberOfOrders).
               First-touch new-customer orders is order grain and will not
               match. Last order date is the latest order in this header range.
-              Range revenue / customer is not LTV — see first-purchase LTV below.
+              Range revenue / customer is not LTV — see selected-history LTV
+              below (incomplete: only orders loaded for this header range, max
+              10k). True first-purchase LTV needs a full Shopify order mirror.
             </p>
-            <LtvTable rows={ltvCohorts} currencyCode={currency} />
+            <LtvTable
+              rows={ltvCohorts}
+              currencyCode={currency}
+              title="Selected-history LTV (incomplete)"
+            />
             <LtvTable
               rows={ltvChannels}
               currencyCode={currency}
-              title="LTV by first-touch channel (gn_*)"
+              title="Selected-history LTV by first-touch channel (incomplete)"
             />
             <CustomerCohortTable
               rows={cohorts}

@@ -15,9 +15,8 @@ import {
   ATTRIBUTION_MODELS,
   compareModels,
   type AttributionModel,
-  type OrderInput,
 } from "@/lib/attribution/engine";
-import { orderToTouchpoints } from "@/lib/attribution/journey";
+import { ATTRIBUTION_GLOSSARY } from "@/lib/attribution/policy";
 import {
   PLATFORM_ENGINE_CHANNELS,
   buildPlatformVsOurRows,
@@ -26,9 +25,14 @@ import { CAMPAIGN_MAPPING_STATUS } from "@/lib/attribution/campaign-map";
 import { parseAttributionLookback } from "@/lib/attribution/windows";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
-import { attributedNcac, ratio } from "@/lib/metrics/formulas";
-import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
+import { blendedNcac, merRatio, ratio } from "@/lib/metrics/formulas";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import {
+  canonicalToEngineOrders,
+  getCanonicalAttributedOrders,
+  metaAttributedRevenue,
+  paidAttributedRevenue,
+} from "@/lib/warehouse/canonical-orders";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import { isWarehouseModel, type WarehouseModel } from "@/lib/warehouse/constants";
 
@@ -58,12 +62,12 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
     ? (warehouseModel as AttributionModel)
     : "last_non_direct";
 
-  const [warehouse, attribution, shopify, period] = await Promise.all([
+  const [warehouse, canonical, shopify, period] = await Promise.all([
     getWarehouseMetrics({
       model: warehouseModel,
       lookbackDays,
     }),
-    getAttributionMetrics({ lookbackDays }),
+    getCanonicalAttributedOrders({ lookbackDays }),
     getShopifyOverviewMetrics(),
     getAlignedPeriod(),
   ]);
@@ -76,15 +80,11 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
     journeyMatched: warehouse.quality.ordersWithPrepurchasesSession,
     attributedOrders: warehouse.quality.attributedOrders,
   });
-  const orders: OrderInput[] = attribution.orders.map((order) => ({
-    id: order.transactionId,
-    revenue: order.revenue,
-    purchaseTs: order.purchaseTs,
-    touchpoints: orderToTouchpoints(order),
-  }));
-  const comparison = compareModels(orders, [...ATTRIBUTION_MODELS], {
-    windowDays: lookbackDays,
-  });
+  const comparison = compareModels(
+    canonicalToEngineOrders(canonical),
+    [...ATTRIBUTION_MODELS],
+    { windowDays: lookbackDays },
+  );
   const our = comparison.cells[engineModel] ?? {};
   const platformRows = buildPlatformVsOurRows(
     [
@@ -103,18 +103,27 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
     ],
     our,
   );
-  const ourRoas = ratio(warehouse.attributedRevenue, warehouse.totalSpend);
-  const ncac = attributedNcac(
+  const shopifyMer = merRatio(warehouse.totalSpend, shopify.revenue?.amount ?? 0);
+  const ourPaidRoas = ratio(
+    paidAttributedRevenue(canonical, engineModel, lookbackDays),
+    warehouse.totalSpend,
+  );
+  const ourMetaRoas = ratio(
+    metaAttributedRevenue(canonical, engineModel, lookbackDays),
+    warehouse.metaSpend,
+  );
+  const ncac = blendedNcac(
     warehouse.totalSpend,
     shopify.status.state === "connected" ? shopify.newCustomerOrders : null,
   );
   const modelLabel = ATTRIBUTION_MODEL_LABELS[engineModel];
+  const googleRoas = warehouse.googleSpend == null ? null : null;
 
   return (
     <>
       <Header
         title="Attribution"
-        description="Shopify is money truth. Unknown is not Direct. Model and window live in the controls and URL. Campaign mapping coverage is VALIDATION REQUIRED until Julio runs bigquery/validation/05_meta_campaign_mapping_coverage.sql."
+        description="Shopify is money truth. Unknown is not Direct. Checkout noise is not Direct. Model and window live in the controls and URL. Campaign mapping coverage is VALIDATION REQUIRED until Julio runs bigquery/validation/05_meta_campaign_mapping_coverage.sql."
       />
       <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} stape={warehouse.status} />
@@ -128,7 +137,7 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Our attributed revenue"
-            source={`${modelLabel} · ${lookbackDays}d`}
+            source={`${modelLabel} · ${lookbackDays}d · Shopify × credit`}
             value={formatMoney({
               amount: warehouse.attributedRevenue,
               currencyCode: currency,
@@ -162,13 +171,28 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
             })}
           />
           <MetricCard
-            label="Our ROAS"
-            source="Our attributed revenue ÷ blended spend"
-            value={merLabel(ourRoas)}
+            label="Shopify MER"
+            source={ATTRIBUTION_GLOSSARY.mer}
+            value={merLabel(shopifyMer)}
+          />
+          <MetricCard
+            label="Our Paid ROAS"
+            source={ATTRIBUTION_GLOSSARY.ourPaidRoas}
+            value={merLabel(ourPaidRoas)}
+          />
+          <MetricCard
+            label="Our Meta ROAS"
+            source="Meta-attributed Shopify revenue ÷ Meta spend"
+            value={merLabel(ourMetaRoas)}
+          />
+          <MetricCard
+            label="Our Google ROAS"
+            source="Google spend is not connected"
+            value={googleRoas}
           />
           <MetricCard
             label="Blended nCAC"
-            source="Total ad spend ÷ Shopify new-customer orders"
+            source={ATTRIBUTION_GLOSSARY.blendedNcac}
             value={
               ncac === null
                 ? null
@@ -183,7 +207,7 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
         </div>
         <WarehouseChannelTable
           title="Channel · selected model"
-          description={`${modelLabel} · click a journeys link to audit orders`}
+          description={`${modelLabel} · Shopify money × canonical session credit`}
           rows={warehouse.byChannel}
           currencyCode={currency}
         />
@@ -194,7 +218,8 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
         />
         <ModelComparisonTable comparison={comparison} currencyCode={currency} />
         <p className="text-xs text-muted">
-          Drill to{" "}
+          {ATTRIBUTION_GLOSSARY.realDirect} {ATTRIBUTION_GLOSSARY.internalNoise}{" "}
+          {ATTRIBUTION_GLOSSARY.unknown} Drill to{" "}
           <Link className="underline" href={`/journeys?lookback=${lookbackDays}`}>
             journeys / order debugger
           </Link>

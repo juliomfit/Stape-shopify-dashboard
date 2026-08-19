@@ -1,64 +1,80 @@
--- 05 Meta campaign mapping coverage.
--- Purchase-event URLs are usually checkout pages, so utm_campaign on the
--- purchase row is expected to be 0. Measure campaign on credited touches
--- (from v_attribution_credit_v1) and fbclid on both purchase rows and path.
---
--- Observed 2026-08-01 → 2026-08-19 (purchase-event grain, first run):
---   purchase_orders=72, purchase_event_with_fbclid=39, purchase_event_utm_campaign=0,
---   meta_campaign_rows=1
--- Re-run this file after the dim_person credit view so touch-grain columns fill.
+-- 05 Meta campaign mapping coverage (touch grain, after migration 005).
+-- Status: VALIDATION REQUIRED. Do not invent a live UI %.
+-- Does NOT claim ad-set / ad / creative OUR mapping — those IDs are not on
+-- first-party journey touches.
 
-DECLARE start_ms INT64 DEFAULT UNIX_MILLIS(TIMESTAMP("2026-08-01", "America/Los_Angeles"));
-DECLARE end_ms INT64 DEFAULT UNIX_MILLIS(TIMESTAMP("2026-08-19", "America/Los_Angeles"));
+DECLARE start_ts TIMESTAMP DEFAULT TIMESTAMP("2026-08-01", "America/Los_Angeles");
+DECLARE end_ts TIMESTAMP DEFAULT TIMESTAMP("2026-08-19", "America/Los_Angeles");
 
 WITH purchases AS (
-  SELECT
-    transaction_id,
-    LOGICAL_OR(IFNULL(fbclid, "") != "" OR IFNULL(page_location, "") LIKE "%fbclid=%") AS purchase_event_has_fbclid,
-    LOGICAL_OR(REGEXP_CONTAINS(IFNULL(page_location, ""), r"[?&]utm_campaign=")) AS purchase_event_has_utm_campaign
+  SELECT DISTINCT transaction_id
   FROM `stape-analytics-487802.stape_data.raw_events_full`
-  WHERE timestamp >= start_ms AND timestamp < end_ms
+  WHERE timestamp >= UNIX_MILLIS(start_ts)
+    AND timestamp < UNIX_MILLIS(end_ts)
     AND LOWER(IFNULL(event_name, "")) = "purchase"
     AND IFNULL(transaction_id, "") != ""
-  GROUP BY transaction_id
 ),
-touches AS (
+meta_touches AS (
   SELECT
     transaction_id,
-    LOGICAL_OR(IFNULL(campaign, "") != "") AS has_campaign_on_touch,
-    LOGICAL_OR(channel = "Facebook / Meta Ads") AS has_meta_paid_touch
+    touchpoint_id,
+    campaign,
+    channel
   FROM `stape-analytics-487802.analytics.v_attribution_credit_v1`
   WHERE model_name = "linear"
+    AND channel = "Facebook / Meta Ads"
     AND transaction_id IN (SELECT transaction_id FROM purchases)
-  GROUP BY transaction_id
 ),
 meta_campaigns AS (
-  SELECT DISTINCT campaign_id, campaign_name
+  SELECT
+    CAST(campaign_id AS STRING) AS campaign_id,
+    campaign_name,
+    LOWER(TRIM(campaign_name)) AS name_norm
   FROM `stape-analytics-487802.goodsnova_platform.meta_campaign_insights_daily`
-  WHERE date >= DATE("2026-08-01")
-    AND date < DATE("2026-08-19")
+  WHERE date >= DATE(start_ts, "America/Los_Angeles")
+    AND date < DATE(end_ts, "America/Los_Angeles")
+  GROUP BY 1, 2, 3
+),
+name_counts AS (
+  SELECT name_norm, COUNT(DISTINCT campaign_id) AS id_n
+  FROM meta_campaigns
+  GROUP BY 1
+),
+mapped AS (
+  SELECT
+    t.transaction_id,
+    t.touchpoint_id,
+    t.campaign AS our_campaign,
+    CASE
+      WHEN t.campaign IS NULL OR TRIM(t.campaign) = "" THEN "unmapped"
+      WHEN EXISTS (
+        SELECT 1 FROM meta_campaigns m WHERE m.campaign_id = t.campaign
+      ) THEN "campaign_id_exact"
+      WHEN (
+        SELECT id_n FROM name_counts n
+        WHERE n.name_norm = LOWER(TRIM(t.campaign))
+      ) > 1 THEN "ambiguous_name"
+      WHEN EXISTS (
+        SELECT 1 FROM meta_campaigns m
+        WHERE m.name_norm = LOWER(TRIM(t.campaign))
+      ) THEN "campaign_name_exact_unique"
+      ELSE "unmapped"
+    END AS mapping_method
+  FROM meta_touches AS t
 )
 SELECT
-  (SELECT COUNT(*) FROM purchases) AS purchase_orders,
-  (SELECT COUNTIF(purchase_event_has_fbclid) FROM purchases) AS purchase_event_with_fbclid,
-  (SELECT COUNTIF(purchase_event_has_utm_campaign) FROM purchases) AS purchase_event_with_utm_campaign,
-  (SELECT COUNT(*) FROM touches) AS orders_with_credited_journey,
-  (SELECT COUNTIF(has_campaign_on_touch) FROM touches) AS orders_with_campaign_on_touch,
-  (SELECT COUNTIF(has_meta_paid_touch) FROM touches) AS orders_with_meta_paid_touch,
-  (SELECT COUNT(*) FROM meta_campaigns) AS meta_campaign_rows_in_range,
+  (SELECT COUNT(*) FROM purchases) AS tracked_orders_in_window,
+  (SELECT COUNT(DISTINCT transaction_id) FROM meta_touches) AS our_meta_attributed_orders,
+  (SELECT COUNT(*) FROM meta_touches) AS our_meta_touches,
+  COUNTIF(mapping_method = "campaign_id_exact") AS exact_campaign_id_mapped,
+  COUNTIF(mapping_method = "campaign_name_exact_unique") AS unique_name_mapped,
+  COUNTIF(mapping_method = "ambiguous_name") AS ambiguous_names,
+  COUNTIF(mapping_method = "unmapped") AS unmapped,
   SAFE_DIVIDE(
-    (SELECT COUNTIF(purchase_event_has_fbclid) FROM purchases),
-    (SELECT COUNT(*) FROM purchases)
-  ) AS purchase_event_fbclid_rate,
-  SAFE_DIVIDE(
-    (SELECT COUNTIF(has_campaign_on_touch) FROM touches),
-    (SELECT COUNT(*) FROM purchases)
-  ) AS touch_campaign_rate,
-  SAFE_DIVIDE(
-    (SELECT COUNTIF(has_meta_paid_touch) FROM touches),
-    (SELECT COUNT(*) FROM purchases)
-  ) AS meta_paid_touch_rate;
-
--- App campaign OUR-revenue join is name/UTM equality in
--- src/lib/attribution/campaign-map.ts. Do not smear Meta spend onto unmapped orders.
--- Do not put purchase_event_utm_campaign=0 in the UI as "no campaign tracking".
+    COUNTIF(mapping_method IN ("campaign_id_exact", "campaign_name_exact_unique")),
+    COUNT(*)
+  ) AS mapping_rate,
+  (SELECT COUNT(DISTINCT campaign_id) FROM meta_campaigns) AS meta_campaign_ids_in_range,
+  "VALIDATION REQUIRED" AS status,
+  "Ad-set/ad/creative OUR attribution is NOT claimed — those IDs are not on first-party touches." AS grain_note
+FROM mapped;

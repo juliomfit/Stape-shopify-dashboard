@@ -17,9 +17,12 @@ export function LtvTable({
     <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Cohort = first Shopify purchase month (Pacific). Windows are cumulative
-        net revenue from that first order. Immature windows are marked — not
-        final LTV. Uses Shopify orders loaded for the header range (max 10k).
+        Selected-history LTV (incomplete). Cohort = first Shopify purchase in
+        the loaded order set (Pacific), not guaranteed true first purchase.
+        Windows are cumulative net revenue from that first observed order.
+        Immature windows are marked. Uses Shopify orders loaded for the header
+        range (max 10k) — not a lifetime warehouse. Do not treat this as true
+        LTV until analytics.fct_shopify_orders is populated.
       </p>
       {rows.length === 0 ? (
         <p className="mt-6 text-sm text-muted">
