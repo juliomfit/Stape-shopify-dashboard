@@ -9,9 +9,11 @@ import {
   emptyMetaIdTriple,
   mappingCoverageStatus,
   META_HIERARCHY_CONFLICT,
+  META_SESSION_TTL_MS,
   parseMetaIdsFromUrl,
   pickAcquisitionRow,
   sanitizeMetaId,
+  SESSION_ID_CONFLICT,
 } from "../src/lib/attribution/meta-ids.ts";
 import {
   attachMetaIdsToCredits,
@@ -22,6 +24,7 @@ import {
   grainOurRoas,
   metaCreditForOrders,
   metaCreditHierarchyHolds,
+  rollupMetaCredit,
   META_CHANNEL,
   summarizeMetaMappingAtOrderGrain,
   UNMAPPED_META_LABEL,
@@ -140,6 +143,9 @@ test("IDs persist through first-touch vs session storage contract in stitch HTML
   assert.match(html, /attrs\.gn_first_meta_campaign_id/);
   assert.match(html, /setSessionCookie\("gn_meta_campaign_id"/);
   assert.match(html, /gn_session_meta_v1/);
+  assert.match(html, /META_TTL_MS = 30 \* 60 \* 1000/);
+  assert.match(html, /last_seen/);
+  assert.match(html, /max-age=1800/);
   assert.doesNotMatch(html, /\["gn_meta_campaign_id", ft\./);
   assert.match(html, /if \(!ft && hasAny\)/);
 });
@@ -417,6 +423,38 @@ test("unmapped Meta label is retained for reporting", () => {
   assert.equal(UNMAPPED_META_LABEL, "Unmapped Meta");
 });
 
+test("A Meta click then subsequent pages keep A without clearing the active session", () => {
+  const campaignA = { campaignId: "111", adsetId: "555", adId: "666" };
+  const first = applyMetaLandingIdentity({
+    urlIds: campaignA,
+    firstTouch: emptyMetaIdTriple(),
+    sessionIds: emptyMetaIdTriple(),
+    now: T0,
+  });
+  const laterPages = applyMetaLandingIdentity({
+    urlIds: emptyMetaIdTriple(),
+    firstTouch: first.firstTouch,
+    sessionIds: first.sessionIds,
+    lastSeen: first.lastSeen,
+    now: T0 + 5 * 60 * 1000,
+  });
+  assert.equal(laterPages.sessionIds.campaignId, "111");
+  assert.equal(laterPages.sessionIds.adsetId, "555");
+  assert.equal(laterPages.sessionIds.adId, "666");
+  assert.equal(laterPages.firstTouch.campaignId, "111");
+  assert.equal(laterPages.expired, false);
+  assert.equal(laterPages.lastSeen, T0 + 5 * 60 * 1000);
+  const atTtl = applyMetaLandingIdentity({
+    urlIds: emptyMetaIdTriple(),
+    firstTouch: laterPages.firstTouch,
+    sessionIds: laterPages.sessionIds,
+    lastSeen: laterPages.lastSeen,
+    now: laterPages.lastSeen! + META_SESSION_TTL_MS,
+  });
+  assert.equal(atTtl.expired, false);
+  assert.equal(atTtl.sessionIds.campaignId, "111");
+});
+
 test("Campaign A then Campaign B: first-touch stays A, session and typed event become B", () => {
   const campaignA = { campaignId: "111", adsetId: "555", adId: "666" };
   const campaignB = { campaignId: "222", adsetId: "888", adId: "999" };
@@ -424,15 +462,31 @@ test("Campaign A then Campaign B: first-touch stays A, session and typed event b
     urlIds: campaignA,
     firstTouch: emptyMetaIdTriple(),
     sessionIds: emptyMetaIdTriple(),
+    now: T0,
   });
   assert.equal(first.firstTouch.campaignId, "111");
   assert.equal(first.sessionIds.campaignId, "111");
   assert.equal(first.typedEventIds.campaignId, "111");
+  assert.equal(first.lastSeen, T0);
+
+  const laterPages = applyMetaLandingIdentity({
+    urlIds: emptyMetaIdTriple(),
+    firstTouch: first.firstTouch,
+    sessionIds: first.sessionIds,
+    lastSeen: first.lastSeen,
+    now: T0 + 5 * 60 * 1000,
+  });
+  assert.equal(laterPages.sessionIds.campaignId, "111");
+  assert.equal(laterPages.firstTouch.campaignId, "111");
+  assert.equal(laterPages.expired, false);
+  assert.equal(laterPages.lastSeen, T0 + 5 * 60 * 1000);
 
   const later = applyMetaLandingIdentity({
     urlIds: campaignB,
-    firstTouch: first.firstTouch,
-    sessionIds: first.sessionIds,
+    firstTouch: laterPages.firstTouch,
+    sessionIds: laterPages.sessionIds,
+    lastSeen: laterPages.lastSeen,
+    now: T0 + 10 * 60 * 1000,
   });
   assert.equal(later.firstTouch.campaignId, "111");
   assert.equal(later.firstTouch.adsetId, "555");
@@ -465,6 +519,39 @@ test("Campaign A then Campaign B: first-touch stays A, session and typed event b
   });
   assert.equal(credits[0].metaCampaignId, "222");
   assert.notEqual(credits[0].metaCampaignId, later.firstTouch.campaignId);
+});
+
+test("inactivity over 30 minutes clears current Meta session but keeps first-touch A", () => {
+  const campaignA = { campaignId: "111", adsetId: "555", adId: "666" };
+  const campaignB = { campaignId: "222", adsetId: "888", adId: "999" };
+  const a = applyMetaLandingIdentity({
+    urlIds: campaignA,
+    firstTouch: emptyMetaIdTriple(),
+    sessionIds: emptyMetaIdTriple(),
+    now: T0,
+  });
+  const b = applyMetaLandingIdentity({
+    urlIds: campaignB,
+    firstTouch: a.firstTouch,
+    sessionIds: a.sessionIds,
+    lastSeen: a.lastSeen,
+    now: T0 + 60 * 1000,
+  });
+  const idle = applyMetaLandingIdentity({
+    urlIds: emptyMetaIdTriple(),
+    firstTouch: b.firstTouch,
+    sessionIds: b.sessionIds,
+    lastSeen: b.lastSeen,
+    now: b.lastSeen! + META_SESSION_TTL_MS + 1,
+  });
+  assert.equal(idle.expired, true);
+  assert.equal(idle.sessionIds.campaignId, null);
+  assert.equal(idle.sessionIds.adsetId, null);
+  assert.equal(idle.sessionIds.adId, null);
+  assert.equal(idle.typedEventIds.campaignId, null);
+  assert.equal(idle.firstTouch.campaignId, "111");
+  assert.equal(idle.firstTouch.adsetId, "555");
+  assert.equal(idle.firstTouch.adId, "666");
 });
 
 test("same timestamp acquisition row is deterministic via event_id", () => {
@@ -622,4 +709,137 @@ test("actual Meta child-credit hierarchy has 0 violations when parents agree", (
   assert.equal(result.adMappedCredit, 100);
   assert.equal(result.hierarchyViolations, 0);
   assert.ok(metaCreditHierarchyHolds(rollup));
+});
+
+test("same-session campaignIdConflict is SESSION_ID_CONFLICT and not HIGH mapped", () => {
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t1",
+        campaignId: "111",
+        adsetId: "555",
+        adId: "666",
+        campaignIdConflict: true,
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes,
+  });
+  assert.equal(credits[0].channel, META_CHANNEL);
+  assert.equal(credits[0].creditDollars, 100);
+  assert.equal(credits[0].campaignMappingMethod, "unmapped");
+  assert.equal(credits[0].campaignMappingConfidence, "NONE");
+  assert.equal(credits[0].adsetMapped, false);
+  assert.equal(credits[0].adMapped, false);
+  assert.equal(credits[0].sessionIdConflict, true);
+  assert.equal(credits[0].unmappedReason, SESSION_ID_CONFLICT);
+  assert.equal(credits[0].hierarchyConflict, false);
+  const rollup = rollupMetaCredit(credits);
+  assert.equal(rollup.channelCredit, 100);
+  assert.equal(rollup.campaignMappedCredit, 0);
+  assert.equal(rollup.campaignUnmappedCredit, 100);
+  assert.equal(rollup.byCampaign.length, 0);
+});
+
+test("same-session adsetIdConflict is SESSION_ID_CONFLICT and not adset exact", () => {
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t1",
+        campaignId: "111",
+        adsetId: "555",
+        adId: "666",
+        adsetIdConflict: true,
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes,
+  });
+  assert.equal(credits[0].adsetMapped, false);
+  assert.equal(credits[0].adMapped, false);
+  assert.equal(credits[0].campaignMappingConfidence, "NONE");
+  assert.equal(credits[0].unmappedReason, SESSION_ID_CONFLICT);
+});
+
+test("same-session adIdConflict is SESSION_ID_CONFLICT and not ad exact", () => {
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t1",
+        campaignId: "111",
+        adsetId: "555",
+        adId: "666",
+        adIdConflict: true,
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes,
+  });
+  assert.equal(credits[0].adMapped, false);
+  assert.equal(credits[0].adsetMapped, false);
+  assert.equal(credits[0].campaignMappingMethod, "unmapped");
+  assert.equal(credits[0].unmappedReason, SESSION_ID_CONFLICT);
+});
+
+test("linear Meta A then Organic then Meta B keeps per-touch IDs", () => {
+  const credits = attachMetaIdsToCredits({
+    order: order(
+      [
+        touch({
+          touchpointId: "t-a",
+          campaignId: "111",
+          adsetId: "555",
+          adId: "666",
+          ts: T0,
+        }),
+        touch({
+          touchpointId: "t-o",
+          channel: "Google Organic",
+          isPaid: false,
+          isDirect: false,
+          ts: T0 + 60 * 1000,
+        }),
+        touch({
+          touchpointId: "t-b",
+          campaignId: "222",
+          adsetId: "888",
+          adId: "999",
+          ts: T0 + 120 * 1000,
+        }),
+      ],
+      { revenue: 90 },
+    ),
+    model: "linear",
+    windowDays: 7,
+    indexes: buildMetaFactIndexes({
+      campaigns: [
+        { campaign_id: "111", campaign_name: "Prospecting" },
+        { campaign_id: "222", campaign_name: "Retargeting" },
+      ],
+      adsets: [
+        { adset_id: "555", campaign_id: "111" },
+        { adset_id: "888", campaign_id: "222" },
+      ],
+      ads: [
+        { ad_id: "666", adset_id: "555", campaign_id: "111" },
+        { ad_id: "999", adset_id: "888", campaign_id: "222" },
+      ],
+    }),
+  });
+  const meta = credits.filter((credit) => credit.channel === META_CHANNEL);
+  assert.equal(meta.length, 2);
+  const a = meta.find((credit) => credit.metaCampaignId === "111");
+  const b = meta.find((credit) => credit.metaCampaignId === "222");
+  assert.ok(a);
+  assert.ok(b);
+  assert.equal(a.metaCampaignId, "111");
+  assert.equal(b.metaCampaignId, "222");
+  assert.notEqual(a.metaCampaignId, b.metaCampaignId);
+  assert.equal(a.creditDollars, 30);
+  assert.equal(b.creditDollars, 30);
+  assert.equal(a.campaignMappingMethod, "campaign_id_exact");
+  assert.equal(b.campaignMappingMethod, "campaign_id_exact");
 });

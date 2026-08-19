@@ -31,12 +31,12 @@
         "; path=/; SameSite=Lax";
     };
 
-    // Session-scoped (no Max-Age). Overwrites leftover 365-day gn_meta_* cookies.
+    // Session cookie with 30-minute inactivity TTL (refreshed on each stitch fire).
     var setSessionCookie = function (name, value) {
       if (!value) return;
       document.cookie =
         name + "=" + encodeURIComponent(value) +
-        "; path=/; SameSite=Lax";
+        "; max-age=1800; path=/; SameSite=Lax";
     };
 
     var expireCookie = function (name) {
@@ -159,9 +159,11 @@
       ? (ft.gn_first_meta_ad_name || ft.gn_meta_ad_name || "")
       : "";
 
-    // ===== 2b) Current-session Meta IDs (overwrite on this landing) =====
+    // ===== 2b) Current-session Meta IDs (30-minute inactivity TTL) =====
     // Typed BQ meta_* and GA4/DT gn_meta_* must be THIS click, not first-touch.
     var SS_KEY = "gn_session_meta_v1";
+    var META_TTL_MS = 30 * 60 * 1000;
+    var nowMs = Date.now();
     var sessionMeta = null;
     try {
       sessionMeta = JSON.parse(sessionStorage.getItem(SS_KEY) || "null");
@@ -172,9 +174,19 @@
       sessionMeta = {
         gn_meta_campaign_id: cand.gn_meta_campaign_id || "",
         gn_meta_adset_id: cand.gn_meta_adset_id || "",
-        gn_meta_ad_id: cand.gn_meta_ad_id || ""
+        gn_meta_ad_id: cand.gn_meta_ad_id || "",
+        last_seen: nowMs
       };
       try { sessionStorage.setItem(SS_KEY, JSON.stringify(sessionMeta)); } catch (e) {}
+    } else if (sessionMeta) {
+      var lastSeen = Number(sessionMeta.last_seen || 0);
+      if (!lastSeen || (nowMs - lastSeen) > META_TTL_MS) {
+        sessionMeta = null;
+        try { sessionStorage.removeItem(SS_KEY); } catch (e) {}
+      } else {
+        sessionMeta.last_seen = nowMs;
+        try { sessionStorage.setItem(SS_KEY, JSON.stringify(sessionMeta)); } catch (e) {}
+      }
     }
     if (sessionMeta && (sessionMeta.gn_meta_campaign_id || sessionMeta.gn_meta_adset_id || sessionMeta.gn_meta_ad_id)) {
       if (sessionMeta.gn_meta_campaign_id) setSessionCookie("gn_meta_campaign_id", sessionMeta.gn_meta_campaign_id);

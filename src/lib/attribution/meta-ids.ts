@@ -22,7 +22,7 @@ export const META_QUERY_CAMPAIGN_NAME = "gn_meta_campaign_name";
 export const META_QUERY_ADSET_NAME = "gn_meta_adset_name";
 export const META_QUERY_AD_NAME = "gn_meta_ad_name";
 
-/** Current session / click cookies. Session-scoped. Overwrite on a new Meta landing. */
+/** Current session / click cookies. 30-minute inactivity TTL. Overwrite on a new Meta landing. */
 export const META_COOKIE_CAMPAIGN_ID = "gn_meta_campaign_id";
 export const META_COOKIE_ADSET_ID = "gn_meta_adset_id";
 export const META_COOKIE_AD_ID = "gn_meta_ad_id";
@@ -51,6 +51,10 @@ export const BQ_META_ADSET_ID = "meta_adset_id";
 export const BQ_META_AD_ID = "meta_ad_id";
 
 export const META_HIERARCHY_CONFLICT = "META_HIERARCHY_CONFLICT";
+export const SESSION_ID_CONFLICT = "SESSION_ID_CONFLICT";
+
+/** Browser current-session Meta IDs expire after 30 minutes of inactivity. */
+export const META_SESSION_TTL_MS = 30 * 60 * 1000;
 
 const META_ID_RE = /^[0-9]{1,32}$/;
 
@@ -145,12 +149,20 @@ export function parseMetaIdsFromUrl(url: string | null | undefined): MetaTouchId
   }
 }
 
+export type StoredSessionMeta = MetaIdTriple & {
+  lastSeen: number | null;
+};
+
 /**
  * Browser identity split used by the stitch HTML.
  *
  * When the landing URL contains `gn_meta_*` IDs:
- * - CURRENT SESSION values become that click (overwrite).
+ * - CURRENT SESSION values become that click (overwrite) and lastSeen resets.
  * - FIRST TOUCH values are first-write only.
+ *
+ * When the URL has no `gn_meta_*` IDs:
+ * - age <= 30 minutes: keep current IDs and refresh lastSeen (active browsing).
+ * - inactivity > 30 minutes: clear current session IDs. First-touch is unchanged.
  *
  * Typed event identity (`meta_*`) is always the current session triple.
  */
@@ -158,19 +170,30 @@ export function applyMetaLandingIdentity(args: {
   urlIds: MetaIdTriple;
   firstTouch: MetaIdTriple;
   sessionIds: MetaIdTriple;
+  lastSeen?: number | null;
+  now?: number;
+  ttlMs?: number;
 }): {
   firstTouch: MetaIdTriple;
   sessionIds: MetaIdTriple;
   typedEventIds: MetaIdTriple;
+  lastSeen: number | null;
+  expired: boolean;
 } {
+  const now = args.now ?? 0;
+  const ttlMs = args.ttlMs ?? META_SESSION_TTL_MS;
   const firstTouch: MetaIdTriple = { ...args.firstTouch };
   let sessionIds: MetaIdTriple = { ...args.sessionIds };
+  let lastSeen = args.lastSeen ?? null;
+  let expired = false;
+
   if (hasMetaId(args.urlIds)) {
     sessionIds = {
       campaignId: args.urlIds.campaignId,
       adsetId: args.urlIds.adsetId,
       adId: args.urlIds.adId,
     };
+    lastSeen = now;
     if (!firstTouch.campaignId && args.urlIds.campaignId) {
       firstTouch.campaignId = args.urlIds.campaignId;
     }
@@ -180,8 +203,18 @@ export function applyMetaLandingIdentity(args: {
     if (!firstTouch.adId && args.urlIds.adId) {
       firstTouch.adId = args.urlIds.adId;
     }
+  } else if (hasMetaId(sessionIds)) {
+    const age = lastSeen == null || now === 0 ? Number.POSITIVE_INFINITY : now - lastSeen;
+    if (age > ttlMs) {
+      sessionIds = emptyMetaIdTriple();
+      lastSeen = null;
+      expired = true;
+    } else {
+      lastSeen = now;
+    }
   }
-  return { firstTouch, sessionIds, typedEventIds: sessionIds };
+
+  return { firstTouch, sessionIds, typedEventIds: sessionIds, lastSeen, expired };
 }
 
 /**

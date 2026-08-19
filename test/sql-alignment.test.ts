@@ -138,11 +138,13 @@ test("validation 15 is order-grain mapping rates, not events divided by orders",
   assert.match(body, /adset_mapped_orders/);
   assert.match(body, /ad_mapped_orders/);
   assert.match(body, /hierarchy_conflict/);
+  assert.match(body, /ON t\.touchpoint_id = mo\.touchpoint_id/);
+  assert.match(body, /GREATEST\(0, LEAST\(1,/);
   assert.doesNotMatch(body, /events_with_campaign_id/);
   assert.doesNotMatch(body, /campaign_id_events_per_meta_order/);
 });
 
-test("validation 17 checks fact-parent hierarchy and returns violation counts", () => {
+test("validation 17 joins credited touchpoint_id and returns violation counts", () => {
   const body = readFileSync("bigquery/validation/17_meta_credit_reconciliation.sql", "utf8");
   assert.match(body, /campaign_mapped_credit/);
   assert.match(body, /campaign_unmapped_credit/);
@@ -150,7 +152,18 @@ test("validation 17 checks fact-parent hierarchy and returns violation counts", 
   assert.match(body, /ad_parent_mismatch/);
   assert.match(body, /hierarchy_violations/);
   assert.match(body, /adset_exceeds_parent_campaign/);
+  assert.match(body, /ON t\.touchpoint_id = c\.touchpoint_id/);
+  assert.match(body, /TO_HEX\(SHA256\(CONCAT\(e\.session_key, CAST\(s\.session_start AS STRING\)\)\)\)/);
   assert.doesNotMatch(body, /campaign_mapped_credit_sql_unknown_until_ids/);
+  assert.doesNotMatch(body, /ORDER BY s\.session_start DESC, s\.session_key DESC/);
+});
+
+test("validation 17a synthetic linear A/Organic/B keeps per-touch IDs", () => {
+  const body = readFileSync("bigquery/validation/17a_linear_meta_touch_ids.sql", "utf8");
+  assert.match(body, /a_keeps_a/);
+  assert.match(body, /b_keeps_b/);
+  assert.match(body, /b_not_assigned_to_a/);
+  assert.match(body, /hierarchy_violations/);
 });
 
 test("7-day default is pending revalidation after canonicalization", () => {

@@ -102,7 +102,7 @@ Every future ad must inherit this contract. Add the string to the ad template / 
    - existing `utm_source` / `utm_medium` if you kept them
    - `fbclid` (Meta-appended)
 3. Confirm cookies (Application → Cookies on goodsnova.com):
-   - **session** `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id` match **this** click
+   - **current Meta session** `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id` match **this** click (30-minute inactivity TTL via `gn_session_meta_v1.last_seen`)
    - **first-touch audit** `gn_first_meta_campaign_id` / `gn_first_meta_adset_id` / `gn_first_meta_ad_id` (365d first-write)
    - `gn_uid` still present
    - existing `gn_utm_*` / `gn_fbclid` not overwritten if they already existed

@@ -22,13 +22,18 @@ Durable FIRST TOUCH / Shopify audit (365-day first-write, never overwrite):
 
 - `gn_first_meta_campaign_id` / `gn_first_meta_adset_id` / `gn_first_meta_ad_id`
 
-Current session / click (sessionStorage + session cookies; overwrite when the landing URL contains `gn_meta_*`):
+Current session / click (`gn_session_meta_v1` + `gn_meta_*` cookies) with a **30-minute inactivity TTL**:
 
 - cookies `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id`
+- stored object includes the IDs plus `last_seen`
+- new landing `gn_meta_*` replaces IDs and resets `last_seen`
+- later pages without `gn_meta_*` and age ≤ 30 minutes keep IDs and refresh `last_seen`
+- inactivity > 30 minutes clears `gn_session_meta_v1` and expires the three `gn_meta_*` cookies
+- `gn_first_meta_*` is unchanged
 
 GA4 / Data Tags / typed BigQuery `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` must send the **current session** cookies, not first-touch cookies.
 
-Canonical attribution still extracts IDs from `page_location`. That path is valid and must keep working.
+Canonical attribution still extracts IDs from `page_location`. That path is valid and must keep working. Same-session landing disagreements are `SESSION_ID_CONFLICT` (unmapped at child Meta grains, channel credit kept). Fact-parent disagreements are `META_HIERARCHY_CONFLICT`.
 
 ## Exact tag changed
 
@@ -52,9 +57,9 @@ No new tags. No trigger changes. Keep:
 
 | Variable name | Cookie name | Lifetime |
 |---|---|---|
-| `cookie gn_meta_campaign_id` | `gn_meta_campaign_id` | **session** (current click) |
-| `cookie gn_meta_adset_id` | `gn_meta_adset_id` | **session** (current click) |
-| `cookie gn_meta_ad_id` | `gn_meta_ad_id` | **session** (current click) |
+| `cookie gn_meta_campaign_id` | `gn_meta_campaign_id` | **30-minute inactivity TTL** (current click) |
+| `cookie gn_meta_adset_id` | `gn_meta_adset_id` | **30-minute inactivity TTL** (current click) |
+| `cookie gn_meta_ad_id` | `gn_meta_ad_id` | **30-minute inactivity TTL** (current click) |
 
 Do **not** map `gn_first_meta_*` into GA4 `meta_*` / `gn_meta_*` event params.
 
@@ -93,9 +98,10 @@ If you still import: Workspace = New, Merge, and only overwrite the stitch tag /
    - session cookies become `999/888/777`
    - first-touch cookies stay `111/222/333`
    - GA4 `page_view` params are `gn_meta_campaign_id=999` (current session)
-4. Reload **without** query params in the same tab: session cookies still `999/888/777`.
-5. Shopify cart attributes (Network `cart/update.js`) include `gn_first_meta_campaign_id=111`, not the converting campaign.
-6. `gn_uid` / existing `gn_utm_*` / `gn_fbclid` first-touch cookies are not overwritten.
+4. Reload **without** query params in the same tab within 30 minutes: session cookies still `999/888/777` (`last_seen` refreshed).
+5. After **>30 minutes inactivity** without new `gn_meta_*`: `gn_session_meta_v1` is cleared; `gn_meta_*` cookies expire; `gn_first_meta_*` still `111/222/333`.
+6. Shopify cart attributes (Network `cart/update.js`) include `gn_first_meta_campaign_id=111`, not the converting campaign.
+7. `gn_uid` / existing `gn_utm_*` / `gn_fbclid` first-touch cookies are not overwritten.
 
 ## Regression risks
 

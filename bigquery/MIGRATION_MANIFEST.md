@@ -41,6 +41,7 @@ Run in this order. Nothing is VALIDATED until you paste results.
 11. `bigquery/validation/15_meta_attribution_mapping.sql`
 12. `bigquery/validation/16_meta_new_customer_credit.sql`
 13. `bigquery/validation/17_meta_credit_reconciliation.sql`
+14. `bigquery/validation/17a_linear_meta_touch_ids.sql` — synthetic linear A/Organic/B; expect `a_keeps_a` / `b_keeps_b` true
 
 Do **not** run `bigquery/analytics/07_dim_attribution_settings.sql`,
 `08_fct_attribution.sql`, `02_dim_channel_rules.sql`, `05_fct_touchpoints.sql`,

@@ -7,7 +7,7 @@
  */
 
 import { attribute, type AttributionModel, type Touchpoint } from "./engine.ts";
-import { sanitizeMetaId } from "./meta-ids.ts";
+import { sanitizeMetaId, SESSION_ID_CONFLICT, META_HIERARCHY_CONFLICT } from "./meta-ids.ts";
 import { ratio } from "../metrics/formulas.ts";
 import type {
   CampaignMappingConfidence,
@@ -20,6 +20,11 @@ export const UNMAPPED_META_LABEL = "Unmapped Meta";
 export type MetaAdsetMappingMethod = "adset_id_exact" | "unmapped";
 export type MetaAdMappingMethod = "ad_id_exact" | "unmapped";
 
+export type MetaUnmappedReason =
+  | typeof SESSION_ID_CONFLICT
+  | typeof META_HIERARCHY_CONFLICT
+  | null;
+
 export type MetaCreditTouch = {
   touchpointId: string;
   ts: number;
@@ -28,6 +33,9 @@ export type MetaCreditTouch = {
   campaignId?: string | null;
   adsetId?: string | null;
   adId?: string | null;
+  campaignIdConflict?: boolean;
+  adsetIdConflict?: boolean;
+  adIdConflict?: boolean;
   isPaid: boolean;
   isDirect: boolean;
 };
@@ -62,6 +70,8 @@ export type EnrichedCredit = {
   adsetMapped: boolean;
   adMappingMethod: MetaAdMappingMethod;
   hierarchyConflict: boolean;
+  sessionIdConflict: boolean;
+  unmappedReason: MetaUnmappedReason;
   journey: string;
 };
 
@@ -313,11 +323,20 @@ export function attachMetaIdsToCredits(args: {
       order.touches.find((item) => item.touchpointId === credit.touchpointId) ??
       null;
     const campaign = touch?.campaign?.trim() || "(unmapped)";
+    const sessionIdConflict = Boolean(
+      touch?.campaignIdConflict || touch?.adsetIdConflict || touch?.adIdConflict,
+    );
     const hierarchy = touch
       ? evaluateMetaHierarchy(touch, indexes)
       : { conflict: false, reasons: [] };
+    const childBlocked = sessionIdConflict || hierarchy.conflict;
+    const unmappedReason: MetaUnmappedReason = sessionIdConflict
+      ? SESSION_ID_CONFLICT
+      : hierarchy.conflict
+        ? META_HIERARCHY_CONFLICT
+        : null;
     const mapped =
-      credit.channel === META_CHANNEL && touch && !hierarchy.conflict
+      credit.channel === META_CHANNEL && touch && !childBlocked
         ? mapCampaignIdentity(touch, indexes)
         : {
             campaignId: sanitizeMetaId(touch?.campaignId),
@@ -328,12 +347,12 @@ export function attachMetaIdsToCredits(args: {
     const adId = sanitizeMetaId(touch?.adId);
     const adsetMapped =
       credit.channel === META_CHANNEL &&
-      !hierarchy.conflict &&
+      !childBlocked &&
       !!adsetId &&
       indexes.adsetIds.has(adsetId);
     const adMapped =
       credit.channel === META_CHANNEL &&
-      !hierarchy.conflict &&
+      !childBlocked &&
       !!adId &&
       indexes.adIds.has(adId);
     return {
@@ -358,6 +377,8 @@ export function attachMetaIdsToCredits(args: {
       adMapped,
       adMappingMethod: adMapped ? "ad_id_exact" : "unmapped",
       hierarchyConflict: hierarchy.conflict,
+      sessionIdConflict,
+      unmappedReason,
       journey,
     };
   });
@@ -511,6 +532,7 @@ export type MetaMappingCoverage = {
   fbclidWithoutIds: number;
   conflictingIds: number;
   hierarchyConflicts: number;
+  sessionIdConflicts: number;
 };
 
 export function summarizeMetaMapping(
@@ -550,6 +572,7 @@ export function summarizeMetaMapping(
       (touch) => touch.campaignIdConflict || touch.adsetIdConflict || touch.adIdConflict,
     ).length,
     hierarchyConflicts: metaCredits.filter((credit) => credit.hierarchyConflict).length,
+    sessionIdConflicts: metaCredits.filter((credit) => credit.sessionIdConflict).length,
   };
 }
 

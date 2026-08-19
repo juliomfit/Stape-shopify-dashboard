@@ -1,10 +1,12 @@
--- 17 Meta credit hierarchy from canonical credit + fact parents.
+-- 17 Meta credit hierarchy from the ACTUAL credited touchpoint.
 -- Status: VALIDATION REQUIRED.
--- For each model: campaign_mapped + campaign_unmapped = Meta channel credit.
--- Adset credit must reconcile under its actual parent campaign.
--- Ad credit must reconcile under its actual parent adset.
--- Do not merely assert adset <= channel. Expected: 0 hierarchy violations.
--- Landing IDs from page_location. Conflicting hierarchy is not fully mapped.
+-- Join: v_attribution_credit_v1.touchpoint_id = canonical touchpoint_id
+-- (same SHA256(session_key || session_start) as 005 / warehouse sql.ts).
+-- IDs come from that credited touchpoint's landing page_location.
+-- Do not assign one session's IDs onto every Meta credit row of the order.
+-- Expected: hierarchy_violations = 0.
+-- Channel Meta credit is never dropped. Child grains unmapped on
+-- SESSION_ID_CONFLICT or META_HIERARCHY_CONFLICT.
 
 DECLARE start_ts TIMESTAMP DEFAULT TIMESTAMP("2026-08-01", "America/Los_Angeles");
 DECLARE end_ts TIMESTAMP DEFAULT TIMESTAMP("2026-08-26", "America/Los_Angeles");
@@ -17,23 +19,13 @@ WITH models AS (
   ]) AS model_name
 ),
 purchases AS (
-  SELECT
-    transaction_id,
-    client_id,
-    TIMESTAMP_MILLIS(timestamp) AS order_ts
+  SELECT transaction_id
   FROM `stape-analytics-487802.stape_data.raw_events_full`
   WHERE timestamp >= UNIX_MILLIS(start_ts)
     AND timestamp < UNIX_MILLIS(end_ts)
     AND LOWER(IFNULL(event_name, "")) = "purchase"
     AND IFNULL(transaction_id, "") != ""
-    AND IFNULL(client_id, "") != ""
-  QUALIFY ROW_NUMBER() OVER (
-    PARTITION BY transaction_id
-    ORDER BY
-      CASE source_client WHEN "Data Client" THEN 0 WHEN "GA4" THEN 1 ELSE 2 END,
-      timestamp,
-      IFNULL(event_id, "")
-  ) = 1
+  GROUP BY transaction_id
 ),
 meta_credit AS (
   SELECT
@@ -45,29 +37,19 @@ meta_credit AS (
   WHERE channel = "Facebook / Meta Ads"
     AND transaction_id IN (SELECT transaction_id FROM purchases)
 ),
-session_ids AS (
+ga4_events AS (
   SELECT
-    CONCAT(client_id, "|", CAST(ga_session_id AS STRING)) AS session_key,
-    client_id,
-    MIN(TIMESTAMP_MILLIS(timestamp)) AS session_start,
-    ARRAY_AGG(
-      NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_campaign_id=([0-9]{1,32})"), "")
-      IGNORE NULLS
-      ORDER BY TIMESTAMP_MILLIS(timestamp), IFNULL(event_id, "")
-      LIMIT 1
-    )[SAFE_OFFSET(0)] AS campaign_id,
-    ARRAY_AGG(
-      NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_adset_id=([0-9]{1,32})"), "")
-      IGNORE NULLS
-      ORDER BY TIMESTAMP_MILLIS(timestamp), IFNULL(event_id, "")
-      LIMIT 1
-    )[SAFE_OFFSET(0)] AS adset_id,
-    ARRAY_AGG(
-      NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_ad_id=([0-9]{1,32})"), "")
-      IGNORE NULLS
-      ORDER BY TIMESTAMP_MILLIS(timestamp), IFNULL(event_id, "")
-      LIMIT 1
-    )[SAFE_OFFSET(0)] AS ad_id
+    CONCAT(NULLIF(client_id, ""), "|", NULLIF(CAST(ga_session_id AS STRING), "")) AS session_key,
+    TIMESTAMP_MILLIS(timestamp) AS event_timestamp,
+    IFNULL(event_id, "") AS event_id,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_campaign_id=([0-9]{1,32})"), "") AS campaign_id,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_adset_id=([0-9]{1,32})"), "") AS adset_id,
+    NULLIF(REGEXP_EXTRACT(page_location, r"[?&]gn_meta_ad_id=([0-9]{1,32})"), "") AS ad_id,
+    (
+      IFNULL(page_location, "") LIKE "%web-pixels@%"
+      OR IFNULL(page_location, "") LIKE "%/checkouts/%"
+      OR IFNULL(page_location, "") LIKE "%/checkout%"
+    ) AS is_checkout_noise
   FROM `stape-analytics-487802.stape_data.raw_events_full`
   WHERE timestamp >= UNIX_MILLIS(TIMESTAMP_SUB(start_ts, INTERVAL 90 DAY))
     AND timestamp < UNIX_MILLIS(end_ts)
@@ -75,7 +57,28 @@ session_ids AS (
     AND IFNULL(client_id, "") != ""
     AND ga_session_id IS NOT NULL
     AND LOWER(IFNULL(event_name, "")) != "shopify_order"
-  GROUP BY session_key, client_id
+),
+sessions AS (
+  SELECT
+    session_key,
+    MIN(event_timestamp) AS session_start
+  FROM ga4_events
+  GROUP BY session_key
+),
+canonical_touchpoints AS (
+  SELECT
+    TO_HEX(SHA256(CONCAT(e.session_key, CAST(s.session_start AS STRING)))) AS touchpoint_id,
+    ARRAY_AGG(e.campaign_id IGNORE NULLS ORDER BY e.event_timestamp, e.event_id LIMIT 1)[SAFE_OFFSET(0)] AS campaign_id,
+    ARRAY_AGG(e.adset_id IGNORE NULLS ORDER BY e.event_timestamp, e.event_id LIMIT 1)[SAFE_OFFSET(0)] AS adset_id,
+    ARRAY_AGG(e.ad_id IGNORE NULLS ORDER BY e.event_timestamp, e.event_id LIMIT 1)[SAFE_OFFSET(0)] AS ad_id,
+    COUNT(DISTINCT e.campaign_id) > 1 AS campaign_id_conflict,
+    COUNT(DISTINCT e.adset_id) > 1 AS adset_id_conflict,
+    COUNT(DISTINCT e.ad_id) > 1 AS ad_id_conflict
+  FROM ga4_events AS e
+  INNER JOIN sessions AS s
+    ON s.session_key = e.session_key
+  WHERE NOT e.is_checkout_noise
+  GROUP BY e.session_key, s.session_start
 ),
 fact_campaign AS (
   SELECT DISTINCT CAST(campaign_id AS STRING) AS campaign_id
@@ -99,64 +102,53 @@ fact_ad AS (
   HAVING COUNT(DISTINCT CAST(adset_id AS STRING)) = 1
      AND COUNT(DISTINCT CAST(campaign_id AS STRING)) = 1
 ),
-order_session AS (
-  SELECT
-    p.transaction_id,
-    s.campaign_id,
-    s.adset_id,
-    s.ad_id
-  FROM purchases AS p
-  LEFT JOIN session_ids AS s
-    ON s.client_id = p.client_id
-   AND s.session_start <= p.order_ts
-   AND (
-     s.campaign_id IS NOT NULL
-     OR s.adset_id IS NOT NULL
-     OR s.ad_id IS NOT NULL
-   )
-  QUALIFY ROW_NUMBER() OVER (
-    PARTITION BY p.transaction_id
-    ORDER BY s.session_start DESC, s.session_key DESC
-  ) = 1
-),
 credited AS (
   SELECT
     c.model_name,
     c.transaction_id,
     c.touchpoint_id,
     c.credit,
-    os.campaign_id,
-    os.adset_id,
-    os.ad_id,
+    t.campaign_id,
+    t.adset_id,
+    t.ad_id,
+    IFNULL(t.campaign_id_conflict, FALSE)
+      OR IFNULL(t.adset_id_conflict, FALSE)
+      OR IFNULL(t.ad_id_conflict, FALSE) AS session_id_conflict,
     (
-      (os.campaign_id IS NOT NULL AND os.adset_id IS NOT NULL
-        AND fa.campaign_id IS NOT NULL AND fa.campaign_id != os.campaign_id)
-      OR (os.adset_id IS NOT NULL AND os.ad_id IS NOT NULL
-        AND fd.adset_id IS NOT NULL AND fd.adset_id != os.adset_id)
-      OR (os.campaign_id IS NOT NULL AND os.ad_id IS NOT NULL
-        AND fd.campaign_id IS NOT NULL AND fd.campaign_id != os.campaign_id)
+      (t.campaign_id IS NOT NULL AND t.adset_id IS NOT NULL
+        AND fa.campaign_id IS NOT NULL AND fa.campaign_id != t.campaign_id)
+      OR (t.adset_id IS NOT NULL AND t.ad_id IS NOT NULL
+        AND fd.adset_id IS NOT NULL AND fd.adset_id != t.adset_id)
+      OR (t.campaign_id IS NOT NULL AND t.ad_id IS NOT NULL
+        AND fd.campaign_id IS NOT NULL AND fd.campaign_id != t.campaign_id)
     ) AS hierarchy_conflict,
-    os.campaign_id IS NOT NULL AND fc.campaign_id IS NOT NULL AS campaign_in_facts,
-    os.adset_id IS NOT NULL AND fa.adset_id IS NOT NULL AS adset_in_facts,
-    os.ad_id IS NOT NULL AND fd.ad_id IS NOT NULL AS ad_in_facts,
+    t.campaign_id IS NOT NULL AND fc.campaign_id IS NOT NULL AS campaign_in_facts,
+    t.adset_id IS NOT NULL AND fa.adset_id IS NOT NULL AS adset_in_facts,
+    t.ad_id IS NOT NULL AND fd.ad_id IS NOT NULL AS ad_in_facts,
     fa.campaign_id AS adset_parent_campaign,
     fd.adset_id AS ad_parent_adset
   FROM meta_credit AS c
-  LEFT JOIN order_session AS os
-    ON os.transaction_id = c.transaction_id
+  LEFT JOIN canonical_touchpoints AS t
+    ON t.touchpoint_id = c.touchpoint_id
   LEFT JOIN fact_campaign AS fc
-    ON fc.campaign_id = os.campaign_id
+    ON fc.campaign_id = t.campaign_id
   LEFT JOIN fact_adset AS fa
-    ON fa.adset_id = os.adset_id
+    ON fa.adset_id = t.adset_id
   LEFT JOIN fact_ad AS fd
-    ON fd.ad_id = os.ad_id
+    ON fd.ad_id = t.ad_id
 ),
 scored AS (
   SELECT
     *,
-    campaign_in_facts AND NOT IFNULL(hierarchy_conflict, FALSE) AS campaign_mapped,
-    adset_in_facts AND NOT IFNULL(hierarchy_conflict, FALSE) AS adset_mapped,
-    ad_in_facts AND NOT IFNULL(hierarchy_conflict, FALSE) AS ad_mapped
+    campaign_in_facts
+      AND NOT IFNULL(hierarchy_conflict, FALSE)
+      AND NOT session_id_conflict AS campaign_mapped,
+    adset_in_facts
+      AND NOT IFNULL(hierarchy_conflict, FALSE)
+      AND NOT session_id_conflict AS adset_mapped,
+    ad_in_facts
+      AND NOT IFNULL(hierarchy_conflict, FALSE)
+      AND NOT session_id_conflict AS ad_mapped
   FROM credited
 ),
 rolled AS (
@@ -169,7 +161,8 @@ rolled AS (
     SUM(IF(NOT adset_mapped, credit, 0)) AS adset_unmapped_credit,
     SUM(IF(ad_mapped, credit, 0)) AS ad_mapped_credit,
     SUM(IF(NOT ad_mapped, credit, 0)) AS ad_unmapped_credit,
-    COUNTIF(IFNULL(hierarchy_conflict, FALSE)) AS hierarchy_conflict_touches
+    COUNTIF(IFNULL(hierarchy_conflict, FALSE)) AS hierarchy_conflict_touches,
+    COUNTIF(session_id_conflict) AS session_id_conflict_touches
   FROM scored
   GROUP BY model_name
 ),
@@ -241,6 +234,7 @@ SELECT
   IFNULL(cc.adset_exceeds_parent_campaign, 0) AS adset_exceeds_parent_campaign,
   IFNULL(ca.ad_exceeds_parent_adset, 0) AS ad_exceeds_parent_adset,
   IFNULL(r.hierarchy_conflict_touches, 0) AS hierarchy_conflict_touches,
+  IFNULL(r.session_id_conflict_touches, 0) AS session_id_conflict_touches,
   (
     IFNULL(p.adset_parent_mismatch, 0)
     + IFNULL(p.ad_parent_mismatch, 0)
@@ -256,7 +250,7 @@ SELECT
       )
   ) AS hierarchy_violations,
   "VALIDATION REQUIRED" AS status,
-  "Expected hierarchy_violations = 0. App-side validateMetaCreditHierarchy is the same check on canonical credits." AS note
+  "Joins credit.touchpoint_id to canonical SHA256(session_key||session_start). Linear Meta A and Meta B must keep their own IDs. Expected hierarchy_violations = 0." AS note
 FROM models AS m
 LEFT JOIN rolled AS r USING (model_name)
 LEFT JOIN parent_mismatch AS p USING (model_name)

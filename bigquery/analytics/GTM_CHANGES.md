@@ -72,7 +72,9 @@ After `bigquery/migrations/2026_08_19_006_meta_touch_ids.sql`, map these on the 
 
 Web GTM (`GTM-MVWKFXH2`) must already send **session** `gn_meta_campaign_id` / `gn_meta_adset_id` / `gn_meta_ad_id` on GA4 + Data Tags (`docs/GTM_MANUAL_CHANGES.md`, click-by-click in the live workspace). Adding cookies on web does **not** automatically create BigQuery columns. Do **not** map `gn_first_meta_*` into these typed fields.
 
-Canonical attribution extracts IDs from `page_location` even before this map. Typed columns are CURRENT SESSION / CLICK identity for cookie persist and query 13 after 006.
+`gn_meta_*` cookies / Event Data are the **current active Meta session/click** with a 30-minute inactivity TTL. `gn_first_meta_*` is durable first-touch Shopify audit and must not be mapped into typed `meta_*`.
+
+Same-session canonical ID disagreements are `SESSION_ID_CONFLICT`. Fact-parent disagreements are `META_HIERARCHY_CONFLICT`. Both unmap child Meta grains; channel Meta credit is never lost.
 
 ## 3. Recreate `dashboard_events` before 2026-10-11
 
@@ -86,7 +88,7 @@ Server BQ already maps `gn_uid` / `gclid` ← `{{gn_gclid}}` / `fbclid` ← `{{g
 Those Event Data keys stay empty until **web** GTM:
 
 1. Setup-tags the stitch HTML before GA4/DT `page_view`
-2. Writes first-touch click IDs to `gn_*` cookies (not only localStorage). Meta current-click IDs use session `gn_meta_*`; first-touch audit uses `gn_first_meta_*`.
+2. Writes first-touch click IDs to `gn_*` cookies (not only localStorage). Meta current-click IDs use `gn_meta_*` with a **30-minute inactivity TTL**; first-touch audit uses `gn_first_meta_*`.
 3. Sends `gn_uid` + first-touch params on **all** GA4 events (`ga4 - shared_event_settings`) and all Data Tags. Session `gn_meta_*` (not `gn_first_meta_*`) become typed `meta_*`.
 
 Click-by-click in the live workspace: `docs/GTM_MANUAL_CHANGES.md`. **DO NOT MERGE AN OLD EXPORT OVER A NEWER LIVE CONTAINER.** Do not change warehouse SQL until Query 1 fill jumps.
