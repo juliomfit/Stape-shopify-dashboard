@@ -429,3 +429,30 @@ async function queryCreativeWarehouse(period: DashboardPeriod): Promise<Creative
     return [];
   }
 }
+
+/** Deterministic ad_id → creative_id from goodsnova_platform.meta_ads. No name inference. */
+export async function getAdCreativeMap(): Promise<Map<string, string>> {
+  const fq = platformTable("meta_ads");
+  if (!fq || !isPlatformBqReady()) {
+    return new Map();
+  }
+  try {
+    const rows = await runPlatformQuery<{ ad_id: string; creative_id: string }>(
+      `SELECT ad_id, creative_id
+       FROM ${fq}
+       WHERE ad_id IS NOT NULL AND ad_id != ""
+         AND creative_id IS NOT NULL AND creative_id != ""`,
+    );
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const adId = String(row.ad_id || "").trim();
+      const creativeId = String(row.creative_id || "").trim();
+      if (adId && creativeId) {
+        map.set(adId, creativeId);
+      }
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}

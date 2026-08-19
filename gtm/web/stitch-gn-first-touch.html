@@ -31,6 +31,19 @@
         "; path=/; SameSite=Lax";
     };
 
+    // Session cookie with 30-minute inactivity TTL (refreshed on each stitch fire).
+    var setSessionCookie = function (name, value) {
+      if (!value) return;
+      document.cookie =
+        name + "=" + encodeURIComponent(value) +
+        "; max-age=1800; path=/; SameSite=Lax";
+    };
+
+    var expireCookie = function (name) {
+      document.cookie =
+        name + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax";
+    };
+
     var uuidv4 = function () {
       return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, function (c) {
         return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
@@ -50,6 +63,13 @@
     // ===== 2) Capture first-touch attribution (only once) =====
     var qs = new URLSearchParams(location.search);
 
+    var sanitizeMetaId = function (v) {
+      v = (v || "").toString().trim();
+      if (!v) return "";
+      if (!/^[0-9]{1,32}$/.test(v)) return "";
+      return v;
+    };
+
     var cand = {
       utm_source: qs.get("utm_source") || "",
       utm_medium: qs.get("utm_medium") || "",
@@ -63,7 +83,15 @@
       wbraid: qs.get("wbraid") || "",
       msclkid: qs.get("msclkid") || "",
       fbclid: qs.get("fbclid") || "",
-      ttclid: qs.get("ttclid") || ""
+      ttclid: qs.get("ttclid") || "",
+
+      // Deterministic Meta IDs (authoritative). Names are diagnostic only.
+      gn_meta_campaign_id: sanitizeMetaId(qs.get("gn_meta_campaign_id")),
+      gn_meta_adset_id: sanitizeMetaId(qs.get("gn_meta_adset_id")),
+      gn_meta_ad_id: sanitizeMetaId(qs.get("gn_meta_ad_id")),
+      gn_meta_campaign_name: safeSlice(qs.get("gn_meta_campaign_name") || "", 200),
+      gn_meta_adset_name: safeSlice(qs.get("gn_meta_adset_name") || "", 200),
+      gn_meta_ad_name: safeSlice(qs.get("gn_meta_ad_name") || "", 200)
     };
 
     // Referrer hostname only (avoid storing full URL)
@@ -75,7 +103,7 @@
       }
     } catch (e) {}
 
-    var hasAny = !!(cand.utm_source || cand.utm_medium || cand.utm_campaign || cand.gclid || cand.msclkid || cand.fbclid || cand.ttclid || ref);
+    var hasAny = !!(cand.utm_source || cand.utm_medium || cand.utm_campaign || cand.gclid || cand.msclkid || cand.fbclid || cand.ttclid || cand.gn_meta_campaign_id || cand.gn_meta_adset_id || cand.gn_meta_ad_id || ref);
 
     var FT_KEY = "gn_first_touch_v1";
     var ftRaw = getLS(FT_KEY);
@@ -102,12 +130,81 @@
       if (cand.fbclid) ft.fbclid = safeSlice(cand.fbclid, 200);
       if (cand.ttclid) ft.ttclid = safeSlice(cand.ttclid, 200);
 
+      if (cand.gn_meta_campaign_id) ft.gn_first_meta_campaign_id = cand.gn_meta_campaign_id;
+      if (cand.gn_meta_adset_id) ft.gn_first_meta_adset_id = cand.gn_meta_adset_id;
+      if (cand.gn_meta_ad_id) ft.gn_first_meta_ad_id = cand.gn_meta_ad_id;
+      if (cand.gn_meta_campaign_name) ft.gn_first_meta_campaign_name = cand.gn_meta_campaign_name;
+      if (cand.gn_meta_adset_name) ft.gn_first_meta_adset_name = cand.gn_meta_adset_name;
+      if (cand.gn_meta_ad_name) ft.gn_first_meta_ad_name = cand.gn_meta_ad_name;
+
       setLS(FT_KEY, JSON.stringify(ft));
     }
 
-    // ===== 2b) Mirror first-touch into cookies (first-write only) =====
+    var firstMetaCampaign = ft
+      ? (ft.gn_first_meta_campaign_id || ft.gn_meta_campaign_id || "")
+      : "";
+    var firstMetaAdset = ft
+      ? (ft.gn_first_meta_adset_id || ft.gn_meta_adset_id || "")
+      : "";
+    var firstMetaAd = ft
+      ? (ft.gn_first_meta_ad_id || ft.gn_meta_ad_id || "")
+      : "";
+    var firstMetaCampaignName = ft
+      ? (ft.gn_first_meta_campaign_name || ft.gn_meta_campaign_name || "")
+      : "";
+    var firstMetaAdsetName = ft
+      ? (ft.gn_first_meta_adset_name || ft.gn_meta_adset_name || "")
+      : "";
+    var firstMetaAdName = ft
+      ? (ft.gn_first_meta_ad_name || ft.gn_meta_ad_name || "")
+      : "";
+
+    // ===== 2b) Current-session Meta IDs (30-minute inactivity TTL) =====
+    // Typed BQ meta_* and GA4/DT gn_meta_* must be THIS click, not first-touch.
+    var SS_KEY = "gn_session_meta_v1";
+    var META_TTL_MS = 30 * 60 * 1000;
+    var nowMs = Date.now();
+    var sessionMeta = null;
+    try {
+      sessionMeta = JSON.parse(sessionStorage.getItem(SS_KEY) || "null");
+    } catch (e) {
+      sessionMeta = null;
+    }
+    if (cand.gn_meta_campaign_id || cand.gn_meta_adset_id || cand.gn_meta_ad_id) {
+      sessionMeta = {
+        gn_meta_campaign_id: cand.gn_meta_campaign_id || "",
+        gn_meta_adset_id: cand.gn_meta_adset_id || "",
+        gn_meta_ad_id: cand.gn_meta_ad_id || "",
+        last_seen: nowMs
+      };
+      try { sessionStorage.setItem(SS_KEY, JSON.stringify(sessionMeta)); } catch (e) {}
+    } else if (sessionMeta) {
+      var lastSeen = Number(sessionMeta.last_seen || 0);
+      if (!lastSeen || (nowMs - lastSeen) > META_TTL_MS) {
+        sessionMeta = null;
+        try { sessionStorage.removeItem(SS_KEY); } catch (e) {}
+      } else {
+        sessionMeta.last_seen = nowMs;
+        try { sessionStorage.setItem(SS_KEY, JSON.stringify(sessionMeta)); } catch (e) {}
+      }
+    }
+    if (sessionMeta && (sessionMeta.gn_meta_campaign_id || sessionMeta.gn_meta_adset_id || sessionMeta.gn_meta_ad_id)) {
+      if (sessionMeta.gn_meta_campaign_id) setSessionCookie("gn_meta_campaign_id", sessionMeta.gn_meta_campaign_id);
+      else expireCookie("gn_meta_campaign_id");
+      if (sessionMeta.gn_meta_adset_id) setSessionCookie("gn_meta_adset_id", sessionMeta.gn_meta_adset_id);
+      else expireCookie("gn_meta_adset_id");
+      if (sessionMeta.gn_meta_ad_id) setSessionCookie("gn_meta_ad_id", sessionMeta.gn_meta_ad_id);
+      else expireCookie("gn_meta_ad_id");
+    } else {
+      expireCookie("gn_meta_campaign_id");
+      expireCookie("gn_meta_adset_id");
+      expireCookie("gn_meta_ad_id");
+    }
+
+    // ===== 2c) Mirror first-touch into cookies (first-write only) =====
     // sGTM BQ maps gclid/fbclid from Event Data gn_gclid / gn_fbclid.
     // Returning visitors who already have localStorage get cookies on this run.
+    // Meta first-touch cookies are gn_first_meta_* — never gn_meta_*.
     if (ft) {
       var ftCookies = [
         ["gn_utm_source", ft.utm_source],
@@ -120,7 +217,10 @@
         ["gn_wbraid", ft.wbraid],
         ["gn_msclkid", ft.msclkid],
         ["gn_fbclid", ft.fbclid],
-        ["gn_ttclid", ft.ttclid]
+        ["gn_ttclid", ft.ttclid],
+        ["gn_first_meta_campaign_id", firstMetaCampaign],
+        ["gn_first_meta_adset_id", firstMetaAdset],
+        ["gn_first_meta_ad_id", firstMetaAd]
       ];
       var ci;
       for (ci = 0; ci < ftCookies.length; ci++) {
@@ -149,6 +249,13 @@
       if (ft.msclkid) attrs.gn_msclkid = safeSlice(ft.msclkid, 200);
       if (ft.fbclid) attrs.gn_fbclid = safeSlice(ft.fbclid, 200);
       if (ft.ttclid) attrs.gn_ttclid = safeSlice(ft.ttclid, 200);
+
+      if (firstMetaCampaign) attrs.gn_first_meta_campaign_id = safeSlice(firstMetaCampaign, 32);
+      if (firstMetaAdset) attrs.gn_first_meta_adset_id = safeSlice(firstMetaAdset, 32);
+      if (firstMetaAd) attrs.gn_first_meta_ad_id = safeSlice(firstMetaAd, 32);
+      if (firstMetaCampaignName) attrs.gn_first_meta_campaign_name = safeSlice(firstMetaCampaignName, 200);
+      if (firstMetaAdsetName) attrs.gn_first_meta_adset_name = safeSlice(firstMetaAdsetName, 200);
+      if (firstMetaAdName) attrs.gn_first_meta_ad_name = safeSlice(firstMetaAdName, 200);
     }
 
     // ===== 4) Write to Shopify cart attributes (non-blocking) =====

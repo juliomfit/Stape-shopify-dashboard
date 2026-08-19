@@ -46,6 +46,10 @@ export type WarehouseQuality = {
   paidSessionsWithClickId: number;
   metaSessions: number;
   metaSessionsWithFbclid: number;
+  metaSessionsWithCampaignId: number;
+  metaSessionsWithAdsetId: number;
+  metaSessionsWithAdId: number;
+  metaSessionsFbclidWithoutIds: number;
   googleSessions: number;
   googleSessionsWithGoogleClickId: number;
   purchaseEventCopies: number;

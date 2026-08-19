@@ -119,6 +119,18 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
               <Detail label="Content" value={order.firstTouch.utmContent} />
               <Detail label="Term" value={order.firstTouch.utmTerm} />
               <Detail label="Click ID" value={clickIdLabel(order.firstTouch)} />
+              <Detail
+                label="First-touch Meta campaign ID (audit)"
+                value={order.firstTouch.metaCampaignId}
+              />
+              <Detail
+                label="First-touch Meta adset ID (audit)"
+                value={order.firstTouch.metaAdsetId}
+              />
+              <Detail
+                label="First-touch Meta ad ID (audit)"
+                value={order.firstTouch.metaAdId}
+              />
               <Detail label="Landing path" value={order.firstTouch.landingPath} />
               <Detail label="Referrer host" value={order.firstTouch.referrer} />
               <Detail label="First-touch time" value={order.firstTouch.ts} />

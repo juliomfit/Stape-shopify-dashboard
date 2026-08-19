@@ -67,4 +67,14 @@ Shopify `currentTotalPriceSet` = net after refunds/discounts. Event `value` is `
 
 ## Campaign mapping
 
-Exact campaign ID, then exact unique normalized name, else unmapped. Duplicate names are `ambiguous_name`. No fuzzy match. Campaign is the deepest OUR first-party grain until ad-set/ad IDs exist on touches. Flyweel Campaign → Ad Set → Ad → Creative is **Meta platform** reporting.
+Exact first-party Meta campaign ID (`gn_meta_campaign_id` on the **current session landing URL**) is HIGH. Unique normalized campaign name is PARTIAL **legacy fallback only**. Duplicate names are `ambiguous_name`. Unmapped stays unmapped. No fuzzy match. No spend-ratio allocation.
+
+Shopify cart `gn_first_meta_*` values are **first-touch audit only**. They are not the converting Meta campaign. Typed BigQuery `meta_*` columns are current session / click identity.
+
+Ad set / ad OUR credit requires exact first-party IDs (`gn_meta_adset_id` / `gn_meta_ad_id`) matching Meta facts, and those IDs must agree with Meta fact parents. Conflicting campaign/adset or adset/ad pairs are `META_HIERARCHY_CONFLICT` and are not fully mapped. No name fallback. Creative ID, when shown, comes from `goodsnova_platform.meta_ads.creative_id` for that `ad_id` — not from the landing URL.
+
+Unmapped Meta credit remains visible at every grain (channel − mapped children). Do not drop it. Child mapped credit never exceeds parent. Equality only when mapping coverage is 100%.
+
+Campaign OUR attribution is **NOT YET VALIDATED** until live `gn_meta_*` IDs appear and match Meta facts (queries 13–14). Historical touches without IDs stay unmapped.
+
+Flyweel Campaign → Ad Set → Ad → Creative remains **Meta platform** reporting and is labeled separately from OUR.

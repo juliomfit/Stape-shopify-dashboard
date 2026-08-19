@@ -27,12 +27,22 @@ import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
 import { newCustomerCac, newCustomerRoas } from "@/lib/metrics/formulas";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { OurCampaignTable } from "@/components/dashboard/OurCampaignTable";
+import { MetaMappingCoverage } from "@/components/dashboard/MetaMappingCoverage";
+import { UnmappedMetaBucket } from "@/components/dashboard/UnmappedMetaBucket";
 import { joinMetaAndOurCampaigns } from "@/lib/attribution/campaign-map";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import {
   getCanonicalAttributedOrders,
   newCustomerCreditByCampaign,
+  toMetaCreditOrders,
 } from "@/lib/warehouse/canonical-orders";
+import { getAdsetFacts, getAdFacts, getAdCreativeMap } from "@/lib/ads/meta-query";
+import {
+  buildMetaFactIndexes,
+  metaCreditForOrders,
+  summarizeMetaMapping,
+} from "@/lib/attribution/meta-credit";
+import { mappingCoverageStatus } from "@/lib/attribution/meta-ids";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +70,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify, adsetFacts, adFacts, creativeByAdId] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -83,6 +93,9 @@ async function renderMetaPage() {
       message: "Warehouse check failed.",
     })),
     getShopifyOverviewMetrics().catch(() => null),
+    getAdsetFacts(period).catch(() => []),
+    getAdFacts(period).catch(() => []),
+    getAdCreativeMap().catch(() => new Map<string, string>()),
   ]);
   let attrWarehouse: Awaited<ReturnType<typeof getWarehouseMetrics>> | null = null;
   let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
@@ -138,11 +151,43 @@ async function renderMetaPage() {
     claimed.spend,
   );
 
+  const indexes = buildMetaFactIndexes({
+    campaigns: facts.map((row) => ({
+      campaign_id: row.campaign_id,
+      campaign_name: row.campaign_name,
+    })),
+    adsets: adsetFacts.map((row) => ({
+      adset_id: row.adset_id || "",
+      campaign_id: row.campaign_id,
+    })),
+    ads: adFacts.map((row) => ({
+      ad_id: row.ad_id || "",
+      adset_id: row.adset_id || "",
+      campaign_id: row.campaign_id,
+    })),
+    creativeByAdId,
+  });
+  const metaOur = metaCreditForOrders({
+    orders: toMetaCreditOrders(canonical),
+    model: "last_non_direct",
+    windowDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    indexes,
+  });
+  const mappingSummary = summarizeMetaMapping(
+    metaOur.credits,
+    canonical.flatMap((order) => order.touches),
+  );
+  const mappingStatus = mappingCoverageStatus({
+    highIdMappedTouches: mappingSummary.highIdCampaign,
+    nameFallbackTouches: mappingSummary.legacyName,
+    unmappedTouches: mappingSummary.unmappedCampaign + mappingSummary.ambiguous,
+  });
+
   return (
     <>
       <Header
         title="Meta Ads"
-        description="Platform-attributed Meta reporting (Ads Manager matching). Not Shopify gn_* first-touch. OUR first-party credit is campaign-grain only. Timezone America/Los_Angeles."
+        description="Platform-attributed Meta reporting (Ads Manager matching) plus OUR first-party campaign/ad-set/ad enrichment when deterministic IDs exist. Timezone America/Los_Angeles."
       />
       <section className="dash-page gap-6">
         <p className="text-xs text-muted">
@@ -352,8 +397,9 @@ async function renderMetaPage() {
             Creatives
           </Link>
           . The table below is <strong>Meta platform ad performance</strong>{" "}
-          (Ads Manager matching). OUR independent attribution stops at campaign
-          until ad-set/ad IDs exist on first-party touches.
+          (Ads Manager matching). OUR tables underneath use the same model
+          credit, enriched with gn_meta_* IDs when present. Unmapped Meta credit
+          is kept visible.
         </p>
           <div className="mt-4">
             <MetaEntityTable
@@ -369,20 +415,39 @@ async function renderMetaPage() {
             description={ourAttributionError}
           />
         ) : (
-          <OurCampaignTable
-            rows={joinMetaAndOurCampaigns(
-              facts,
-              attrWarehouse?.campaigns.filter(
-                (row: { channel: string }) => row.channel === "Facebook / Meta Ads",
-              ) ?? [],
-              newCustomerCreditByCampaign(
-                canonical,
-                "last_non_direct",
-                DEFAULT_ATTRIBUTION_WINDOW_DAYS,
-              ),
-            )}
-            currencyCode={currency}
-          />
+          <>
+            <MetaMappingCoverage
+              status={mappingStatus}
+              channelHealthy={metaOur.channelCredit > 0}
+              campaignHighId={mappingSummary.highIdCampaign}
+              campaignLegacyName={mappingSummary.legacyName}
+              campaignUnmapped={mappingSummary.unmappedCampaign + mappingSummary.ambiguous}
+              adsetMapped={mappingSummary.adsetMapped}
+              adMapped={mappingSummary.adMapped}
+              metaTouches={mappingSummary.metaTouches}
+            />
+            <UnmappedMetaBucket
+              currencyCode={currency}
+              channelRevenue={metaOur.channelCredit}
+              campaignMappedRevenue={metaOur.campaignMappedCredit}
+              adsetMappedRevenue={metaOur.adsetMappedCredit}
+              adMappedRevenue={metaOur.adMappedCredit}
+            />
+            <OurCampaignTable
+              rows={joinMetaAndOurCampaigns(
+                facts,
+                attrWarehouse?.campaigns.filter(
+                  (row: { channel: string }) => row.channel === "Facebook / Meta Ads",
+                ) ?? [],
+                newCustomerCreditByCampaign(
+                  canonical,
+                  "last_non_direct",
+                  DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+                ),
+              )}
+              currencyCode={currency}
+            />
+          </>
         )}
         <AskAiPanel viewContext={viewContext} />
       </section>
