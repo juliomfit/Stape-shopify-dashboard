@@ -126,3 +126,29 @@ test("7-day default is pending revalidation after canonicalization", () => {
     "7d pending revalidation after canonicalization",
   );
 });
+
+test("winner-take-all SQL uses ROW_NUMBER with touchpoint_id tie-break", () => {
+  const warehouseRuntime = readFileSync(
+    "src/lib/warehouse/get-warehouse-metrics.ts",
+    "utf8",
+  );
+  const parity = readFileSync("bigquery/validation/04_attribution_model_parity.sql", "utf8");
+  for (const body of [creditFix, warehouseRuntime, parity]) {
+    assert.match(body, /WHEN "first_touch" THEN ROW_NUMBER\(\) OVER/);
+    assert.match(body, /ORDER BY ot\.touchpoint_timestamp ASC, ot\.touchpoint_id ASC/);
+    assert.match(body, /ORDER BY ot\.touchpoint_timestamp DESC, ot\.touchpoint_id DESC/);
+    assert.match(body, /IF\(NOT ot\.is_direct, 0, 1\), ot\.touchpoint_timestamp DESC, ot\.touchpoint_id DESC/);
+    assert.doesNotMatch(
+      body,
+      /model_name = "first_touch"\s+AND ot\.touchpoint_timestamp = MIN/,
+    );
+  }
+  assert.match(parity, /STRUCT\("K", "K-order"/);
+  assert.match(parity, /same-timestamp/);
+});
+
+test("validation 11a tells Julio to re-run migration 005, not 002", () => {
+  const body = readFileSync("bigquery/validation/11a_credit_view_rowcount.sql", "utf8");
+  assert.match(body, /Re-run migration 005/);
+  assert.doesNotMatch(body, /Re-run migration 002/);
+});

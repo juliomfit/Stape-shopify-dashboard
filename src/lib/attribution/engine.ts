@@ -88,8 +88,19 @@ export type AttributeOptions = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Deterministic journey order. Matches BigQuery winner-take-all QUALIFY:
+ * timestamp first, then touchpoint_id so same-timestamp ties never split 100% credit.
+ */
+export function compareTouchpoints(a: Touchpoint, b: Touchpoint): number {
+  if (a.timestamp !== b.timestamp) {
+    return a.timestamp - b.timestamp;
+  }
+  return a.id.localeCompare(b.id);
+}
+
+/**
  * Eligible touches for a model: within the window, at/before purchase, sorted
- * ascending by time, de-duplicated by touchpoint id (earliest wins).
+ * ascending by time then id, de-duplicated by touchpoint id (earliest wins).
  */
 export function eligibleTouches(
   touchpoints: Touchpoint[],
@@ -106,7 +117,7 @@ export function eligibleTouches(
         touch.timestamp <= purchaseTs &&
         touch.timestamp >= cutoff,
     )
-    .sort((a, b) => a.timestamp - b.timestamp)
+    .sort(compareTouchpoints)
     .filter((touch) => {
       if (seen.has(touch.id)) {
         return false;
@@ -114,6 +125,21 @@ export function eligibleTouches(
       seen.add(touch.id);
       return true;
     });
+}
+
+/** First non-direct in chronological (timestamp, id) order. */
+export function firstNonDirectTouch(touches: Touchpoint[]): Touchpoint | undefined {
+  return touches.find((touch) => !touch.isDirect);
+}
+
+/** Last non-direct in chronological (timestamp, id) order. */
+export function lastNonDirectTouch(touches: Touchpoint[]): Touchpoint | undefined {
+  for (let index = touches.length - 1; index >= 0; index -= 1) {
+    if (!touches[index].isDirect) {
+      return touches[index];
+    }
+  }
+  return undefined;
 }
 
 /** Non-direct touches when any exist, otherwise the Direct fallback (last_non_direct only). */

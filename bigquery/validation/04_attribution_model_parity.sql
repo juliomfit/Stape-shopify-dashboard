@@ -14,6 +14,7 @@
 -- G Organic → Email → Direct (paid_only empty)
 -- I one Meta touch
 -- J two touches Meta → Organic
+-- K same-timestamp Meta + Email (touchpoint_id tie-break; only one touch gets 100%)
 -- H duplicate session collapse is covered in TypeScript eligibility tests.
 
 DECLARE purchase_ts TIMESTAMP DEFAULT TIMESTAMP("2026-08-18 12:00:00+00");
@@ -52,6 +53,10 @@ WITH journeys AS (
     STRUCT("J", "J-order", [
       STRUCT("s-a", TIMESTAMP_SUB(purchase_ts, INTERVAL 48 HOUR), "Facebook / Meta Ads", TRUE, FALSE),
       STRUCT("s-b", TIMESTAMP_SUB(purchase_ts, INTERVAL 2 HOUR), "Google Organic", FALSE, FALSE)
+    ]),
+    STRUCT("K", "K-order", [
+      STRUCT("s-a-meta", TIMESTAMP_SUB(purchase_ts, INTERVAL 24 HOUR), "Facebook / Meta Ads", TRUE, FALSE),
+      STRUCT("s-b-email", TIMESTAMP_SUB(purchase_ts, INTERVAL 24 HOUR), "Email", FALSE, FALSE)
     ])
   ])
 ),
@@ -82,18 +87,22 @@ credited_raw AS (
     STRUCT("paid_only" AS model_name),
     STRUCT("time_decay" AS model_name)
   ]) AS model
-  QUALIFY
-    (model.model_name = "first_touch"
-      AND ot.touchpoint_timestamp = MIN(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id))
-    OR (model.model_name = "last_touch"
-      AND ot.touchpoint_timestamp = MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id))
-    OR (model.model_name = "last_non_direct"
-      AND ot.touchpoint_timestamp = IFNULL(
-        MAX(IF(NOT ot.is_direct, ot.touchpoint_timestamp, NULL)) OVER (PARTITION BY ot.transaction_id),
-        MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id)
-      ))
-    OR (model.model_name = "paid_only" AND ot.is_paid)
-    OR (model.model_name IN ("linear", "position_based", "time_decay"))
+  QUALIFY CASE model.model_name
+    WHEN "first_touch" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY ot.touchpoint_timestamp ASC, ot.touchpoint_id ASC
+    ) = 1
+    WHEN "last_touch" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY ot.touchpoint_timestamp DESC, ot.touchpoint_id DESC
+    ) = 1
+    WHEN "last_non_direct" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY IF(NOT ot.is_direct, 0, 1), ot.touchpoint_timestamp DESC, ot.touchpoint_id DESC
+    ) = 1
+    WHEN "paid_only" THEN ot.is_paid
+    ELSE TRUE
+  END
 ),
 got AS (
   SELECT
@@ -203,7 +212,17 @@ expected AS (
     STRUCT("J", "position_based", "s-b", 0.5),
     STRUCT("J", "paid_only", "s-a", 1.0),
     STRUCT("J", "time_decay", "s-a", POW(2, -48.0/168) / (POW(2, -48.0/168) + POW(2, -2.0/168))),
-    STRUCT("J", "time_decay", "s-b", POW(2, -2.0/168) / (POW(2, -48.0/168) + POW(2, -2.0/168)))
+    STRUCT("J", "time_decay", "s-b", POW(2, -2.0/168) / (POW(2, -48.0/168) + POW(2, -2.0/168))),
+    STRUCT("K", "first_touch", "s-a-meta", 1.0),
+    STRUCT("K", "last_touch", "s-b-email", 1.0),
+    STRUCT("K", "last_non_direct", "s-b-email", 1.0),
+    STRUCT("K", "linear", "s-a-meta", 0.5),
+    STRUCT("K", "linear", "s-b-email", 0.5),
+    STRUCT("K", "position_based", "s-a-meta", 0.5),
+    STRUCT("K", "position_based", "s-b-email", 0.5),
+    STRUCT("K", "paid_only", "s-a-meta", 1.0),
+    STRUCT("K", "time_decay", "s-a-meta", 0.5),
+    STRUCT("K", "time_decay", "s-b-email", 0.5)
   ])
 ),
 compared AS (
@@ -230,7 +249,7 @@ SELECT
   (SELECT COUNT(*) FROM mismatches) AS mismatch_count,
   (SELECT COUNT(*) FROM expected) AS expected_rows,
   (SELECT COUNT(*) FROM got) AS got_rows,
-  "VALIDATION REQUIRED — expect mismatch_count = 0. Paid_only on C/G must produce zero got rows (unexpected rows count as mismatches). Fixture D has no touches. Time-decay uses POW(2, -hours/168)." AS status;
+  "VALIDATION REQUIRED — expect mismatch_count = 0. Paid_only on C/G must produce zero got rows (unexpected rows count as mismatches). Fixture D has no touches. Fixture K is a same-timestamp tie: first_touch = s-a-meta, last_touch = s-b-email, one row at 100% (touchpoint_id tie-break). Time-decay uses POW(2, -hours/168)." AS status;
 
 -- If mismatch_count != 0, run:
 -- SELECT * FROM mismatches ORDER BY fixture_id, model_name;

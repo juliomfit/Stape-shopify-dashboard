@@ -4,10 +4,13 @@ import {
   ATTRIBUTION_MODELS,
   attribute,
   assistCredits,
+  firstNonDirectTouch,
+  lastNonDirectTouch,
   type AttributionModel,
   type OrderInput,
   type Touchpoint,
 } from "@/lib/attribution/engine";
+import { paidRoasCovered } from "@/lib/metrics/formulas";
 import { isDirectChannel, isPaidChannel } from "@/lib/attribution/channel";
 import {
   indexShopifyOrders,
@@ -80,9 +83,12 @@ export function engineOrdersIncludingUnmatched(
   }));
 }
 
-function firstNonDirect(touches: CanonicalTouchpoint[]) {
-  const found = [...touches].reverse().find((touch) => !touch.isDirect);
-  return found?.channel ?? touches[touches.length - 1]?.channel ?? "Unknown";
+function firstNonDirectChannel(touches: CanonicalTouchpoint[]) {
+  return firstNonDirectTouch(touches.map(toEngineTouch))?.channel ?? "Unknown";
+}
+
+function lastNonDirectChannel(touches: CanonicalTouchpoint[]) {
+  return lastNonDirectTouch(touches.map(toEngineTouch))?.channel ?? "Unknown";
 }
 
 function lastClick(touches: CanonicalTouchpoint[]) {
@@ -107,6 +113,9 @@ async function loadCanonicalAttributedOrdersUnguarded(options?: {
   const rawTable = `\`${config.projectId}.stape_data.raw_events_full\``;
   const ctes = warehouseCtes(rawTable);
   const shopify = await getShopifyOverviewMetrics();
+  if (shopify.status.state === "error") {
+    throw new Error(`Shopify orders unavailable: ${shopify.status.message}`);
+  }
   const shopifyById = indexShopifyOrders(shopify.orderPoints);
 
   const [rows] = await client.query({
@@ -187,6 +196,9 @@ async function loadCanonicalAttributedOrdersUnguarded(options?: {
         isDirect: Boolean(touch.isDirect) || isDirectChannel(channel),
       };
     });
+    touches.sort(
+      (a, b) => a.ts - b.ts || a.touchpointId.localeCompare(b.touchpointId),
+    );
     const money = shopifyMoneyForOrder({
       transactionId,
       eventPurchaseValue: row.eventPurchaseValue == null ? null : toNumber(row.eventPurchaseValue),
@@ -197,8 +209,8 @@ async function loadCanonicalAttributedOrdersUnguarded(options?: {
     return {
       transactionId,
       revenue: money.shopifyNetRevenue ?? 0,
-      firstNonDirect: first ? firstNonDirect(touches) : "Unknown",
-      lastNonDirect: last ? firstNonDirect(touches) : "Unknown",
+      firstNonDirect: first ? firstNonDirectChannel(touches) : "Unknown",
+      lastNonDirect: last ? lastNonDirectChannel(touches) : "Unknown",
       lastClick: lastClick(touches),
       personKey: String(row.personKey ?? ""),
       purchaseTs: toNumber(row.purchaseTs),
@@ -307,14 +319,24 @@ export function paidAttributedRevenue(
   orders: CanonicalAttributedOrder[],
   model: AttributionModel,
   lookbackDays: number,
+  spendByChannel: Record<string, number | null | undefined>,
 ) {
-  let revenue = 0;
-  for (const row of aggregateChannelsFromCanonical(orders, model, lookbackDays)) {
-    if (isPaidChannel(row.channel)) {
-      revenue += row.revenue;
-    }
-  }
-  return revenue;
+  return paidRoasCovered({
+    attributedByChannel: aggregateChannelsFromCanonical(orders, model, lookbackDays),
+    spendByChannel,
+  }).revenue;
+}
+
+export function paidRoasSpendByChannel(input: {
+  metaSpend: number | null;
+  googleSpend: number | null;
+}): Record<string, number | null> {
+  return {
+    "Facebook / Meta Ads": input.metaSpend,
+    "Google Ads": input.googleSpend,
+    TikTok: null,
+    "Microsoft Ads": null,
+  };
 }
 
 export function metaAttributedRevenue(
@@ -403,3 +425,10 @@ export function aggregateAssistsFromCanonical(
 }
 
 export { ATTRIBUTION_MODELS };
+
+export function attributionResultsAvailable(input: {
+  warehouseState: string;
+  shopifyState: string;
+}): boolean {
+  return input.warehouseState === "connected" && input.shopifyState === "connected";
+}

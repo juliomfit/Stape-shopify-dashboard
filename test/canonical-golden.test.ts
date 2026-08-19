@@ -3,13 +3,16 @@ import test from "node:test";
 import {
   attribute,
   creditByChannel,
+  eligibleTouches,
+  firstNonDirectTouch,
+  lastNonDirectTouch,
   ATTRIBUTION_MODELS,
   type AttributionModel,
   type Touchpoint,
 } from "../src/lib/attribution/engine.ts";
 import { applyRevenue, orderCreditIntegrity } from "../src/lib/attribution/engine.ts";
 import { shopifyMoneyForOrder, newCustomerCredit } from "../src/lib/attribution/shopify-money.ts";
-import { blendedNcac, attributedNcac, merRatio, ratio } from "../src/lib/metrics/formulas.ts";
+import { blendedNcac, attributedNcac, merRatio, paidRoasCovered, ratio } from "../src/lib/metrics/formulas.ts";
 
 const PAID = new Set(["Google Ads", "Facebook / Meta Ads", "TikTok", "Microsoft Ads"]);
 
@@ -109,6 +112,9 @@ test("golden E Meta → Meta retargeting", () => {
 });
 
 test("golden F Meta → Organic → Email → Direct", () => {
+  const eligible = eligibleTouches(F, PURCHASE, 60);
+  assert.equal(firstNonDirectTouch(eligible)?.channel, "Facebook / Meta Ads");
+  assert.equal(lastNonDirectTouch(eligible)?.channel, "Email");
   assert.deepEqual(weights(F, "first_touch"), { "Facebook / Meta Ads": 1 });
   assert.deepEqual(weights(F, "last_touch"), { Direct: 1 });
   assert.deepEqual(weights(F, "last_non_direct"), { Email: 1 });
@@ -123,6 +129,33 @@ test("golden F Meta → Organic → Email → Direct", () => {
   near(pos.Email, 0.1);
   near(pos.Direct, 0.4);
   assert.deepEqual(weights(F, "paid_only"), { "Facebook / Meta Ads": 1 });
+});
+
+test("golden K same-timestamp Meta + Email: first=Meta, last=Email, one 100% winner", () => {
+  const ts = PURCHASE - 24 * HOUR;
+  const K: Touchpoint[] = [
+    {
+      id: "s-a-meta",
+      timestamp: ts,
+      channel: "Facebook / Meta Ads",
+      isPaid: true,
+      isDirect: false,
+    },
+    {
+      id: "s-b-email",
+      timestamp: ts,
+      channel: "Email",
+      isPaid: false,
+      isDirect: false,
+    },
+  ];
+  assert.deepEqual(weights(K, "first_touch"), { "Facebook / Meta Ads": 1 });
+  assert.deepEqual(weights(K, "last_touch"), { Email: 1 });
+  assert.deepEqual(weights(K, "last_non_direct"), { Email: 1 });
+  near(weights(K, "linear")["Facebook / Meta Ads"], 0.5);
+  near(weights(K, "linear").Email, 0.5);
+  assert.equal(attribute(K, { model: "first_touch", purchaseTs: PURCHASE, windowDays: 60 }).length, 1);
+  assert.equal(attribute(K, { model: "last_touch", purchaseTs: PURCHASE, windowDays: 60 }).length, 1);
 });
 
 test("golden G paid-only with no paid touches is empty, not Direct", () => {
@@ -191,12 +224,27 @@ test("fractional new-customer credit is unrounded weight", () => {
   assert.equal(newCustomerCredit(null, 1), 0);
 });
 
-test("Our Paid ROAS uses paid attributed revenue; blended nCAC stays store-wide", () => {
+test("Our Paid ROAS uses only paid attributed revenue covered by spend; blended nCAC stays store-wide", () => {
   const shopifyRevenue = 1000;
-  const paidAttributed = 250;
   const spend = 100;
+  const covered = paidRoasCovered({
+    attributedByChannel: [
+      { channel: "Facebook / Meta Ads", revenue: 250 },
+      { channel: "Google Ads", revenue: 80 },
+      { channel: "TikTok", revenue: 40 },
+      { channel: "Microsoft Ads", revenue: 15 },
+    ],
+    spendByChannel: {
+      "Facebook / Meta Ads": spend,
+      "Google Ads": null,
+      TikTok: null,
+      "Microsoft Ads": null,
+    },
+  });
+  assert.equal(covered.revenue, 250);
+  assert.equal(covered.spend, 100);
   assert.equal(merRatio(spend, shopifyRevenue), 10);
-  assert.equal(ratio(paidAttributed, spend), 2.5);
+  assert.equal(ratio(covered.revenue, covered.spend), 2.5);
   assert.equal(blendedNcac(400, 10), 40);
   assert.equal(attributedNcac(200, 2.5), 80);
 });

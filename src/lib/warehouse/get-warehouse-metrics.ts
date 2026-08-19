@@ -138,22 +138,32 @@ credited_raw AS (
     STRUCT("assist" AS model_name)
   ]) AS model
   WHERE ot.touchpoint_id IS NOT NULL
-  QUALIFY
-    (model.model_name = "first_touch"
-      AND ot.touchpoint_timestamp = MIN(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id))
-    OR (model.model_name = "last_touch"
-      AND ot.touchpoint_timestamp = MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id))
-    OR (model.model_name = "last_non_direct"
-      AND ot.touchpoint_timestamp = IFNULL(
-        MAX(IF(NOT ot.is_direct, ot.touchpoint_timestamp, NULL)) OVER (PARTITION BY ot.transaction_id),
-        MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id)
-      ))
-    OR (model.model_name = "paid_only" AND ot.is_paid)
-    OR (model.model_name IN ("linear", "position_based", "time_decay"))
-    OR (model.model_name = "assist"
-      AND COUNT(*) OVER (PARTITION BY ot.transaction_id) >= 3
-      AND ot.touchpoint_timestamp != MIN(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id)
-      AND ot.touchpoint_timestamp != MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id))
+  QUALIFY CASE model.model_name
+    WHEN "first_touch" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY ot.touchpoint_timestamp ASC, ot.touchpoint_id ASC
+    ) = 1
+    WHEN "last_touch" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY ot.touchpoint_timestamp DESC, ot.touchpoint_id DESC
+    ) = 1
+    WHEN "last_non_direct" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY IF(NOT ot.is_direct, 0, 1), ot.touchpoint_timestamp DESC, ot.touchpoint_id DESC
+    ) = 1
+    WHEN "paid_only" THEN ot.is_paid
+    WHEN "assist" THEN
+      COUNT(*) OVER (PARTITION BY ot.transaction_id) >= 3
+      AND ROW_NUMBER() OVER (
+        PARTITION BY ot.transaction_id
+        ORDER BY ot.touchpoint_timestamp ASC, ot.touchpoint_id ASC
+      ) != 1
+      AND ROW_NUMBER() OVER (
+        PARTITION BY ot.transaction_id
+        ORDER BY ot.touchpoint_timestamp DESC, ot.touchpoint_id DESC
+      ) != 1
+    ELSE TRUE
+  END
 ),
 credited AS (
   SELECT
@@ -213,6 +223,9 @@ export async function getWarehouseMetrics(options: {
       getShopifyOverviewMetrics(),
       getPlatformReported(period),
     ]);
+    if (shopify.status.state === "error") {
+      throw new Error(`Shopify orders unavailable: ${shopify.status.message}`);
+    }
     const aligned = shopifyMetricsSince(
       shopify.orderPoints,
       period.startMs,
@@ -395,9 +408,7 @@ export async function getWarehouseMetrics(options: {
     )
       ? (model as AttributionModel)
       : "last_non_direct";
-    const canonical = await getCanonicalAttributedOrders({ lookbackDays }).catch(
-      () => [],
-    );
+    const canonical = await getCanonicalAttributedOrders({ lookbackDays });
     const byChannel = aggregateChannelsFromCanonical(
       canonical,
       engineModel,

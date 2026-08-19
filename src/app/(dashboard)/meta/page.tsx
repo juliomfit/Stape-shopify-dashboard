@@ -60,7 +60,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify, attrWarehouse, canonical] = await Promise.all([
+  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -83,9 +83,25 @@ async function renderMetaPage() {
       message: "Warehouse check failed.",
     })),
     getShopifyOverviewMetrics().catch(() => null),
-    getWarehouseMetrics({ lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS }).catch(() => null),
-    getCanonicalAttributedOrders({ lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS }).catch(() => []),
   ]);
+  let attrWarehouse: Awaited<ReturnType<typeof getWarehouseMetrics>> | null = null;
+  let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
+  let ourAttributionError: string | null = null;
+  try {
+    attrWarehouse = await getWarehouseMetrics({
+      lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    });
+    if (attrWarehouse.status.state === "error") {
+      ourAttributionError = attrWarehouse.status.message;
+    } else {
+      canonical = await getCanonicalAttributedOrders({
+        lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+      });
+    }
+  } catch (error) {
+    ourAttributionError =
+      error instanceof Error ? error.message : "Canonical attribution is unavailable.";
+  }
   const totals = totalsFromFacts(facts);
   const claimed = resolveMetaClaim({
     warehouse: facts.length
@@ -347,20 +363,27 @@ async function renderMetaPage() {
             />
           </div>
         </article>
-        <OurCampaignTable
-          rows={joinMetaAndOurCampaigns(
-            facts,
-            attrWarehouse?.campaigns.filter(
-              (row: { channel: string }) => row.channel === "Facebook / Meta Ads",
-            ) ?? [],
-            newCustomerCreditByCampaign(
-              canonical,
-              "last_non_direct",
-              DEFAULT_ATTRIBUTION_WINDOW_DAYS,
-            ),
-          )}
-          currencyCode={currency}
-        />
+        {ourAttributionError ? (
+          <EmptyPanel
+            title="OUR campaign attribution unavailable"
+            description={ourAttributionError}
+          />
+        ) : (
+          <OurCampaignTable
+            rows={joinMetaAndOurCampaigns(
+              facts,
+              attrWarehouse?.campaigns.filter(
+                (row: { channel: string }) => row.channel === "Facebook / Meta Ads",
+              ) ?? [],
+              newCustomerCreditByCampaign(
+                canonical,
+                "last_non_direct",
+                DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+              ),
+            )}
+            currencyCode={currency}
+          />
+        )}
         <AskAiPanel viewContext={viewContext} />
       </section>
     </>

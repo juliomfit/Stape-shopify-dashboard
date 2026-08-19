@@ -5,6 +5,8 @@ import {
   attributeAllModels,
   creditByChannel,
   eligibleTouches,
+  firstNonDirectTouch,
+  lastNonDirectTouch,
   orderCreditIntegrity,
   applyRevenue,
   assistCredits,
@@ -249,4 +251,45 @@ test("partial window cutoff uses epoch days not calendar TZ labels", () => {
     windowDays: 7,
   });
   assert.deepEqual(creditByChannel(inside), { Email: 1 });
+});
+
+test("Meta → Organic → Email → Direct: first non-direct is Meta, last non-direct is Email", () => {
+  const journey = [META(240), GOOGLE_ORG(120), EMAIL(48), DIRECT(24)];
+  const eligible = eligibleTouches(journey, PURCHASE);
+  assert.equal(firstNonDirectTouch(eligible)?.channel, "Meta Paid");
+  assert.equal(lastNonDirectTouch(eligible)?.channel, "Email");
+  assert.deepEqual(channelWeights(journey, "first_touch"), { "Meta Paid": 1 });
+  assert.deepEqual(channelWeights(journey, "last_non_direct"), { Email: 1 });
+  assert.deepEqual(channelWeights(journey, "last_touch"), { Direct: 1 });
+});
+
+test("same-timestamp ties break on touchpoint_id so only one touch gets 100%", () => {
+  const ts = PURCHASE - 24 * HOUR;
+  const journey: Touchpoint[] = [
+    {
+      id: "s-a-meta",
+      timestamp: ts,
+      channel: "Facebook / Meta Ads",
+      isPaid: true,
+      isDirect: false,
+    },
+    {
+      id: "s-b-email",
+      timestamp: ts,
+      channel: "Email",
+      isPaid: false,
+      isDirect: false,
+    },
+  ];
+  const eligible = eligibleTouches(journey, PURCHASE);
+  assert.deepEqual(eligible.map((touch) => touch.id), ["s-a-meta", "s-b-email"]);
+  assert.deepEqual(channelWeights(journey, "first_touch"), { "Facebook / Meta Ads": 1 });
+  assert.deepEqual(channelWeights(journey, "last_touch"), { Email: 1 });
+  assert.deepEqual(channelWeights(journey, "last_non_direct"), { Email: 1 });
+  const first = attribute(journey, { model: "first_touch", purchaseTs: PURCHASE });
+  const last = attribute(journey, { model: "last_touch", purchaseTs: PURCHASE });
+  assert.equal(first.length, 1);
+  assert.equal(last.length, 1);
+  assert.equal(first[0].weight, 1);
+  assert.equal(last[0].weight, 1);
 });

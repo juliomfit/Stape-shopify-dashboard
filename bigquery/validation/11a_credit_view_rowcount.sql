@@ -23,7 +23,7 @@ SELECT
 -- Interpretation:
 -- credit_rows = 0 and purchase_transaction_ids > 0
 --   → identity join missed (old view assigned cust: on Data Client orders
---     and cid: on GA4 sessions). Re-run migration 002, then this query,
+--     and cid: on GA4 sessions). Re-run migration 005, then this query,
 --     then 11_conversion_lag_distribution.sql.
 -- purchase_transaction_ids = 0
 --   → no purchases in retained raw_events_full partitions. Check 08_event_retention.sql.

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AttributionControls } from "@/components/dashboard/AttributionControls";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
+import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { IdentityMatchPanel } from "@/components/dashboard/IdentityMatchPanel";
 import { ModelComparisonTable } from "@/components/dashboard/ModelComparisonTable";
 import { PlatformVsOurTable } from "@/components/dashboard/PlatformVsOurTable";
@@ -22,6 +23,7 @@ import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import {
+  attributionResultsAvailable,
   canonicalToEngineOrders,
   getCanonicalAttributedOrders,
 } from "@/lib/warehouse/canonical-orders";
@@ -49,6 +51,26 @@ type PageProps = {
 };
 
 export default async function AttributionModelsPage({ searchParams }: PageProps) {
+  try {
+    return await renderAttributionModels(searchParams);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Canonical attribution is unavailable.";
+    return (
+      <>
+        <Header
+          title="Attribution models"
+          description="How much Shopify revenue each channel earns under every first-party model, over the same canonical session journeys."
+        />
+        <section className="dash-page gap-6">
+          <EmptyPanel title="Attribution unavailable" description={message} />
+        </section>
+      </>
+    );
+  }
+}
+
+async function renderAttributionModels(searchParams?: Promise<{ lookback?: string }>) {
   const params = (await searchParams) ?? {};
   const lookbackDays = parseAttributionLookback(params.lookback);
   const [canonical, warehouse, shopify, period] = await Promise.all([
@@ -59,6 +81,16 @@ export default async function AttributionModelsPage({ searchParams }: PageProps)
   ]);
   const platform = await getPlatformReported(period);
   const currency = shopify.revenue?.currencyCode || "USD";
+  if (warehouse.status.state === "error") {
+    throw new Error(warehouse.status.message);
+  }
+  if (shopify.status.state === "error") {
+    throw new Error(`Shopify orders unavailable: ${shopify.status.message}`);
+  }
+  const attributionReady = attributionResultsAvailable({
+    warehouseState: warehouse.status.state,
+    shopifyState: shopify.status.state,
+  });
 
   const comparison = compareModels(
     canonicalToEngineOrders(canonical),
@@ -95,21 +127,30 @@ export default async function AttributionModelsPage({ searchParams }: PageProps)
         <Suspense fallback={null}>
           <AttributionControls lookbackDays={lookbackDays} />
         </Suspense>
-        <ModelComparisonTable comparison={comparison} currencyCode={currency} />
-        <PlatformVsOurTable
-          rows={platformRows}
-          modelLabel={ATTRIBUTION_MODEL_LABELS[COMPARE_MODEL]}
-          currencyCode={currency}
-        />
-        <IdentityMatchPanel
-          identity={{
-            purchases: canonical.length,
-            purchasesWithPerson: canonical.filter((order) => order.personKey).length,
-            uniquePeople: new Set(canonical.map((order) => order.personKey).filter(Boolean)).size,
-            uniqueBrowsers: new Set(canonical.map((order) => order.clientId).filter(Boolean)).size,
-            crossDevicePeople: 0,
-          }}
-        />
+        {attributionReady ? (
+          <>
+            <ModelComparisonTable comparison={comparison} currencyCode={currency} />
+            <PlatformVsOurTable
+              rows={platformRows}
+              modelLabel={ATTRIBUTION_MODEL_LABELS[COMPARE_MODEL]}
+              currencyCode={currency}
+            />
+            <IdentityMatchPanel
+              identity={{
+                purchases: canonical.length,
+                purchasesWithPerson: canonical.filter((order) => order.personKey).length,
+                uniquePeople: new Set(canonical.map((order) => order.personKey).filter(Boolean)).size,
+                uniqueBrowsers: new Set(canonical.map((order) => order.clientId).filter(Boolean)).size,
+                crossDevicePeople: 0,
+              }}
+            />
+          </>
+        ) : (
+          <EmptyPanel
+            title="Attribution unavailable"
+            description="Connect Shopify and BigQuery before treating model comparison as attributed results. Empty tables are not $0 attributed revenue."
+          />
+        )}
         <p className="text-xs leading-5 text-muted">
           Orders are credited by the canonical engine from one eligible session
           touch per acquisition session within a {lookbackDays}-day lookback.

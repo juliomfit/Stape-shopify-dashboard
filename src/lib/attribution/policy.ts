@@ -111,7 +111,7 @@ export const ATTRIBUTION_GLOSSARY = {
     "Attributed revenue = Shopify currentTotalPriceSet × attribution credit. Event purchase value is QA evidence only.",
   mer: "Shopify MER = total Shopify revenue ÷ total paid spend.",
   ourPaidRoas:
-    "Our Paid ROAS = attributed revenue credited to paid channels ÷ corresponding paid spend. Do not divide all-channel attributed revenue by paid spend and call it ROAS.",
+    "Our Paid ROAS = attributed revenue credited to paid channels that have a corresponding spend source ÷ that spend. Do not include Google/TikTok/Microsoft attributed revenue while their spend is unavailable, and do not divide all-channel attributed revenue by paid spend.",
   blendedNcac:
     "Blended nCAC = total ad spend ÷ Shopify new-customer orders. Store-wide, not campaign-attributed.",
   attributedNcac:

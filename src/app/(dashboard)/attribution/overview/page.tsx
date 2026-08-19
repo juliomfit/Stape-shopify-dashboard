@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { AttributionControls } from "@/components/dashboard/AttributionControls";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
+import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ModelComparisonTable } from "@/components/dashboard/ModelComparisonTable";
 import { PlatformVsOurTable } from "@/components/dashboard/PlatformVsOurTable";
@@ -25,13 +26,14 @@ import { CAMPAIGN_MAPPING_STATUS } from "@/lib/attribution/campaign-map";
 import { parseAttributionLookback } from "@/lib/attribution/windows";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
-import { blendedNcac, merRatio, ratio } from "@/lib/metrics/formulas";
+import { blendedNcac, merRatio, paidRoasCovered, ratio } from "@/lib/metrics/formulas";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import {
+  attributionResultsAvailable,
   canonicalToEngineOrders,
   getCanonicalAttributedOrders,
   metaAttributedRevenue,
-  paidAttributedRevenue,
+  paidRoasSpendByChannel,
 } from "@/lib/warehouse/canonical-orders";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import { isWarehouseModel, type WarehouseModel } from "@/lib/warehouse/constants";
@@ -51,6 +53,28 @@ function merLabel(value: number | null) {
 }
 
 export default async function AttributionOverviewPage({ searchParams }: PageProps) {
+  try {
+    return await renderAttributionOverview(searchParams);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Canonical attribution is unavailable.";
+    return (
+      <>
+        <Header
+          title="Attribution"
+          description="Shopify is money truth. Unknown is not Direct. Checkout noise is not Direct. Model and window live in the controls and URL."
+        />
+        <section className="dash-page gap-6">
+          <EmptyPanel title="Attribution unavailable" description={message} />
+        </section>
+      </>
+    );
+  }
+}
+
+async function renderAttributionOverview(
+  searchParams?: Promise<{ model?: string; lookback?: string }>,
+) {
   const params = (await searchParams) ?? {};
   const lookbackDays = parseAttributionLookback(params.lookback);
   const warehouseModel: WarehouseModel = isWarehouseModel(params.model ?? "")
@@ -103,15 +127,33 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
     ],
     our,
   );
+  const attributionReady = attributionResultsAvailable({
+    warehouseState: warehouse.status.state,
+    shopifyState: shopify.status.state,
+  });
+  if (warehouse.status.state === "error") {
+    throw new Error(warehouse.status.message);
+  }
+  if (shopify.status.state === "error") {
+    throw new Error(`Shopify orders unavailable: ${shopify.status.message}`);
+  }
   const shopifyMer = merRatio(warehouse.totalSpend, shopify.revenue?.amount ?? 0);
-  const ourPaidRoas = ratio(
-    paidAttributedRevenue(canonical, engineModel, lookbackDays),
-    warehouse.totalSpend,
-  );
-  const ourMetaRoas = ratio(
-    metaAttributedRevenue(canonical, engineModel, lookbackDays),
-    warehouse.metaSpend,
-  );
+  const coveredPaid = paidRoasCovered({
+    attributedByChannel: warehouse.byChannel,
+    spendByChannel: paidRoasSpendByChannel({
+      metaSpend: warehouse.metaSpend,
+      googleSpend: warehouse.googleSpend,
+    }),
+  });
+  const ourPaidRoas = attributionReady
+    ? ratio(coveredPaid.revenue, coveredPaid.spend)
+    : null;
+  const ourMetaRoas = attributionReady
+    ? ratio(
+        metaAttributedRevenue(canonical, engineModel, lookbackDays),
+        warehouse.metaSpend,
+      )
+    : null;
   const ncac = blendedNcac(
     warehouse.totalSpend,
     shopify.status.state === "connected" ? shopify.newCustomerOrders : null,
@@ -138,15 +180,23 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
           <MetricCard
             label="Our attributed revenue"
             source={`${modelLabel} · ${lookbackDays}d · Shopify × credit`}
-            value={formatMoney({
-              amount: warehouse.attributedRevenue,
-              currencyCode: currency,
-            })}
+            value={
+              attributionReady
+                ? formatMoney({
+                    amount: warehouse.attributedRevenue,
+                    currencyCode: currency,
+                  })
+                : null
+            }
           />
           <MetricCard
             label="Our attributed orders"
             source="Fractional credit summed to orders"
-            value={formatNumber(Math.round(warehouse.attributedOrders * 10) / 10)}
+            value={
+              attributionReady
+                ? formatNumber(Math.round(warehouse.attributedOrders * 10) / 10)
+                : null
+            }
           />
           <MetricCard
             label="Attribution coverage"
@@ -205,18 +255,27 @@ export default async function AttributionOverviewPage({ searchParams }: PageProp
             value={CAMPAIGN_MAPPING_STATUS}
           />
         </div>
-        <WarehouseChannelTable
-          title="Channel · selected model"
-          description={`${modelLabel} · Shopify money × canonical session credit`}
-          rows={warehouse.byChannel}
-          currencyCode={currency}
-        />
-        <PlatformVsOurTable
-          rows={platformRows}
-          modelLabel={modelLabel}
-          currencyCode={currency}
-        />
-        <ModelComparisonTable comparison={comparison} currencyCode={currency} />
+        {attributionReady ? (
+          <>
+            <WarehouseChannelTable
+              title="Channel · selected model"
+              description={`${modelLabel} · Shopify money × canonical session credit`}
+              rows={warehouse.byChannel}
+              currencyCode={currency}
+            />
+            <PlatformVsOurTable
+              rows={platformRows}
+              modelLabel={modelLabel}
+              currencyCode={currency}
+            />
+            <ModelComparisonTable comparison={comparison} currencyCode={currency} />
+          </>
+        ) : (
+          <EmptyPanel
+            title="Attribution unavailable"
+            description="Connect Shopify and BigQuery before treating empty model tables as $0 attributed revenue."
+          />
+        )}
         <p className="text-xs text-muted">
           {ATTRIBUTION_GLOSSARY.realDirect} {ATTRIBUTION_GLOSSARY.internalNoise}{" "}
           {ATTRIBUTION_GLOSSARY.unknown} Drill to{" "}

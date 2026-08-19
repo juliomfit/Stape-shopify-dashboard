@@ -308,18 +308,24 @@ credited_raw AS (
     STRUCT("paid_only" AS model_name),
     STRUCT("time_decay" AS model_name)
   ]) AS model
-  QUALIFY
-    (model.model_name = "first_touch"
-      AND ot.touchpoint_timestamp = MIN(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id))
-    OR (model.model_name = "last_touch"
-      AND ot.touchpoint_timestamp = MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id))
-    OR (model.model_name = "last_non_direct"
-      AND ot.touchpoint_timestamp = IFNULL(
-        MAX(IF(NOT ot.is_direct, ot.touchpoint_timestamp, NULL)) OVER (PARTITION BY ot.transaction_id),
-        MAX(ot.touchpoint_timestamp) OVER (PARTITION BY ot.transaction_id)
-      ))
-    OR (model.model_name = "paid_only" AND ot.is_paid)
-    OR (model.model_name IN ("linear", "position_based", "time_decay"))
+  QUALIFY CASE model.model_name
+    -- Winner-take-all: exactly one touch at 100%. Same-timestamp ties break
+    -- on touchpoint_id to match TypeScript eligibleTouches (timestamp, id).
+    WHEN "first_touch" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY ot.touchpoint_timestamp ASC, ot.touchpoint_id ASC
+    ) = 1
+    WHEN "last_touch" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY ot.touchpoint_timestamp DESC, ot.touchpoint_id DESC
+    ) = 1
+    WHEN "last_non_direct" THEN ROW_NUMBER() OVER (
+      PARTITION BY ot.transaction_id, model.model_name
+      ORDER BY IF(NOT ot.is_direct, 0, 1), ot.touchpoint_timestamp DESC, ot.touchpoint_id DESC
+    ) = 1
+    WHEN "paid_only" THEN ot.is_paid
+    ELSE TRUE
+  END
 )
 SELECT
   transaction_id,
