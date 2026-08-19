@@ -86,16 +86,25 @@ test("policy forbids calling spend/revenue MER", () => {
   assert.equal(merRatio(40_000, 100_000), 2.5);
   assert.equal(marketingCostRatio(40_000, 100_000), 0.4);
   assert.match(POLICY_RULES.unknownIsNotDirect, /Unknown/);
-  assert.equal(ATTRIBUTION_WINDOW_PRODUCTION_DEFAULT_STATUS, "7d validated");
+  assert.equal(
+    ATTRIBUTION_WINDOW_PRODUCTION_DEFAULT_STATUS,
+    "7d pending revalidation after canonicalization",
+  );
 });
 
 test("BigQuery credit SQL does not select raw fbc/fbp columns", () => {
-  const sql = readFileSync(
+  const sql002 = readFileSync(
     "bigquery/migrations/2026_08_18_002_attribution_credit.sql",
     "utf8",
   );
-  assert.match(sql, /CAST\(NULL AS STRING\) AS fbc/);
-  assert.equal(sql.includes("NULLIF(fbc,"), false);
+  const sql005 = readFileSync(
+    "bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql",
+    "utf8",
+  );
+  for (const sql of [sql002, sql005]) {
+    assert.match(sql, /CAST\(NULL AS STRING\) AS fbc/);
+    assert.equal(sql.includes("NULLIF(fbc,"), false);
+  }
   const warehouse = readFileSync("src/lib/warehouse/sql.ts", "utf8");
   assert.match(warehouse, /CAST\(NULL AS STRING\) AS fbc/);
   assert.equal(warehouse.includes("NULLIF(fbc,"), false);

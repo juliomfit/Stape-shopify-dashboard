@@ -1,3 +1,5 @@
+-- Dataset bootstrap only (not an attribution definition).
+-- Canonical policy objects: migrations 001 + 005.
 -- Run as BigQuery Editor. The dashboard service account cannot create datasets.
 CREATE SCHEMA IF NOT EXISTS `stape-analytics-487802.analytics`
 OPTIONS (

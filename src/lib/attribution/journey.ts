@@ -4,10 +4,10 @@ import { isDirectChannel, isPaidChannel } from "@/lib/attribution/channel";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Convert an attributed order's ordered touches into engine Touchpoints. */
+/** Convert an attributed order's canonical session touches into engine Touchpoints. */
 export function orderToTouchpoints(order: AttributedOrder): Touchpoint[] {
   return order.touches.map((touch, index) => ({
-    id: `${order.transactionId}-${index}`,
+    id: touch.touchpointId || touch.sessionKey || `session:${order.transactionId}:${index}`,
     timestamp: touch.ts,
     channel: touch.channel,
     source: touch.source ?? undefined,

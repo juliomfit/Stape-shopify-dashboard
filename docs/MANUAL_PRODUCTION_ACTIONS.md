@@ -4,72 +4,101 @@ Actions Julio must perform outside Cursor. Application code for these items is a
 
 Use checkboxes. Do not mark production verified without evidence.
 
-# BigQuery
+# BigQuery — run in this exact order
 
-- [ ] **001 Attribution policy settings** — required? yes — priority: P0
-  - Reason: Persist the canonical window/weight contract in the warehouse.
-  - Action: Run `bigquery/migrations/2026_08_18_001_attribution_policy.sql` in project `stape-analytics-487802`.
-  - Expected: `analytics.dim_attribution_settings` contains `attribution_policy_v1` rows; default lookback 7.
-  - Validation: `SELECT * FROM \`stape-analytics-487802.analytics.dim_attribution_settings\` ORDER BY setting_key;`
-  - App code complete: yes (app does not require this table at runtime).
+Project: `stape-analytics-487802`. Cursor cannot run these.
 
-- [x] **002 Attribution credit view** — required? done for current revision — priority: P0
-  - Reason: Warehouse-scale credit matching the TypeScript engine.
-  - Action: Re-run `bigquery/migrations/2026_08_18_002_attribution_credit.sql` (CREATE OR REPLACE VIEW). (1) Do not select `fbc` — it is not a column. (2) The first working view still returned 0 credit rows because Data Client orders used `cust:` person keys and GA4 sessions used `cid:` keys. This revision stitches via `dim_person` like the dashboard warehouse SQL.
-  - Expected: View exists. `bigquery/validation/11a_credit_view_rowcount.sql` shows `credit_rows` > 0 when `purchase_transaction_ids` > 0.
-  - Validation: `11a` then `03_order_credit_integrity.sql` then `11_conversion_lag_distribution.sql`.
-  - App code complete: yes (dashboard on-the-fly SQL already uses dim_person; missing/empty view does not 500).
+## 1. Policy settings (001) — required — P0
 
-- [ ] **003 dashboard_events lifecycle + retention** — required? yes — priority: P0
-  - Reason: View expires 2026-10-11; partitions ~60 days block 60d+ windows.
-  - Action: Run `bigquery/migrations/2026_08_18_003_dashboard_events_lifecycle.sql`.
-  - Expected: `dashboard_events` has no expiration; `raw_events_full` partition_expiration_days = 400; identity columns on the view.
-  - Validation: `bigquery/validation/08_event_retention.sql`
-  - App code complete: yes. After this, 60-day window is honest; 90-day stays hidden until retained_days ≥ 90.
+- [ ] Run `bigquery/migrations/2026_08_18_001_attribution_policy.sql`
+- Expected: `analytics.dim_attribution_settings` contains `attribution_policy_v1` with default lookback 7, `internal_noise_excluded=true`, `credit_view_is_credit_only=true`.
+- Validation:
 
-- [ ] **004 Shopify history table** — required? no (optional) — priority: P4
-  - Reason: Future matured LTV beyond Admin API pagination.
-  - Action: Run `bigquery/migrations/2026_08_18_004_shopify_history.sql` when you want a warehouse copy.
-  - Expected: Empty `analytics.fct_shopify_orders`.
-  - Validation: `SELECT COUNT(*) FROM \`stape-analytics-487802.analytics.fct_shopify_orders\`;`
-  - App code complete: table unused by the app yet (Admin API is money truth).
+```sql
+SELECT * FROM `stape-analytics-487802.analytics.dim_attribution_settings` ORDER BY setting_key;
+```
 
-- [x] **Conversion-lag default** — required? done — priority: P1
-  - Reason: Choose production window from real lag.
-  - Action: Ran `bigquery/validation/11_conversion_lag_distribution.sql` after dim_person 002.
-  - Result (2026-08-19): P50=0 P75=0 P90=0 P95=3 P99=69 hours, orders=69. Keep **7d** default.
-  - App code complete: yes. Default remains 7 days.
+- If validation fails: paste the full result. Do not run `bigquery/analytics/07_dim_attribution_settings.sql` (legacy 30-day overwrite; now a no-op).
 
-- [ ] **Meta campaign mapping coverage (touch grain)** — required? yes before trusting campaign OUR nCAC — priority: P3
-  - Reason: First 05 run used purchase-event URLs. 72 purchases, 39 with fbclid, **0 with utm_campaign on the purchase row** (expected: checkout), **1** Meta campaign fact row in range.
-  - Action: Re-run updated `bigquery/validation/05_meta_campaign_mapping_coverage.sql` (measures campaign on credited touches, not checkout URLs).
-  - Expected: `orders_with_campaign_on_touch` / `touch_campaign_rate` / `orders_with_meta_paid_touch`.
-  - App code complete: yes (`campaign-map.ts` joins only on id/name). UI still says VALIDATION REQUIRED until this re-run.
+## 2. Canonical credit view (005) — required — P0
 
-# Web GTM
+002 is already live. Do **not** roll it back. 005 is `CREATE OR REPLACE VIEW`.
 
-- [x] No Web GTM changes required.
-  - Stitch-fill for GTM-MVWKFXH2 is already published. Shop Pay still does not run stitch HTML (known). Do not re-import stitch-fill.
+- [ ] Run `bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql`
+- Expected: view exists; columns include `credit`, `event_purchase_value`, `is_direct`. **No `net_revenue` / `attributed_revenue` from event value.**
+- Validation immediately after, in order:
 
-# Server GTM
+### 2a. Golden model parity (no customer data)
 
-- [x] No Server GTM changes required for this release.
-  - Writer GTM-NJ4QCWFK already lands `stape_data.raw_events_full`. Identity columns are consumed; if fill is still empty that is the existing writer gap documented in `bigquery/analytics/GTM_CHANGES.md`, not a new change.
+- [ ] Run `bigquery/validation/04_attribution_model_parity.sql`
+- Expected: `mismatch_count = 0`
+- If `mismatch_count != 0`: uncomment / run the mismatches select at the bottom of that file and paste every row.
 
-# Shopify
+### 2b. Credit integrity + rowcount
 
-- [ ] None required for pagination (app now requests up to 100 pages / 10,000 orders).
-- [ ] Optional: confirm `read_customers` scope if Customers/LTV shows a scope error.
+- [ ] Run `bigquery/validation/03_order_credit_integrity.sql`
+- Expected: `orders_credit_ne_1 = 0` for models with touches; `paid_only` may have zero rows. After 005 there is **no** `net_revenue` / `attributed_revenue` column. If BigQuery says `Unrecognized name: net_revenue`, 005 was not applied.
+- [ ] Run `bigquery/validation/11a_credit_view_rowcount.sql`
+- Expected: `credit_rows` > 0 when `purchase_transaction_ids` > 0. If 0, paste 11a output (identity stitch likely broken).
 
-# Meta
+### 2c. Conversion lag (re-run after canonicalization)
 
-- [ ] None. Reuse Flyweel `goodsnova_platform` facts. Do not build a second pipeline.
+- [ ] Run `bigquery/validation/11_conversion_lag_distribution.sql`
+- Expected: a lag distribution with `orders` > 0. Keep the **7-day default** unless P90/P99 clearly need 14/30. Do not mark PRODUCTION VERIFIED until this result is pasted.
+- If it fails / returns 0 orders: paste the output; do not change the app window.
+
+### 2d. Coverage (same date window)
+
+- [ ] Run `bigquery/validation/07_attribution_coverage.sql`
+- Expected: numeric `tracked_purchases`, `identity_match_rate`, `journey_match_rate`, `warehouse_attribution_coverage`, `unattributed_count`. `shopify_to_tracking_coverage` is NULL until a Shopify mirror exists — that is not 0% tracking.
+- If it fails: paste the error and the SELECT output.
+
+### 2e. Campaign mapping
+
+- [ ] Run `bigquery/validation/05_meta_campaign_mapping_coverage.sql`
+- Expected: counts for exact ID / unique name / ambiguous / unmapped and a `mapping_rate`. UI stays VALIDATION REQUIRED until you paste this.
+- If it fails: paste the output. Do not invent ad-set/ad/creative OUR mapping.
+
+### 2f. Refunds
+
+- [ ] Run `bigquery/validation/06_refund_reconciliation.sql`
+- Expected: status stating BigQuery-only refund recon **cannot be completed** until `analytics.fct_shopify_orders` is populated. App already uses Shopify Admin `currentTotalPriceSet`.
+- If the query errors: paste the error. Do not treat event `value` as net revenue.
+
+## 3. dashboard_events lifecycle (003) — required — P0
+
+Canonical attribution does **not** use this view (it uses `raw_events_full`). 003 is for funnel + 400-day retention.
+
+- [ ] Run `bigquery/migrations/2026_08_18_003_dashboard_events_lifecycle.sql`
+- Expected: view has no expiration; identity columns coalesced (Data Client identity kept); `raw_events_full` `partition_expiration_days = 400`.
+- Validation: `bigquery/validation/08_event_retention.sql`
+- If it fails: paste 08 output.
+
+## 4. Shopify history (004) — optional — P4
+
+- [ ] Only if you want a BQ Shopify mirror for LTV/refund recon later.
+- File: `bigquery/migrations/2026_08_18_004_shopify_history.sql`
+- Expected: empty `analytics.fct_shopify_orders`.
+- App LTV remains **Selected-history LTV (incomplete)** until this table is loaded.
+
+# Web GTM / Server GTM / Meta CAPI / GA4
+
+- [x] No changes. Do not publish GTM for this pass.
 
 # Vercel
 
-- [ ] Redeploy after merging this branch to `main` (Cursor cannot publish `main` unless you ask).
-- [ ] No new env vars required. Do not set placeholder `GOOGLE_CLOUD_PROJECT` in cloud agent VMs.
+- [ ] Redeploy after merging this branch to `main`.
+- [ ] No new env vars.
 
-# Other
+# After you paste validation results
 
-- [ ] Paste touch-grain campaign mapping results from updated `05`; the UI will keep saying VALIDATION REQUIRED for campaign coverage until then. Conversion-lag default is already 7d.
+Send back:
+
+1. 04 `mismatch_count`
+2. 11a `credit_rows` / `purchase_transaction_ids`
+3. 11 lag P50/P75/P90/P95/P99 and n
+4. 07 coverage rates
+5. 05 mapping counts
+6. 06 status line
+
+If any query fails, paste the **full error plus the query filename**. Do not infer a fix from a screenshot of one number.

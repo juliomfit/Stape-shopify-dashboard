@@ -13,8 +13,9 @@
  * Missing spend is null (shown as —), never 0.
  * Missing gn_* is Unknown, not Direct.
  * COGS is never invented and never filled from typicalCogs.
- * Contribution profit without cogs is revenue − fees − ad spend.
+ * Pre-COGS contribution without cogs is revenue − fees − ad spend.
  * Pass cogs only when every Pacific day in the range has a typed supplier row.
+ * Do not label the incomplete figure Contribution Profit.
  *
  * MER = revenue ÷ spend (ecommerce standard). The old spend÷revenue ratio is
  * marketingCostRatio (Ad spend % of revenue). Never call both MER.
@@ -25,6 +26,62 @@ export function ratio(numerator: number, spend: number | null): number | null {
     return null;
   }
   return numerator / spend;
+}
+
+/**
+ * Paid channels whose attributed revenue may enter Our Paid ROAS, and only when
+ * that same channel has a numeric spend source in the denominator.
+ * GoodsNova today: Meta spend is trusted; Google/TikTok/Microsoft stay out of
+ * both sides until their spend is actually available (null ≠ $0).
+ */
+export const PAID_ROAS_CHANNELS = [
+  "Google Ads",
+  "Facebook / Meta Ads",
+  "TikTok",
+  "Microsoft Ads",
+] as const;
+
+export type PaidRoasChannel = (typeof PAID_ROAS_CHANNELS)[number];
+
+export function isPaidRoasChannel(channel: string): channel is PaidRoasChannel {
+  return (PAID_ROAS_CHANNELS as readonly string[]).includes(channel);
+}
+
+/**
+ * Our Paid ROAS inputs: only paid-channel attributed revenue whose channel has
+ * a corresponding spend source. Missing spend (null/undefined) excludes that
+ * channel from both numerator and denominator so Google/TikTok/Microsoft cannot
+ * inflate aggregate Paid ROAS when Meta is the only connected spend source.
+ */
+export function paidRoasCovered(input: {
+  attributedByChannel: Array<{ channel: string; revenue: number }>;
+  spendByChannel: Record<string, number | null | undefined>;
+}): { revenue: number; spend: number | null } {
+  let revenue = 0;
+  const spendParts: number[] = [];
+  for (const channel of PAID_ROAS_CHANNELS) {
+    const spend = input.spendByChannel[channel];
+    if (typeof spend !== "number" || !Number.isFinite(spend)) {
+      continue;
+    }
+    spendParts.push(spend);
+    const row = input.attributedByChannel.find((item) => item.channel === channel);
+    if (row) {
+      revenue += row.revenue;
+    }
+  }
+  return {
+    revenue,
+    spend: spendParts.length > 0 ? spendParts.reduce((sum, value) => sum + value, 0) : null,
+  };
+}
+
+export function paidRoas(
+  attributedByChannel: Array<{ channel: string; revenue: number }>,
+  spendByChannel: Record<string, number | null | undefined>,
+): number | null {
+  const covered = paidRoasCovered({ attributedByChannel, spendByChannel });
+  return ratio(covered.revenue, covered.spend);
 }
 
 /**
@@ -111,9 +168,11 @@ export function netAfterFees(
 }
 
 /**
- * Contribution profit (not net profit): Shopify total − Shopify Payments fees − ad spend.
- * Does not subtract COGS, shipping expense, or other opex unless those values are supplied.
- * Callers must omit `cogs` when the daily ledger is incomplete so this does not treat missing days as $0.
+ * Pre-COGS contribution (not full contribution profit): Shopify total −
+ * Shopify Payments fees − ad spend. Does not subtract COGS, shipping expense,
+ * or other opex unless those values are supplied. Callers must omit `cogs`
+ * when the daily ledger is incomplete so this does not treat missing days as $0.
+ * UI must not label the incomplete figure "Contribution Profit".
  */
 export function contributionProfit(input: {
   totalRevenue: number;

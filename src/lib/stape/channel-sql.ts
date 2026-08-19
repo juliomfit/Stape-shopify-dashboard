@@ -11,9 +11,49 @@ export const ATTRIBUTION_CHANNELS = [
   "Email",
   "Direct",
   "Other",
+  "Unknown",
 ] as const;
 
 export type AttributionChannel = (typeof ATTRIBUTION_CHANNELS)[number];
+
+/**
+ * Internal / checkout noise — NOT Direct, NOT an attribution touch.
+ * Must stay in lockstep with `src/lib/attribution/eligibility.ts`.
+ */
+export const INTERNAL_NOISE_SQL = `
+  (
+    IFNULL(page_location, '') LIKE '%web-pixels@%'
+    OR IFNULL(page_location, '') LIKE '%/checkouts/%'
+    OR IFNULL(page_location, '') LIKE '%/checkout%'
+    OR REGEXP_CONTAINS(IFNULL(page_referrer, ''), r'(?i)(checkout\\.shopify|shopifycs\\.com|pay\\.shopify|shop\\.app|paypal\\.com|paypal\\.me|stripe\\.com|klarna\\.com|afterpay\\.com)')
+    OR (
+      IFNULL(NET.HOST(page_location), '') != ''
+      AND IFNULL(NET.HOST(page_referrer), '') != ''
+      AND (
+        REGEXP_REPLACE(IFNULL(NET.HOST(page_location), ''), r'^www\\.', '')
+          = REGEXP_REPLACE(IFNULL(NET.HOST(page_referrer), ''), r'^www\\.', '')
+        OR ENDS_WITH(
+          REGEXP_REPLACE(IFNULL(NET.HOST(page_location), ''), r'^www\\.', ''),
+          CONCAT('.', REGEXP_REPLACE(IFNULL(NET.HOST(page_referrer), ''), r'^www\\.', ''))
+        )
+        OR ENDS_WITH(
+          REGEXP_REPLACE(IFNULL(NET.HOST(page_referrer), ''), r'^www\\.', ''),
+          CONCAT('.', REGEXP_REPLACE(IFNULL(NET.HOST(page_location), ''), r'^www\\.', ''))
+        )
+      )
+      AND IFNULL(gclid, '') = ''
+      AND IFNULL(gbraid, '') = ''
+      AND IFNULL(wbraid, '') = ''
+      AND IFNULL(dclid, '') = ''
+      AND IFNULL(fbclid, '') = ''
+      AND IFNULL(fbc, '') = ''
+      AND IFNULL(ttclid, '') = ''
+      AND IFNULL(msclkid, '') = ''
+      AND NOT REGEXP_CONTAINS(IFNULL(page_location, ''), r'[?&]utm_source=[^&]+')
+      AND NOT REGEXP_CONTAINS(IFNULL(page_location, ''), r'[?&](gclid|gbraid|wbraid|dclid|fbclid|ttclid|msclkid)=')
+    )
+  )
+`;
 
 export const PAID_CHANNELS: readonly AttributionChannel[] = [
   "Google Ads",
@@ -76,17 +116,19 @@ export const CHANNEL_SQL = `
       THEN 'Google Organic'
     WHEN REGEXP_CONTAINS(IFNULL(page_location, ''), r'[?&]utm_source=[^&]+')
       THEN 'Other'
-    WHEN page_location LIKE '%web-pixels@%'
-      OR page_location LIKE '%/checkouts/%'
-      OR page_location LIKE '%/checkout%'
+    WHEN IFNULL(page_location, '') != ''
+      AND IFNULL(page_location, '') NOT LIKE '%web-pixels@%'
+      AND IFNULL(page_location, '') NOT LIKE '%/checkouts/%'
+      AND IFNULL(page_location, '') NOT LIKE '%/checkout%'
+      AND IFNULL(page_referrer, '') = ''
       THEN 'Direct'
-    WHEN IFNULL(page_referrer, '') = ''
-      OR (
-        IFNULL(page_location, '') != ''
-        AND STRPOS(IFNULL(page_referrer, ''), IFNULL(NET.HOST(page_location), '')) > 0
+    WHEN IFNULL(page_referrer, '') != ''
+      AND (
+        IFNULL(page_location, '') = ''
+        OR STRPOS(IFNULL(page_referrer, ''), IFNULL(NET.HOST(page_location), '')) = 0
       )
-      THEN 'Direct'
-    ELSE 'Other'
+      THEN 'Other'
+    ELSE 'Unknown'
   END
 `;
 

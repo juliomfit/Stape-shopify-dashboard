@@ -215,11 +215,11 @@ export default async function SalesPage() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Contribution profit"
+            label="Pre-COGS contribution"
             source={
               profit === null
-                ? "Needs ad spend for these dates · COGS not subtracted"
-                : `${period.label} · total − fees − ad spend · not net profit (no COGS)`
+                ? "Needs ad spend for these dates · COGS/shipping not subtracted"
+                : `${period.label} · total − fees − ad spend · Pre-COGS contribution · incomplete costs`
             }
             value={
               profit === null
@@ -231,8 +231,8 @@ export default async function SalesPage() {
             label="Profit ROAS"
             source={
               profitRoasValue === null
-                ? "Needs ad spend · contribution profit ÷ spend"
-                : `${period.label} · contribution profit ÷ blended ad spend`
+                ? "Needs ad spend · Pre-COGS contribution ÷ spend"
+                : `${period.label} · Pre-COGS contribution ÷ blended ad spend`
             }
             value={roasLabel(profitRoasValue)}
           />

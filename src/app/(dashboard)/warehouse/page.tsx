@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ConnectionStatus } from "@/components/dashboard/ConnectionStatus";
+import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { InfoPanel } from "@/components/dashboard/InfoPanel";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { WarehouseChannelTable } from "@/components/dashboard/WarehouseChannelTable";
@@ -9,6 +10,7 @@ import { WarehouseQualityPanel } from "@/components/dashboard/WarehouseQualityPa
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { attributionResultsAvailable } from "@/lib/warehouse/canonical-orders";
 import {
   DEFAULT_LOOKBACK,
   DEFAULT_MODEL,
@@ -42,6 +44,16 @@ export default async function WarehousePage({ searchParams }: PageProps) {
     getShopifyOverviewMetrics(),
   ]);
   const currency = shopify.revenue?.currencyCode || "USD";
+  const attributionReady = attributionResultsAvailable({
+    warehouseState: data.status.state,
+    shopifyState: shopify.status.state,
+  });
+  const attributedUnavailable =
+    data.status.state === "error"
+      ? data.status.message
+      : shopify.status.state === "error"
+        ? shopify.status.message
+        : null;
   const modelLabel =
     WAREHOUSE_MODELS.find((item) => item.key === data.model)?.label ??
     data.model;
@@ -51,7 +63,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
     <>
       <Header
         title="Warehouse attribution"
-        description="Observed click and session paths in BigQuery (attribution_policy_v1). Changing the model reallocates credit; canonical Shopify order totals do not change. First-touch (cart) remains gn_*."
+        description="Observed click and session paths in BigQuery (attribution_policy_v1). Same seven models and session-touch grain as Models / Journeys. Changing the model reallocates Shopify × credit; canonical Shopify order totals do not change. First-touch (cart) remains gn_*."
       />
       <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} stape={data.status} />
@@ -92,15 +104,19 @@ export default async function WarehousePage({ searchParams }: PageProps) {
           <MetricCard
             label="Attributed revenue"
             source={source}
-            value={formatMoney({
-              amount: data.attributedRevenue,
-              currencyCode: currency,
-            })}
+            value={
+              attributionReady
+                ? formatMoney({
+                    amount: data.attributedRevenue,
+                    currencyCode: currency,
+                  })
+                : null
+            }
           />
           <MetricCard
             label="Attributed orders"
             source={source}
-            value={formatNumber(data.attributedOrders)}
+            value={attributionReady ? formatNumber(data.attributedOrders) : null}
           />
           <MetricCard
             label="Attribution coverage"
@@ -169,6 +185,9 @@ export default async function WarehousePage({ searchParams }: PageProps) {
             }
           />
         </div>
+        {attributedUnavailable ? (
+          <EmptyPanel title="Attribution unavailable" description={attributedUnavailable} />
+        ) : attributionReady ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <WarehouseChannelTable
             title="Selected model"
@@ -195,6 +214,13 @@ export default async function WarehousePage({ searchParams }: PageProps) {
             currencyCode={currency}
           />
         </div>
+        ) : (
+          <EmptyPanel
+            title="Attribution unavailable"
+            description="Connect Shopify and BigQuery before treating empty channel tables as $0 attributed revenue."
+          />
+        )}
+        {attributionReady ? (
         <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
           <h2 className="text-sm font-semibold text-foreground">
             Cross-channel journeys
@@ -221,6 +247,7 @@ export default async function WarehousePage({ searchParams }: PageProps) {
             )}
           </ul>
         </article>
+        ) : null}
         <WarehouseQualityPanel
           quality={data.quality}
           totalOrders={data.orders}

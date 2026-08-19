@@ -7,6 +7,8 @@ import {
   marketingCostRatio,
   merRatio,
   platformRoas,
+  paidRoas,
+  paidRoasCovered,
   ratio,
   blendedNcac,
   attributedNcac,
@@ -69,4 +71,56 @@ test("contribution profit subtracts supplied COGS only", () => {
 test("coverage does not divide by zero", () => {
   assert.equal(coverageRatio(10, 0), null);
   assert.equal(coverageRatio(9, 10), 0.9);
+});
+
+test("Our Paid ROAS only includes paid channels that have a spend source", () => {
+  const attributedByChannel = [
+    { channel: "Facebook / Meta Ads", revenue: 100 },
+    { channel: "Google Ads", revenue: 50 },
+    { channel: "TikTok", revenue: 20 },
+    { channel: "Microsoft Ads", revenue: 10 },
+    { channel: "Email", revenue: 40 },
+  ];
+  const metaOnly = paidRoasCovered({
+    attributedByChannel,
+    spendByChannel: {
+      "Facebook / Meta Ads": 25,
+      "Google Ads": null,
+      TikTok: null,
+      "Microsoft Ads": undefined,
+    },
+  });
+  assert.equal(metaOnly.revenue, 100);
+  assert.equal(metaOnly.spend, 25);
+  assert.equal(paidRoas(attributedByChannel, {
+    "Facebook / Meta Ads": 25,
+    "Google Ads": null,
+    TikTok: null,
+    "Microsoft Ads": null,
+  }), 4);
+
+  const inflatedIfUnfiltered = 100 + 50 + 20 + 10;
+  assert.notEqual(metaOnly.revenue, inflatedIfUnfiltered);
+
+  const metaAndGoogle = paidRoasCovered({
+    attributedByChannel,
+    spendByChannel: {
+      "Facebook / Meta Ads": 25,
+      "Google Ads": 10,
+      TikTok: null,
+      "Microsoft Ads": null,
+    },
+  });
+  assert.equal(metaAndGoogle.revenue, 150);
+  assert.equal(metaAndGoogle.spend, 35);
+
+  assert.equal(
+    paidRoas(attributedByChannel, {
+      "Facebook / Meta Ads": null,
+      "Google Ads": null,
+      TikTok: null,
+      "Microsoft Ads": null,
+    }),
+    null,
+  );
 });

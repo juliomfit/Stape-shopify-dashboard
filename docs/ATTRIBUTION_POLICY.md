@@ -2,27 +2,37 @@
 
 Canonical contract: `src/lib/attribution/policy.ts` (`attribution_policy_v1`).
 
-TypeScript engine: `src/lib/attribution/engine.ts` (debugger, fixtures, unit tests).
+TypeScript engine: `src/lib/attribution/engine.ts` + `src/lib/attribution/eligibility.ts`.
 
-BigQuery production math: `src/lib/warehouse/get-warehouse-metrics.ts` and `bigquery/migrations/2026_08_18_002_attribution_credit.sql`.
+Runtime journeys: `getCanonicalAttributedOrders()` (`src/lib/warehouse/canonical-orders.ts`).
 
-If they disagree, tests fail.
+BigQuery credit view: `bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql` (forward fix after 002). The view is **credit-only**. Shopify `currentTotalPriceSet` is money truth in the app.
 
-## Unknown ≠ Direct
+If TypeScript and SQL disagree, tests fail.
 
-Missing tracking stays **Unknown** or **Unattributed**. It is never silently converted to Direct.
+## Canonical grain
 
-Direct is a real touch when the visit has no external referrer / self-referral / checkout noise.
+```
+raw_events_full → identity → canonical GA4 sessions → one eligible acquisition
+touch per session → orders → attribution_policy_v1 → fractional credit →
+Shopify money → channel/campaign metrics
+```
 
-## Eligible touches
+Touchpoint id is derived from the canonical session, not `transactionId-index`.
+Multiple events in one session (page_view, add_to_cart, begin_checkout, purchase)
+collapse to one touch. Checkout must not overwrite a Meta/organic/direct session.
 
-In window, at or before purchase, de-duplicated by touchpoint id.
+`getAttributionMetrics()` is **legacy event-grain diagnostics** (health / data-quality /
+first-touch Stape comparison). It must not power Models, Journeys, Overview
+comparison, or the order debugger.
 
-Checkout / `web-pixels@` paths classify as Direct (payment-domain noise).
+## Direct vs internal noise vs Unknown
 
-Self-referral (referrer host = landing host) is Direct.
-
-Dual GA4 + Data Client purchase copies collapse to one canonical `transaction_id`.
+| Concept | Meaning | Eligible? |
+| --- | --- | --- |
+| Real Direct | Storefront session, no external referrer, no paid click id, no attributable source | Yes (FT/LT/linear/position/time-decay). Last Non-Direct skips it when a non-direct exists. |
+| Internal noise | `/checkout`, `/checkouts/`, `web-pixels@`, payment-processor referrers, own-domain navigation that is not a new acquisition | **No. Not Direct.** |
+| Unknown | No reliable eligible touch | **Never coerced to Direct** |
 
 ## Models
 
@@ -31,35 +41,30 @@ Dual GA4 + Data Client purchase copies collapse to one canonical `transaction_id
 | First touch | 100% earliest eligible touch (Direct may win). |
 | Last touch | 100% latest eligible touch (Direct may win). |
 | Last non-direct | 100% latest non-direct. If none, last Direct. |
-| Linear | Equal split across **all** eligible touches including Direct. |
-| Position based | 1 touch = 100%. 2 touches = 50/50. Else 40% first, 40% last, 20% split across middle. Index order, not hours-to-conversion. |
+| Linear | Equal split across **all** eligible touches including Real Direct. |
+| Position based | 1 touch = 100%. 2 touches = 50/50. Else 40% first, 40% last, 20% split across middle. |
 | Paid only | Equal split among paid touches. If none, unattributed (empty credit, not Direct). |
 | Time decay | `weight_i = 2^(-hours_i / 168)` then normalize. Includes Direct. |
 
-Assists (warehouse panel): touches that are neither first nor last on a 3+ touch path. Equal split among those middle touches. This is **not** Linear.
+Assists: middle touches on a 3+ path. Not Linear.
 
 ## Window
 
-Supported in the app: 1 / 7 / 14 / 30 / 60 days.
+Supported: 1 / 7 / 14 / 30 / 60 days. Default **7 days**.
 
-Default: **7 days**. Validated 2026-08-19 (`bigquery/validation/11_conversion_lag_distribution.sql`): P50/P75/P90 = 0h, P95 = 3h, P99 = 69h, n = 69. Sub-hour conversions show as 0h (`TIMESTAMP_DIFF` hour grain).
-
-90-day is hidden until `raw_events_full` retention covers it.
+Prior lag (2026-08-19, old touch grain): P90=0h P99=69h n=69. **Re-run query 11 after migration 005** before marking PRODUCTION VERIFIED. Do not auto-promote 14/30.
 
 ## Revenue
 
-Shopify `currentTotalPriceSet` = net after refunds/discounts. Journeys stay attached; financial credit uses that net.
+Shopify `currentTotalPriceSet` = net after refunds/discounts. Event `value` is `event_purchase_value` (QA only). Journeys stay attached when refunds change the net.
 
-## New customers
+## New customers / nCAC / ROAS
 
-Shopify `customer.numberOfOrders <= 1`. Fractional new-customer credit = touch weight × 1 under MTA.
+- Blended nCAC = total ad spend ÷ Shopify new-customer orders.
+- Attributed nCAC = grain spend ÷ fractional new-customer credit (mapping HIGH/PARTIAL only).
+- Shopify MER = Shopify revenue ÷ paid spend.
+- Our Paid ROAS = paid-channel attributed revenue ÷ paid spend. Do not divide all-channel attributed revenue by paid spend.
 
-Blended nCAC = total ad spend ÷ Shopify new-customer orders.
+## Campaign mapping
 
-Attributed nCAC = grain spend ÷ fractional new-customer credit. Never mixed.
-
-## MER
-
-MER = Shopify revenue ÷ ad spend (e.g. 2.5).
-
-Marketing cost ratio = ad spend ÷ Shopify revenue (e.g. 40%). Formerly mislabeled MER.
+Exact campaign ID, then exact unique normalized name, else unmapped. Duplicate names are `ambiguous_name`. No fuzzy match. Campaign is the deepest OUR first-party grain until ad-set/ad IDs exist on touches. Flyweel Campaign → Ad Set → Ad → Creative is **Meta platform** reporting.

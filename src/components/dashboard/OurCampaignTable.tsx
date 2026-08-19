@@ -14,14 +14,17 @@ export function OurCampaignTable({ rows, currencyCode }: OurCampaignTableProps) 
         Meta platform vs our campaign attribution
       </h2>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Meta numbers are Flyweel platform facts. OUR revenue is first-party
-        credit joined only when UTM campaign / campaign id matches a Meta
-        campaign name. Unmapped stays unmapped. Mapping coverage:{" "}
+        Meta numbers are Flyweel <strong>platform</strong> facts (Campaign → Ad
+        Set → Ad → Creative). OUR first-party attribution grain is campaign
+        (UTM / campaign id) only — ad-set/ad/creative are not independent OUR
+        credits. Join priority: exact campaign ID, then exact unique normalized
+        name. Duplicate names stay unmapped. Mapping coverage:{" "}
         {CAMPAIGN_MAPPING_STATUS} (run{" "}
         <span className="font-mono">
           bigquery/validation/05_meta_campaign_mapping_coverage.sql
         </span>
-        ). Attributed nCAC is null until new-customer credit is mapped.
+        ). Attributed nCAC uses fractional new-customer credit only when mapping
+        confidence is HIGH or PARTIAL.
       </p>
       {rows.length === 0 ? (
         <p className="mt-6 text-sm text-muted">
@@ -35,20 +38,23 @@ export function OurCampaignTable({ rows, currencyCode }: OurCampaignTableProps) 
               <tr>
                 <th>Campaign</th>
                 <th>Map</th>
+                <th>Confidence</th>
                 <th className="num">Spend</th>
                 <th className="num">Meta revenue</th>
                 <th className="num">Our revenue</th>
                 <th className="num">Δ %</th>
                 <th className="num">Meta ROAS</th>
-                <th className="num">Our ROAS</th>
+                <th className="num">Our campaign ROAS</th>
                 <th className="num">Our orders</th>
+                <th className="num">Attr. nCAC</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={`${row.campaignId ?? row.campaignName}`}>
                   <td className="text-foreground">{row.campaignName}</td>
-                  <td>{row.mapped ? "mapped" : "unmapped"}</td>
+                  <td>{row.mappingMethod}</td>
+                  <td>{row.mappingConfidence}</td>
                   <td className="num">
                     {row.spend
                       ? formatMoney({ amount: row.spend, currencyCode })
@@ -73,6 +79,14 @@ export function OurCampaignTable({ rows, currencyCode }: OurCampaignTableProps) 
                   </td>
                   <td className="num">
                     {formatNumber(Math.round(row.ourOrders * 10) / 10)}
+                  </td>
+                  <td className="num">
+                    {row.attributedNcac === null
+                      ? "—"
+                      : formatMoney({
+                          amount: row.attributedNcac,
+                          currencyCode,
+                        })}
                   </td>
                 </tr>
               ))}

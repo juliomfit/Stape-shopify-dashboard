@@ -42,10 +42,13 @@ function touchDotClass(channel: string) {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function statusClass(status: string) {
-  if (status === "matched" || status === "present") {
+  if (status === "STITCHED" || status === "CORROBORATED") {
     return "text-positive";
   }
-  if (status === "missing") {
+  if (status === "PRESENT") {
+    return "text-foreground";
+  }
+  if (status === "MISSING") {
     return "text-negative";
   }
   return "text-muted";
@@ -102,7 +105,10 @@ export function OrderAttributionDebugger({
               const gapDays = previous
                 ? (touch.timestamp - previous.timestamp) / DAY_MS
                 : null;
-              const original = order.touches[index];
+              const original = order.touches.find(
+                (item) =>
+                  (item.touchpointId || item.sessionKey) === touch.id,
+              );
               return (
                 <li key={touch.id} className="flex gap-3 text-sm">
                   <span
@@ -129,9 +135,19 @@ export function OrderAttributionDebugger({
               <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-foreground" aria-hidden="true" />
               <div>
                 <p className="font-medium text-foreground">
-                  Purchase · {formatMoney({ amount: order.revenue, currencyCode })}
+                  Purchase ·{" "}
+                  {order.moneySource === "shopify"
+                    ? formatMoney({ amount: order.revenue, currencyCode })
+                    : "Shopify unmatched"}
                 </p>
-                <p className="text-xs text-muted">{dateTime(order.purchaseTs)}</p>
+                <p className="text-xs text-muted">
+                  {dateTime(order.purchaseTs)}
+                  {order.eventPurchaseValue != null
+                    ? ` · event value ${formatMoney({ amount: order.eventPurchaseValue, currencyCode })} (QA only)`
+                    : ""}
+                  {order.isNewCustomer === true ? " · new customer" : ""}
+                  {order.isNewCustomer === false ? " · returning" : ""}
+                </p>
               </div>
             </li>
           </ol>
@@ -198,7 +214,7 @@ export function OrderAttributionDebugger({
                         <span className="text-muted">
                           {formatPercent(weight)} ·{" "}
                           {formatMoney({
-                            amount: order.revenue * weight,
+                            amount: (order.shopifyNetRevenue ?? 0) * weight,
                             currencyCode,
                           })}
                         </span>

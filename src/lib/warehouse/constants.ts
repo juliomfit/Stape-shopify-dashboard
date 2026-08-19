@@ -5,12 +5,11 @@ import {
 import { ATTRIBUTION_POLICY_ID } from "@/lib/attribution/policy";
 import { DEFAULT_TIME_DECAY_HALF_LIFE_HOURS } from "@/lib/attribution/engine";
 
+/** Same seven models as attribution_policy_v1. Do not add last_paid/first_paid. */
 export const WAREHOUSE_MODELS = [
   { key: "first_touch", label: "First Touch" },
   { key: "last_touch", label: "Last Touch" },
   { key: "last_non_direct", label: "Last Non-Direct" },
-  { key: "last_paid", label: "Last Paid" },
-  { key: "first_paid", label: "First Paid" },
   { key: "paid_only", label: "Paid Only" },
   { key: "linear", label: "Linear" },
   { key: "position_based", label: "Position Based" },

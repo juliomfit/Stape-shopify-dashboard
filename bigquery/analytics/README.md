@@ -1,4 +1,28 @@
+# LEGACY — DO NOT RUN IN PRODUCTION
+
+The SQL in this folder is the **pre-policy_v1 warehouse sketch**. It is not the
+canonical attribution pipeline.
+
+Do **not** run:
+- `07_dim_attribution_settings.sql` (would overwrite policy settings)
+- `08_fct_attribution.sql` (30-day / last_paid / Direct-excluded linear)
+- `02_dim_channel_rules.sql`
+- `05_fct_touchpoints.sql` (dropped Real Direct)
+- `06_fct_orders.sql` (event value labeled net_revenue)
+- `09_marts.sql` / `14_qa.sql`
+
+Those files now no-op with `DO_NOT_RUN`.
+
+Canonical path:
+
+1. `bigquery/migrations/2026_08_18_001_attribution_policy.sql`
+2. `bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql` (forward fix after 002)
+3. App runtime: `src/lib/warehouse/sql.ts` + `getCanonicalAttributedOrders()`
+
+---
+
 # GoodsNova attribution warehouse
+
 
 Production-grade, transaction-safe attribution on first-party server data.
 This layer does **not** replace Shopify `gn_*` first-touch on `/attribution`.

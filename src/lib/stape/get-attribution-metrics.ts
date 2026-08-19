@@ -1,3 +1,15 @@
+/**
+ * LEGACY event-grain attribution. Reconstructs a path from every classified
+ * event row (`transactionId-index` touch ids).
+ *
+ * Do NOT use this for Models, Journeys, Attribution Overview model comparison,
+ * or the order debugger. Those surfaces must call
+ * `getCanonicalAttributedOrders()` (identity → session → eligible touch).
+ *
+ * Remaining callers: tracking health / identity fill panels and first-touch
+ * Stape comparison. Treat numbers here as tracking diagnostics, not canonical
+ * attribution.
+ */
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
 import { CHANNEL_SQL, ATTRIBUTION_CHANNELS } from "@/lib/stape/channel-sql";
@@ -73,6 +85,7 @@ function emptyMetrics(
   };
 }
 
+/** @deprecated Event-grain diagnostics only. Canonical UI must use getCanonicalAttributedOrders. */
 export async function getAttributionMetrics(options?: {
   lookbackDays?: number;
 }): Promise<AttributionMetrics> {
@@ -119,7 +132,7 @@ export async function getAttributionMetrics(options?: {
           IFNULL(e.wbraid, '') AS wbraid,
           IFNULL(e.dclid, '') AS dclid,
           IFNULL(e.fbclid, '') AS fbclid,
-          IFNULL(e.fbc, '') AS fbc,
+          CAST(NULL AS STRING) AS fbc,
           IFNULL(e.ttclid, '') AS ttclid,
           IFNULL(e.msclkid, '') AS msclkid,
           e.transaction_id,

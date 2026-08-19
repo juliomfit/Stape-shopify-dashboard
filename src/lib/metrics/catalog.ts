@@ -51,8 +51,8 @@ export const METRIC_CATALOG = {
   },
   ourRoas: {
     id: "our_roas",
-    label: "Our attributed ROAS",
-    formula: "Our attributed revenue ÷ spend for that grain. Null if spend missing.",
+    label: "Our Paid ROAS",
+    formula: "Attributed revenue credited to paid channels ÷ corresponding paid spend. Not all-channel attributed revenue ÷ paid spend.",
   },
   platformRoas: {
     id: "platform_roas",
@@ -96,8 +96,8 @@ export const METRIC_CATALOG = {
   },
   contributionProfit: {
     id: "contribution_profit",
-    label: "Contribution profit",
-    formula: "Net revenue − Shopify Payments fees − ad spend − COGS (only when complete) − shipping expense (only when supplied). Missing inputs make the metric incomplete, not $0.",
+    label: "Pre-COGS contribution",
+    formula: "Net revenue − Shopify Payments fees − ad spend − COGS (only when complete) − shipping expense (only when supplied). If COGS/shipping are missing, UI must say Pre-COGS contribution / incomplete costs — never invent $0 costs. Do not label that incomplete figure Contribution Profit.",
   },
   contributionMargin: {
     id: "contribution_margin",
@@ -111,8 +111,8 @@ export const METRIC_CATALOG = {
   },
   ltv: {
     id: "ltv",
-    label: "LTV",
-    formula: "Cumulative Shopify net revenue from first purchase through N days. Immature cohorts are marked, never shown as final.",
+    label: "Selected-history LTV (incomplete)",
+    formula: "Cumulative Shopify net revenue from first observed purchase in the loaded order set. Not true lifetime LTV until analytics.fct_shopify_orders is populated.",
   },
   ltvCac: {
     id: "ltv_cac",

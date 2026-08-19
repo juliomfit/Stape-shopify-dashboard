@@ -14,6 +14,7 @@ import type { PlatformReported } from "@/lib/ads/types";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { blendedCpa, merRatio, ratio } from "@/lib/dashboard/kpis";
 import { getAttributionMetrics } from "@/lib/stape/get-attribution-metrics";
+/** LEGACY event-grain Stape comparison for first-touch only. Canonical MTA is getCanonicalAttributedOrders. */
 import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import {
   buildAttributionRollups,

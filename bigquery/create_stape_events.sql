@@ -1,3 +1,6 @@
+-- LEGACY — DO NOT RUN IN PRODUCTION
+-- Test-table bootstrap. Canonical events live in stape_data.raw_events_full.
+-- Do not point attribution at stape_shopify_dashboard.stape_events.
 -- New BigQuery dataset + table for this dashboard.
 -- Run in Google Cloud Console → BigQuery → Compose a new query.
 -- Replace YOUR_PROJECT_ID if needed, then click Run.

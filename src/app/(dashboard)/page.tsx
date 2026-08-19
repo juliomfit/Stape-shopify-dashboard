@@ -300,11 +300,11 @@ export default async function OverviewPage() {
             }
           />
           <MetricCard
-            label="Contribution profit"
+            label="Pre-COGS contribution"
             source={
               profit === null
-                ? "Needs ad spend for these dates · COGS not subtracted"
-                : `${period.label} · total − fees − ad spend · not net profit (no COGS)`
+                ? "Needs ad spend for these dates · COGS/shipping not subtracted"
+                : `${period.label} · total − fees − ad spend · Pre-COGS contribution · incomplete costs`
             }
             value={
               profit === null
@@ -385,8 +385,8 @@ export default async function OverviewPage() {
             label="Profit ROAS"
             source={
               profitRoasValue === null
-                ? "Needs ad spend · contribution profit (no COGS) ÷ spend"
-                : `${period.label} · contribution profit ÷ blended ad spend · COGS not subtracted`
+                ? "Needs ad spend · Pre-COGS contribution ÷ spend"
+                : `${period.label} · Pre-COGS contribution ÷ blended ad spend · COGS not subtracted`
             }
             value={roasLabel(profitRoasValue)}
           />
