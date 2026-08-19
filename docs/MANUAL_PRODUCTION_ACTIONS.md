@@ -36,8 +36,8 @@ Use checkboxes. Do not mark production verified without evidence.
 
 - [ ] **Conversion-lag default** — required? yes before promoting window default — priority: P1
   - Reason: 7-day default is temporary.
-  - Action: Run `bigquery/validation/11_conversion_lag_distribution.sql` after 002.
-  - Expected: P50/P75/P90/P95/P99 hours.
+  - Action: Re-run `bigquery/validation/11_conversion_lag_distribution.sql` after 002. The first version referenced `order_timestamp` / `touchpoint_timestamp`, which are **not** on the view. Use `hours_to_conversion` (already on `v_attribution_credit_v1`).
+  - Expected: P50/P75/P90/P95/P99 hours plus an order count.
   - Validation: same file.
   - App code complete: yes; UI labeled VALIDATION REQUIRED.
 

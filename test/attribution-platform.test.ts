@@ -98,3 +98,12 @@ test("BigQuery credit SQL does not select raw fbc/fbp columns", () => {
   assert.match(warehouse, /CAST\(NULL AS STRING\) AS fbc/);
   assert.equal(warehouse.includes("NULLIF(fbc,"), false);
 });
+
+test("conversion-lag validation uses view columns that exist", () => {
+  const sql = readFileSync(
+    "bigquery/validation/11_conversion_lag_distribution.sql",
+    "utf8",
+  );
+  assert.match(sql, /MAX\(hours_to_conversion\)/);
+  assert.doesNotMatch(sql, /TIMESTAMP_DIFF\s*\(\s*order_timestamp/);
+});
