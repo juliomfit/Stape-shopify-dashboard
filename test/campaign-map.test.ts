@@ -96,3 +96,23 @@ test("mapping summary counts methods", () => {
   assert.ok((summary.uniqueName ?? 0) >= 0);
   assert.equal(typeof resolveCampaignMapping, "function");
 });
+
+test("Flyweel UUID fact is not campaign_id_exact HIGH against a native Meta ID", () => {
+  const rows = joinMetaAndOurCampaigns(
+    [
+      {
+        campaign_id: "a1b2c3d4-e5f6-4789-8abc-def012345678",
+        campaign_name: "Prospecting",
+        spend: 100,
+        impressions: 10,
+        clicks: 2,
+        purchases: 3,
+        purchase_value: 150,
+      },
+    ],
+    [{ campaign: "111", channel: "Facebook / Meta Ads", orders: 1, revenue: 80 }],
+  );
+  const row = rows.find((item) => item.campaignName === "111");
+  assert.equal(row?.mappingMethod, "unmapped");
+  assert.equal(row?.mappingConfidence, "NONE");
+});

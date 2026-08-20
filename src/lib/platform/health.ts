@@ -2,7 +2,7 @@ import { getMetaCredentials } from "@/lib/ads/meta-credentials";
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
 import { formatMetaFactTableCounts, type MetaFactTableCounts } from "@/lib/ads/meta-fact-format";
-import { flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
+import { presentMetaAdsHealth } from "@/lib/platform/meta-health";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { isStapeConfigured } from "@/lib/stape/config";
 import { isOpenAiConfigured } from "@/lib/platform/config";
@@ -111,8 +111,6 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
     Boolean(metaCreds.credentials) ||
     ads.facebook.state === "connected" ||
     Boolean(process.env.FLYWEEL_API_KEY?.trim());
-  let metaStatus: SourceHealthStatus = "disconnected";
-  let metaMessage = "Not connected. Use Flyweel API key or Integrations Graph OAuth, or paste spend.";
   const flyweelOn = Boolean(process.env.FLYWEEL_API_KEY?.trim());
   const metaProviderId: "flyweel" | "meta_graph" | "none" = flyweelOn
     ? "flyweel"
@@ -121,33 +119,18 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
       : "none";
   const metaProvider =
     metaProviderId === "flyweel" ? "Flyweel" : metaProviderId === "meta_graph" ? "Meta Graph" : "none";
-  if (metaFromRun.runStatus === "syncing") {
-    metaStatus = "syncing";
-    metaMessage = "Meta sync in progress.";
-  } else if (metaFromRun.staleRunning) {
-    metaStatus = "error";
-    metaMessage =
-      "Last Meta sync timed out (no completion within 300s). Press Refresh Meta once.";
-  } else if (metaFromRun.runStatus === "error") {
-    metaStatus = "error";
-    metaMessage = metaRun?.error_message || "Last Meta sync failed.";
-  } else if (metaFromRun.runStatus === "partial") {
-    metaStatus = "partial";
-    metaMessage = metaRun?.error_message || "Last Meta sync was partial.";
-  } else if (metaConnected && metaOk) {
-    metaStatus = delayed(metaOk.completed_at) ? "delayed" : "healthy";
-    metaMessage = `Provider: ${metaProvider}. Last successful sync ${metaOk.completed_at}`;
-  } else if (ads.facebook.state === "connected") {
-    metaStatus = "healthy";
-    metaMessage = ads.facebook.message || "Using pasted Ads Manager totals for this range.";
-  } else if (metaConnected) {
-    metaStatus = "partial";
-    metaMessage = flyweelOn
-      ? "FLYWEEL_API_KEY is set but no successful warehouse sync yet. Press Refresh Meta."
-      : "Token saved but no successful platform sync yet. Press Refresh Meta.";
-  }
-
-  const metaWarning = flyweelCampaignOnlyWarning(metaProviderId);
+  const presented = presentMetaAdsHealth({
+    providerId: metaProviderId,
+    connected: metaConnected,
+    latest: metaRun,
+    lastSuccess: metaOk,
+    pastedConnected: ads.facebook.state === "connected",
+    pasteMessage: ads.facebook.message,
+    delayed,
+  });
+  const metaStatus = presented.status;
+  let metaMessage = presented.message;
+  const metaWarning = presented.warning;
   const factLine = formatMetaFactTableCounts(metaFactCounts);
   if (factLine) {
     metaMessage = `${metaMessage} Facts: ${factLine}`.trim();

@@ -28,7 +28,9 @@ export function DataHealthStrip({ sources }: { sources: SourceHealth[] }) {
               className={`flex flex-col rounded-xl px-3 py-2 ${tone(source.status)}`}
             >
               <span className="text-sm font-medium">
-                {source.label} · {source.status}
+                {source.source === "meta" && source.status === "partial" && source.warning
+                  ? `${source.label} · partial/healthy`
+                  : `${source.label} · ${source.status}`}
                 {source.provider && source.provider !== "none" ? ` · ${source.provider}` : ""}
               </span>
               <span className="text-xs opacity-80">{source.message}</span>

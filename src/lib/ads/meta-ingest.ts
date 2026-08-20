@@ -1,7 +1,7 @@
 import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
 import { persistMetaWarehouse } from "@/lib/ads/meta-persist";
 import { getMetaAdsProvider } from "@/lib/ads/providers";
-import { flyweelApiKeyProblem, shouldFetchDeepMetaInsights } from "@/lib/ads/providers/config";
+import { flyweelApiKeyProblem, flyweelVerifiedChildGrain, shouldFetchDeepMetaInsights } from "@/lib/ads/providers/config";
 import { FlyweelMetaAdsProvider, preferredFlyweelAccount } from "@/lib/ads/providers/flyweel";
 import { resolveFlyweelAccountId, resolveFlyweelApiKey } from "@/lib/ads/providers/flyweel-credentials";
 import type { MetaAccount, MetaAdsProvider, MetaInsightResult, MetaInsightRow } from "@/lib/ads/providers/types";
@@ -12,7 +12,9 @@ import {
   META_SYNC_ALREADY_RUNNING,
   buildMetaSyncMetadata,
   isMetaSyncWinner,
+  warehouseFinishErrorFromMetadata,
 } from "@/lib/platform/sync-run-state";
+import { countableGrainRows, type InsightGrainIdReport } from "@/lib/ads/insight-grain";
 import { getDashboardPeriod, pacificDaysInRange } from "@/lib/period";
 import { addDaysYmd } from "@/lib/ads/providers/chunk";
 
@@ -179,6 +181,24 @@ export async function ingestMetaRange(input: {
   let campaignRowCount = 0;
   let adsetRowCount = 0;
   let adRowCount = 0;
+  let campaignGrain: InsightGrainIdReport = {
+    raw_rows: 0,
+    valid_campaign_id_rows: 0,
+    valid_adset_id_rows: 0,
+    valid_ad_id_rows: 0,
+  };
+  let adsetGrain: InsightGrainIdReport = {
+    raw_rows: 0,
+    valid_campaign_id_rows: 0,
+    valid_adset_id_rows: 0,
+    valid_ad_id_rows: 0,
+  };
+  let adGrain: InsightGrainIdReport = {
+    raw_rows: 0,
+    valid_campaign_id_rows: 0,
+    valid_adset_id_rows: 0,
+    valid_ad_id_rows: 0,
+  };
   let adsetSkip: string | undefined;
   let adSkip: string | undefined;
   let accountId = "";
@@ -201,6 +221,19 @@ export async function ingestMetaRange(input: {
         ad_skip: adSkip,
         steps,
         account_id: accountId || undefined,
+        campaign_raw_rows: campaignGrain.raw_rows,
+        campaign_valid_campaign_id_rows: campaignGrain.valid_campaign_id_rows,
+        campaign_valid_adset_id_rows: campaignGrain.valid_adset_id_rows,
+        campaign_valid_ad_id_rows: campaignGrain.valid_ad_id_rows,
+        adset_raw_rows: adsetGrain.raw_rows,
+        adset_valid_campaign_id_rows: adsetGrain.valid_campaign_id_rows,
+        adset_valid_adset_id_rows: adsetGrain.valid_adset_id_rows,
+        adset_valid_ad_id_rows: adsetGrain.valid_ad_id_rows,
+        ad_raw_rows: adGrain.raw_rows,
+        ad_valid_campaign_id_rows: adGrain.valid_campaign_id_rows,
+        ad_valid_adset_id_rows: adGrain.valid_adset_id_rows,
+        ad_valid_ad_id_rows: adGrain.valid_ad_id_rows,
+        child_grain_verified: flyweelVerifiedChildGrain(),
       }),
       ...extra,
     };
@@ -270,8 +303,17 @@ export async function ingestMetaRange(input: {
         endDate: window.endDate,
         level: "campaign",
       });
-      requests += campaign.requests;
-      campaignRowCount += campaign.rows.length;
+      const campaignAccepted = countableGrainRows("campaign", campaign.rows);
+      campaignGrain = {
+        raw_rows: campaignGrain.raw_rows + campaignAccepted.report.raw_rows,
+        valid_campaign_id_rows:
+          campaignGrain.valid_campaign_id_rows + campaignAccepted.report.valid_campaign_id_rows,
+        valid_adset_id_rows:
+          campaignGrain.valid_adset_id_rows + campaignAccepted.report.valid_adset_id_rows,
+        valid_ad_id_rows: campaignGrain.valid_ad_id_rows + campaignAccepted.report.valid_ad_id_rows,
+      };
+      campaign.rows = campaignAccepted.rows;
+      campaignRowCount += campaignAccepted.count;
       let adset: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
       let ad: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
       const deep = shouldFetchDeepMetaInsights(provider.id);
@@ -284,7 +326,21 @@ export async function ingestMetaRange(input: {
             level: "adset",
           });
           requests += adset.requests;
-          adsetRowCount += adset.rows.length;
+          const adsetAccepted = countableGrainRows("adset", adset.rows);
+          adsetGrain = {
+            raw_rows: adsetGrain.raw_rows + adsetAccepted.report.raw_rows,
+            valid_campaign_id_rows:
+              adsetGrain.valid_campaign_id_rows + adsetAccepted.report.valid_campaign_id_rows,
+            valid_adset_id_rows:
+              adsetGrain.valid_adset_id_rows + adsetAccepted.report.valid_adset_id_rows,
+            valid_ad_id_rows: adsetGrain.valid_ad_id_rows + adsetAccepted.report.valid_ad_id_rows,
+          };
+          adset.rows = adsetAccepted.rows;
+          adsetRowCount += adsetAccepted.count;
+          if (adsetAccepted.skip) {
+            adsetSkip = adsetAccepted.skip;
+            steps.push(`adset-skip:${adsetSkip}`);
+          }
         } catch (error) {
           adsetSkip = error instanceof Error ? error.message : "error";
           steps.push(`adset-skip:${adsetSkip}`);
@@ -297,7 +353,20 @@ export async function ingestMetaRange(input: {
             level: "ad",
           });
           requests += ad.requests;
-          adRowCount += ad.rows.length;
+          const adAccepted = countableGrainRows("ad", ad.rows);
+          adGrain = {
+            raw_rows: adGrain.raw_rows + adAccepted.report.raw_rows,
+            valid_campaign_id_rows:
+              adGrain.valid_campaign_id_rows + adAccepted.report.valid_campaign_id_rows,
+            valid_adset_id_rows: adGrain.valid_adset_id_rows + adAccepted.report.valid_adset_id_rows,
+            valid_ad_id_rows: adGrain.valid_ad_id_rows + adAccepted.report.valid_ad_id_rows,
+          };
+          ad.rows = adAccepted.rows;
+          adRowCount += adAccepted.count;
+          if (adAccepted.skip) {
+            adSkip = adAccepted.skip;
+            steps.push(`ad-skip:${adSkip}`);
+          }
         } catch (error) {
           adSkip = error instanceof Error ? error.message : "error";
           steps.push(`ad-skip:${adSkip}`);
@@ -390,9 +459,12 @@ export async function ingestMetaRange(input: {
         : "Insights cached locally. Run bigquery/platform/00_schema.sql to persist.",
       metadata: observabilityMetadata(),
     });
+    const warehouseFinishError = warehouseFinishErrorFromMetadata(finished.metadata);
     return {
       ok: true,
-      message: `Meta ${input.startDate}–${input.endDate} via ${provider.label}: ${inserted} rows, ${requests} provider requests.`,
+      message: warehouseFinishError
+        ? `Meta ${input.startDate}–${input.endDate} via ${provider.label}: ${inserted} rows, ${requests} provider requests. ${warehouseFinishError}`
+        : `Meta ${input.startDate}–${input.endDate} via ${provider.label}: ${inserted} rows, ${requests} provider requests.`,
       run: finished,
     };
   } catch (error) {

@@ -109,9 +109,39 @@ export function collapseSyncRunsById<T extends SyncRunLike>(runs: T[]): T[] {
       best.set(run.id, run);
     }
   }
-  return [...best.values()].sort(
-    (a, b) => Date.parse(b.started_at) - Date.parse(a.started_at),
-  );
+  return sortSyncRunsForLatest([...best.values()]);
+}
+
+export function syncRunRecencyMs(run: SyncRunLike) {
+  return Date.parse(run.completed_at || "") || Date.parse(run.started_at) || 0;
+}
+
+/**
+ * Actively running first, then terminal completed/partial, then failed.
+ * Stale running rows lose to a newer persisted completed/partial sync.
+ */
+export function sortSyncRunsForLatest<T extends SyncRunLike>(
+  runs: T[],
+  nowMs = Date.now(),
+): T[] {
+  return [...runs].sort((a, b) => {
+    const bucket = (run: T) => {
+      if (isSyncActivelyRunning(run, nowMs)) return 0;
+      if (run.status === "completed" || run.status === "partial") return 1;
+      if (run.status === "failed") return 2;
+      return 3;
+    };
+    const byBucket = bucket(a) - bucket(b);
+    if (byBucket !== 0) return byBucket;
+    return syncRunRecencyMs(b) - syncRunRecencyMs(a);
+  });
+}
+
+export function pickLatestSyncRun<T extends SyncRunLike>(
+  runs: T[],
+  nowMs = Date.now(),
+): T | null {
+  return sortSyncRunsForLatest(runs, nowMs)[0] ?? null;
 }
 
 export function pickActiveSyncWinner<T extends SyncRunLike>(
@@ -147,6 +177,20 @@ export type MetaSyncObservability = {
   ad_skip?: string;
   steps: string[];
   account_id?: string;
+  campaign_raw_rows?: number;
+  campaign_valid_campaign_id_rows?: number;
+  campaign_valid_adset_id_rows?: number;
+  campaign_valid_ad_id_rows?: number;
+  adset_raw_rows?: number;
+  adset_valid_campaign_id_rows?: number;
+  adset_valid_adset_id_rows?: number;
+  adset_valid_ad_id_rows?: number;
+  ad_raw_rows?: number;
+  ad_valid_campaign_id_rows?: number;
+  ad_valid_adset_id_rows?: number;
+  ad_valid_ad_id_rows?: number;
+  warehouse_finish_error?: string;
+  child_grain_verified?: boolean;
 };
 
 export function buildMetaSyncMetadata(
@@ -164,5 +208,71 @@ export function buildMetaSyncMetadata(
     ...(input.ad_skip ? { ad_skip: input.ad_skip } : {}),
     steps: input.steps,
     ...(input.account_id ? { account_id: input.account_id } : {}),
+    ...(input.campaign_raw_rows != null ? { campaign_raw_rows: input.campaign_raw_rows } : {}),
+    ...(input.campaign_valid_campaign_id_rows != null
+      ? { campaign_valid_campaign_id_rows: input.campaign_valid_campaign_id_rows }
+      : {}),
+    ...(input.campaign_valid_adset_id_rows != null
+      ? { campaign_valid_adset_id_rows: input.campaign_valid_adset_id_rows }
+      : {}),
+    ...(input.campaign_valid_ad_id_rows != null
+      ? { campaign_valid_ad_id_rows: input.campaign_valid_ad_id_rows }
+      : {}),
+    ...(input.adset_raw_rows != null ? { adset_raw_rows: input.adset_raw_rows } : {}),
+    ...(input.adset_valid_campaign_id_rows != null
+      ? { adset_valid_campaign_id_rows: input.adset_valid_campaign_id_rows }
+      : {}),
+    ...(input.adset_valid_adset_id_rows != null
+      ? { adset_valid_adset_id_rows: input.adset_valid_adset_id_rows }
+      : {}),
+    ...(input.adset_valid_ad_id_rows != null
+      ? { adset_valid_ad_id_rows: input.adset_valid_ad_id_rows }
+      : {}),
+    ...(input.ad_raw_rows != null ? { ad_raw_rows: input.ad_raw_rows } : {}),
+    ...(input.ad_valid_campaign_id_rows != null
+      ? { ad_valid_campaign_id_rows: input.ad_valid_campaign_id_rows }
+      : {}),
+    ...(input.ad_valid_adset_id_rows != null ? { ad_valid_adset_id_rows: input.ad_valid_adset_id_rows } : {}),
+    ...(input.ad_valid_ad_id_rows != null ? { ad_valid_ad_id_rows: input.ad_valid_ad_id_rows } : {}),
+    ...(input.warehouse_finish_error
+      ? { warehouse_finish_error: input.warehouse_finish_error }
+      : {}),
+    ...(input.child_grain_verified != null
+      ? { child_grain_verified: input.child_grain_verified }
+      : {}),
   };
+}
+
+export const WAREHOUSE_FINISH_ERROR_KEY = "warehouse_finish_error";
+
+export function parseSyncRunMetadata(metadata: string | null | undefined): Record<string, unknown> {
+  if (!metadata) return {};
+  try {
+    const parsed = JSON.parse(metadata);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    return {};
+  }
+  return {};
+}
+
+export function mergeSyncRunMetadata(
+  existing: string | null | undefined,
+  extra: Record<string, unknown>,
+): string {
+  return JSON.stringify({ ...parseSyncRunMetadata(existing), ...extra });
+}
+
+export function warehouseFinishErrorFromMetadata(metadata: string | null | undefined): string | null {
+  const value = parseSyncRunMetadata(metadata)[WAREHOUSE_FINISH_ERROR_KEY];
+  if (typeof value !== "string" || !value.trim()) return null;
+  return value;
+}
+
+export function formatWarehouseFinishError(replaceError: unknown, insertError: unknown): string {
+  const replaceMsg = replaceError instanceof Error ? replaceError.message : String(replaceError);
+  const insertMsg = insertError instanceof Error ? insertError.message : String(insertError);
+  return `sync_runs finish persist failed: replace=${replaceMsg}; insert=${insertMsg}`;
 }

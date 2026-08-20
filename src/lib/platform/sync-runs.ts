@@ -4,7 +4,10 @@ import { insertRows, isPlatformBqReady, replaceRowsById, runPlatformQuery } from
 import { platformTable } from "@/lib/platform/config";
 import {
   collapseSyncRunsById,
+  formatWarehouseFinishError,
+  mergeSyncRunMetadata,
   pickActiveSyncWinner,
+  WAREHOUSE_FINISH_ERROR_KEY,
 } from "@/lib/platform/sync-run-state";
 
 export type SyncStatus = "queued" | "running" | "completed" | "partial" | "failed";
@@ -104,6 +107,7 @@ export async function finishSyncRun(
   );
   await writeDurableJson(STORE, store);
   if (isPlatformBqReady()) {
+    let warehouseFinishError: string | null = null;
     try {
       await replaceRowsById("sync_runs", [
         {
@@ -123,7 +127,8 @@ export async function finishSyncRun(
           metadata: next.metadata,
         },
       ]);
-    } catch {
+    } catch (replaceError) {
+      console.error("[sync-runs] replaceRowsById failed", replaceError);
       try {
         await insertRows("sync_runs", [
           {
@@ -143,9 +148,17 @@ export async function finishSyncRun(
             metadata: next.metadata,
           },
         ]);
-      } catch {
-        // Local history still holds. BQ writer may lack CREATE/INSERT.
+      } catch (insertError) {
+        warehouseFinishError = formatWarehouseFinishError(replaceError, insertError);
+        console.error("[sync-runs] insertRows fallback failed", warehouseFinishError);
       }
+    }
+    if (warehouseFinishError) {
+      next.metadata = mergeSyncRunMetadata(next.metadata, {
+        [WAREHOUSE_FINISH_ERROR_KEY]: warehouseFinishError,
+      });
+      store.runs = [next, ...store.runs.filter((row) => row.id !== run.id)].slice(0, MAX_LOCAL);
+      await writeDurableJson(STORE, store);
     }
   }
   return next;
@@ -190,6 +203,7 @@ function fromBq(row: Record<string, unknown>): SyncRun {
 
 export async function listSyncRuns(source?: string): Promise<SyncRun[]> {
   const table = platformTable("sync_runs");
+  let remote: SyncRun[] = [];
   if (table && isPlatformBqReady()) {
     try {
       const rows = await runPlatformQuery<Record<string, unknown>>(
@@ -202,16 +216,14 @@ export async function listSyncRuns(source?: string): Promise<SyncRun[]> {
          LIMIT 80`,
         source ? { source } : undefined,
       );
-      if (rows.length) {
-        return collapseSyncRunsById(rows.map(fromBq));
-      }
+      remote = rows.map(fromBq);
     } catch {
-      // Fall through to the local cookie/file store.
+      remote = [];
     }
   }
   const store = await loadStore();
   const local = source ? store.runs.filter((run) => run.source === source) : store.runs;
-  return collapseSyncRunsById(local);
+  return collapseSyncRunsById([...remote, ...local]);
 }
 
 export async function findActiveSyncRun(source: string): Promise<SyncRun | null> {

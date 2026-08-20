@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { MetaEntityTable } from "@/components/dashboard/MetaEntityTable";
 import { OurGrainTable } from "@/components/dashboard/OurGrainTable";
 import { OurAttributedOrders } from "@/components/dashboard/OurAttributedOrders";
 import { Header } from "@/components/layout/Header";
-import Link from "next/link";
+import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
+import {
+  FLYWEEL_PARTIAL_HEALTHY_MESSAGE,
+  flyweelCampaignOnlyWarning,
+} from "@/lib/ads/providers/config";
 import {
   getAdFacts,
   getAdsetFacts,
@@ -35,13 +40,15 @@ export default async function MetaAdsetPage({
 }) {
   const { campaignId, adsetId } = await params;
   const period = await getSelectedPeriod();
-  const [ads, campaignFacts, adsetFacts, allAdFacts, creativeByAdId] = await Promise.all([
+  const [ads, campaignFacts, adsetFacts, allAdFacts, creativeByAdId, connection] = await Promise.all([
     getAdFacts(period, { campaignId, adsetId }).catch(() => []),
     getCampaignFacts(period).catch(() => []),
     getAdsetFacts(period, campaignId).catch(() => []),
     getAdFacts(period, { campaignId }).catch(() => []),
     getAdCreativeMap().catch(() => new Map<string, string>()),
+    getMetaConnectionPublic().catch(() => ({ provider: "none" as const })),
   ]);
+  const childGrainUnavailable = Boolean(flyweelCampaignOnlyWarning(connection.provider));
   const rolled = rollupAds(ads);
   const currency = "USD";
 
@@ -113,6 +120,11 @@ export default async function MetaAdsetPage({
         </article>
         {ourError ? (
           <EmptyPanel title="OUR ad attribution unavailable" description={ourError} />
+        ) : childGrainUnavailable ? (
+          <EmptyPanel
+            title="Ad facts unavailable"
+            description={FLYWEEL_PARTIAL_HEALTHY_MESSAGE}
+          />
         ) : (
           <OurGrainTable
             title="Ads · OUR (exact ad_id only)"

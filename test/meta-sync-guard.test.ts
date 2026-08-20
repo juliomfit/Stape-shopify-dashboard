@@ -56,15 +56,17 @@ test("campaign-only mode remains campaign only", () => {
   }
 });
 
-test("FLYWEEL_INGEST_LEVELS=all requests campaign + adset + ad", () => {
+test("FLYWEEL_INGEST_LEVELS=all cannot enable unverified Flyweel child grain", () => {
   const prev = process.env.FLYWEEL_INGEST_LEVELS;
   try {
     process.env.FLYWEEL_INGEST_LEVELS = "all";
-    assert.equal(shouldFetchDeepMetaInsights("flyweel"), true);
-    assert.deepEqual(metaInsightLevelsToFetch("flyweel"), ["campaign", "adset", "ad"]);
+    assert.equal(shouldFetchDeepMetaInsights("flyweel"), false);
+    assert.deepEqual(metaInsightLevelsToFetch("flyweel"), ["campaign"]);
     assert.match(ingest, /level: "adset"/);
     assert.match(ingest, /level: "ad"/);
     assert.match(ingest, /level: "campaign"/);
+    assert.equal(shouldFetchDeepMetaInsights("meta_graph"), true);
+    assert.deepEqual(metaInsightLevelsToFetch("meta_graph"), ["campaign", "adset", "ad"]);
   } finally {
     if (prev === undefined) delete process.env.FLYWEEL_INGEST_LEVELS;
     else process.env.FLYWEEL_INGEST_LEVELS = prev;

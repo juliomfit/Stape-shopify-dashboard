@@ -7,7 +7,11 @@ import {
 import { FlyweelMcpClient } from "@/lib/ads/providers/flyweel-mcp";
 import { addDaysYmd } from "@/lib/ads/providers/chunk";
 import { getDashboardPeriod } from "@/lib/period";
-import { summarizeFlyweelSetup } from "@/lib/ads/providers/flyweel-query";
+import {
+  buildFlyweelQueryShapes,
+  flyweelDimensionsForLevel,
+  summarizeFlyweelSetup,
+} from "@/lib/ads/providers/flyweel-query";
 import {
   describeFlyweelPayload,
   mergeInsightBatches,
@@ -44,9 +48,6 @@ const BASELINE_METRICS = [
   "conversion_rate",
 ];
 
-const CAMPAIGN_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
-const ADSET_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
-const AD_DIMENSIONS = ["date", "campaign_id", "campaign", "channel", "campaign_status"];
 
 function daysInRange(startDate: string, endDate: string) {
   const days: string[] = [];
@@ -281,63 +282,26 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   }
 
   private dimensionsFor(level: InsightQuery["level"]) {
-    if (level === "ad") return AD_DIMENSIONS.slice(0, FLYWEEL_DIMENSION_LIMIT);
-    if (level === "adset") return ADSET_DIMENSIONS.slice(0, FLYWEEL_DIMENSION_LIMIT);
-    return CAMPAIGN_DIMENSIONS.slice(0, FLYWEEL_DIMENSION_LIMIT);
+    return flyweelDimensionsForLevel(level).slice(0, FLYWEEL_DIMENSION_LIMIT);
   }
 
   private metricsList() {
     return BASELINE_METRICS.slice(0, FLYWEEL_METRIC_LIMIT);
   }
 
-  private queryShapes(params: InsightQuery): Record<string, unknown>[] {
-    const metrics = ["spend", "impressions", "clicks", "conversions"];
-    const filters = { channel: ["Meta"] };
-    const dayRange = { start: params.startDate, end: params.endDate };
-    const campaignTotals = {
-      queries: [
-        {
-          dataSource: "ads",
-          metrics,
-          dimensions: ["campaign_id", "campaign"],
-          dateRange: dayRange,
-          filters,
-          limit: FLYWEEL_ROW_LIMIT,
-        },
-      ],
-    };
-    const withDate = {
-      queries: [
-        {
-          dataSource: "ads",
-          metrics,
-          dimensions: ["date", "campaign_id", "campaign"],
-          dateRange: dayRange,
-          filters,
-          limit: FLYWEEL_ROW_LIMIT,
-        },
-      ],
-    };
-    if (params.startDate !== params.endDate) {
-      return [withDate];
-    }
-    const shapes: Record<string, unknown>[] = [campaignTotals];
-    if (params.startDate === getDashboardPeriod("today").startDate) {
-      shapes.push({
-        queries: [
-          {
-            dataSource: "ads",
-            metrics,
-            dimensions: ["campaign_id", "campaign"],
-            dateRange: { preset: "today" },
-            filters,
-            limit: FLYWEEL_ROW_LIMIT,
-          },
-        ],
-      });
-    }
-    shapes.push(withDate);
-    return shapes;
+  private queryShapes(
+    params: InsightQuery,
+    metrics: string[],
+    dimensions: string[],
+  ): Record<string, unknown>[] {
+    return buildFlyweelQueryShapes({
+      startDate: params.startDate,
+      endDate: params.endDate,
+      metrics,
+      dimensions,
+      todayStartDate: getDashboardPeriod("today").startDate,
+      rowLimit: FLYWEEL_ROW_LIMIT,
+    });
   }
 
   private async queryOnce(
@@ -345,8 +309,11 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     metrics: string[],
     dimensions: string[],
   ): Promise<Record<string, unknown>[]> {
+    if (!metrics.length || !dimensions.length) {
+      return [];
+    }
     await this.ensureTools();
-    const shapes = this.queryShapes(params);
+    const shapes = this.queryShapes(params, metrics, dimensions);
     let lastError: unknown;
     let best: Record<string, unknown>[] = [];
     for (const shape of shapes) {
@@ -406,6 +373,9 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     params: InsightQuery,
   ): Promise<Record<string, unknown>[]> {
     const wanted = this.dimensionsFor(params.level);
+    if (!wanted.length) {
+      return [];
+    }
     try {
       return await this.queryWithMetricFallback(params, wanted);
     } catch (error) {
@@ -424,6 +394,15 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   async getInsights(params: InsightQuery): Promise<MetaInsightResult> {
     const accountId = params.accountId.replace(/^act_/, "");
     const requestsBefore = this.client.requestCount;
+    if (!this.dimensionsFor(params.level).length) {
+      return {
+        rows: [],
+        actions: [],
+        truncated: false,
+        requests: this.client.requestCount - requestsBefore,
+        splits: 0,
+      };
+    }
     const days = daysInRange(params.startDate, params.endDate);
     const batches = [];
     for (const day of days) {

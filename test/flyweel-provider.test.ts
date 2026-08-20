@@ -268,9 +268,9 @@ test("Flyweel campaign-only vs all-level ingest", () => {
 
     process.env.FLYWEEL_INGEST_LEVELS = "all";
     assert.equal(flyweelDeepIngestEnabled(), true);
-    assert.equal(shouldFetchDeepMetaInsights("flyweel"), true);
-    assert.deepEqual(metaInsightLevelsToFetch("flyweel"), ["campaign", "adset", "ad"]);
-    assert.equal(flyweelCampaignOnlyWarning("flyweel"), null);
+    assert.equal(shouldFetchDeepMetaInsights("flyweel"), false);
+    assert.deepEqual(metaInsightLevelsToFetch("flyweel"), ["campaign"]);
+    assert.equal(flyweelCampaignOnlyWarning("flyweel"), FLYWEEL_CAMPAIGN_ONLY_WARNING);
 
     process.env.FLYWEEL_INGEST_LEVELS = "campaign";
     assert.equal(shouldFetchDeepMetaInsights("flyweel"), false);

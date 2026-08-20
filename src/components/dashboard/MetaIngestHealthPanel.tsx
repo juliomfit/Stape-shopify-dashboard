@@ -1,5 +1,6 @@
 import {
   FLYWEEL_CAMPAIGN_ONLY_WARNING,
+  FLYWEEL_PARTIAL_HEALTHY_MESSAGE,
   flyweelCampaignOnlyWarning,
 } from "@/lib/ads/providers/config";
 import type { MetaFactTableCounts } from "@/lib/ads/meta-fact-format";
@@ -29,7 +30,7 @@ export function MetaIngestHealthPanel({
       </p>
       {warning ? (
         <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          {FLYWEEL_CAMPAIGN_ONLY_WARNING}
+          {FLYWEEL_PARTIAL_HEALTHY_MESSAGE} {FLYWEEL_CAMPAIGN_ONLY_WARNING}
         </p>
       ) : null}
       <ul className="mt-4 divide-y divide-border text-sm">
