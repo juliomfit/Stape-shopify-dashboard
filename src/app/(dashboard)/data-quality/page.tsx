@@ -18,7 +18,6 @@ import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
 import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Data quality",

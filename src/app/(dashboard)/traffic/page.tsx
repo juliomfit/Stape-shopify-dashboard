@@ -10,7 +10,6 @@ import { getStapeFunnelMetrics } from "@/lib/stape/get-funnel-metrics";
 import { getStapeTrafficMetrics } from "@/lib/stape/get-traffic-metrics";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Traffic",

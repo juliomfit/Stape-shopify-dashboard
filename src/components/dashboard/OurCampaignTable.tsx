@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import type { OurCampaignRow } from "@/lib/attribution/campaign-map";
@@ -6,6 +8,7 @@ import {
   campaignMappingUiLabel,
   campaignMappingUiStatus,
 } from "@/lib/attribution/campaign-map";
+import { ShowMoreButton, useShowMore } from "@/components/dashboard/ShowMore";
 
 type OurCampaignTableProps = {
   rows: OurCampaignRow[];
@@ -16,6 +19,7 @@ export function OurCampaignTable({ rows, currencyCode }: OurCampaignTableProps) 
   const summary = campaignMappingSummary(rows);
   const uiStatus = campaignMappingUiStatus(summary);
   const showRates = uiStatus === "HAS_HIGH_ID_MAPS";
+  const { visible, remaining, showMore } = useShowMore(rows);
 
   return (
     <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
@@ -59,7 +63,7 @@ export function OurCampaignTable({ rows, currencyCode }: OurCampaignTableProps) 
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {visible.map((row) => {
                 const ourHref = row.campaignId
                   ? `/meta/our/campaign/${row.campaignId}`
                   : "/meta/our/unmapped/_";
@@ -71,7 +75,7 @@ export function OurCampaignTable({ rows, currencyCode }: OurCampaignTableProps) 
                   <tr key={`${row.campaignId ?? row.campaignName}`}>
                     <td className="text-foreground">
                       {row.campaignId ? (
-                        <Link className="underline" href={`/meta/${row.campaignId}`}>
+                        <Link prefetch={false} className="underline" href={`/meta/${row.campaignId}`}>
                           {row.campaignName}
                         </Link>
                       ) : (
@@ -90,7 +94,7 @@ export function OurCampaignTable({ rows, currencyCode }: OurCampaignTableProps) 
                       {formatMoney({ amount: row.metaRevenue, currencyCode })}
                     </td>
                     <td className="num">
-                      <Link className="underline" href={ourHref}>
+                      <Link prefetch={false} className="underline" href={ourHref}>
                         {formatMoney({ amount: row.ourRevenue, currencyCode })}
                       </Link>
                     </td>
@@ -123,6 +127,7 @@ export function OurCampaignTable({ rows, currencyCode }: OurCampaignTableProps) 
           </table>
         </div>
       )}
+      <ShowMoreButton remaining={remaining} onMore={showMore} />
     </article>
   );
 }

@@ -3,6 +3,14 @@ import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
 import { formatMetaFactTableCounts, type MetaFactTableCounts } from "@/lib/ads/meta-fact-format";
 import { presentMetaAdsHealth } from "@/lib/platform/meta-health";
+import {
+  googleAdsApiConfigured,
+  googleAdsEnvTotalsConfigured,
+  googleAdsHealthStatus,
+  googleAdsIsConfigured,
+} from "@/lib/platform/google-health";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { isStapeConfigured } from "@/lib/stape/config";
 import { isOpenAiConfigured } from "@/lib/platform/config";
@@ -64,7 +72,14 @@ function delayed(iso: string | null) {
 
 export async function getDataHealth(): Promise<SourceHealth[]> {
   try {
-    return await loadDataHealth();
+    const period = await getSelectedPeriod();
+    return cachedLoad({
+      key: ["data-health", ...periodCacheKey(period)],
+      tags: [CACHE_TAGS.health, CACHE_TAGS.dashboardCore, CACHE_TAGS.meta],
+      loader: "health",
+      period: `${period.startDate}..${period.endDate}`,
+      fn: () => loadDataHealth(period),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Health check failed";
@@ -82,8 +97,9 @@ export async function getDataHealth(): Promise<SourceHealth[]> {
   }
 }
 
-async function loadDataHealth(): Promise<SourceHealth[]> {
-  const period = await getSelectedPeriod();
+async function loadDataHealth(
+  period: Awaited<ReturnType<typeof getSelectedPeriod>>,
+): Promise<SourceHealth[]> {
   const [
     metaCreds,
     ads,
@@ -193,19 +209,26 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
   };
 
   const googleFrom = fromRun(googleRun, await latestSuccessfulSync("google_ads"));
+  const googleConfigured = googleAdsIsConfigured({
+    pasteConnected: ads.google.state === "connected",
+  });
   const google: SourceHealth = {
     source: "google_ads",
     label: "Google Ads",
-    status:
-      ads.google.state === "connected"
-        ? "healthy"
-        : googleFrom.runStatus || "disconnected",
+    status: googleAdsHealthStatus({
+      pasteConnected: ads.google.state === "connected",
+      apiConfigured: googleAdsApiConfigured(),
+      envTotalsConfigured: googleAdsEnvTotalsConfigured(),
+      lastRunStatus: googleFrom.runStatus,
+    }),
     lastSuccessAt: googleFrom.lastSuccessAt,
     lastAttemptAt: googleFrom.lastAttemptAt,
     message:
       ads.google.state === "connected"
         ? ads.google.message || "Pasted Ads Manager totals for this range."
-        : "Paste Google spend on First-touch. Ads API needs a developer token (not wired).",
+        : googleConfigured
+          ? "Paste Google spend on First-touch. Ads API needs a developer token (not wired)."
+          : "Google Ads is not configured. Paste spend on First-touch if you want totals.",
     href: "/attribution",
   };
 

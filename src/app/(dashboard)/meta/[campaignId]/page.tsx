@@ -33,7 +33,6 @@ import {
   metaCreditForOrders,
 } from "@/lib/attribution/meta-credit";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Meta campaign" };
 
@@ -113,11 +112,11 @@ export default async function MetaCampaignPage({
       />
       <section className="dash-page gap-6">
         <p className="text-sm text-muted">
-          <Link href="/meta" className="text-accent hover:underline">
+          <Link prefetch={false} href="/meta" className="text-accent hover:underline">
             ← Meta Ads
           </Link>
           {" · "}
-          <Link href="/meta/creatives" className="text-accent hover:underline">
+          <Link prefetch={false} href="/meta/creatives" className="text-accent hover:underline">
             Creatives
           </Link>
         </p>

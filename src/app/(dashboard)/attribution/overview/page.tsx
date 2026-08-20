@@ -38,7 +38,6 @@ import {
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import { isWarehouseModel, type WarehouseModel } from "@/lib/warehouse/constants";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Attribution overview",
@@ -279,15 +278,15 @@ async function renderAttributionOverview(
         <p className="text-xs text-muted">
           {ATTRIBUTION_GLOSSARY.realDirect} {ATTRIBUTION_GLOSSARY.internalNoise}{" "}
           {ATTRIBUTION_GLOSSARY.unknown} Drill to{" "}
-          <Link className="underline" href={`/journeys?lookback=${lookbackDays}`}>
+          <Link prefetch={false} className="underline" href={`/journeys?lookback=${lookbackDays}`}>
             journeys / order debugger
           </Link>
           {" · "}
-          <Link className="underline" href={`/attribution?lookback=${lookbackDays}`}>
+          <Link prefetch={false} className="underline" href={`/attribution?lookback=${lookbackDays}`}>
             first-touch (cart gn_*)
           </Link>
           {" · "}
-          <Link className="underline" href={`/meta`}>
+          <Link prefetch={false} className="underline" href={`/meta`}>
             Meta platform facts
           </Link>
           . Changing model/window updates OUR numbers only. Shopify totals do not change.

@@ -1,3 +1,6 @@
+import { cache } from "react";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import {
   getAlignedPeriod,
@@ -30,10 +33,8 @@ import {
 } from "@/lib/shopify/first-touch";
 import {
   getShopifyOverviewForPeriod,
-  getShopifyOverviewMetrics,
 } from "@/lib/shopify/get-overview-metrics";
 import {
-  getStapeFunnelMetrics,
   getStapeFunnelMetricsForPeriod,
 } from "@/lib/stape/get-funnel-metrics";
 import { loadCogsLedger } from "@/lib/platform/cogs-store";
@@ -43,14 +44,33 @@ import {
   lastEnteredDays,
 } from "@/lib/platform/cogs-ledger";
 
-export async function getCoreDashboard() {
+export const getCoreDashboard = cache(async () => {
   const period = await getAlignedPeriod();
+  return getCoreDashboardForPeriod(period);
+});
+
+export async function getCoreDashboardForPeriod(period: Awaited<ReturnType<typeof getAlignedPeriod>>) {
+  return cachedLoad({
+    key: ["core-dashboard", ...periodCacheKey(period)],
+    tags: [
+      CACHE_TAGS.dashboardCore,
+      CACHE_TAGS.shopify,
+      CACHE_TAGS.stape,
+      CACHE_TAGS.meta,
+    ],
+    loader: "core_dashboard",
+    period: `${period.startDate}..${period.endDate}`,
+    fn: () => computeCoreDashboard(period),
+  });
+}
+
+async function computeCoreDashboard(period: Awaited<ReturnType<typeof getAlignedPeriod>>) {
   const previous = previousDashboardPeriod(period);
   const [shopify, previousShopify, funnel, previousFunnel, ads, metaPaste, googlePaste, cogsRows] =
     await Promise.all([
-      getShopifyOverviewMetrics(),
+      getShopifyOverviewForPeriod(period),
       getShopifyOverviewForPeriod(previous),
-      getStapeFunnelMetrics(),
+      getStapeFunnelMetricsForPeriod(period),
       getStapeFunnelMetricsForPeriod(previous),
       getPlatformReported(period),
       getMetaPaste(period),

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import type { EntityRollup } from "@/lib/ads/meta-query";
 import { EmptyTable, type EmptyNext } from "@/components/dashboard/EmptyTable";
+import { ShowMoreButton, useShowMore } from "@/components/dashboard/ShowMore";
 
 type SortKey = keyof Pick<
   EntityRollup,
@@ -55,6 +56,7 @@ export function MetaEntityTable({
     });
     return next;
   }, [rows, query, sort, dir]);
+  const { visible, remaining, showMore } = useShowMore(filtered);
 
   function header(key: SortKey, label: string) {
     return (
@@ -110,10 +112,10 @@ export function MetaEntityTable({
             </tr>
           </thead>
           <tbody>
-            {filtered.map((row) => {
+            {visible.map((row) => {
               const href = hrefPrefix ? `${hrefPrefix.replace(/\/$/, "")}/${row.id}` : null;
               const name = href ? (
-                <Link href={href} className="font-medium text-foreground underline">
+                <Link prefetch={false} href={href} className="font-medium text-foreground underline">
                   {row.name}
                 </Link>
               ) : (
@@ -140,6 +142,7 @@ export function MetaEntityTable({
           </tbody>
         </table>
       </div>
+      <ShowMoreButton remaining={remaining} onMore={showMore} />
     </div>
   );
 }

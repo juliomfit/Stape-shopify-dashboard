@@ -4,7 +4,6 @@ import { Header } from "@/components/layout/Header";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { isOpenAiConfigured } from "@/lib/platform/config";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Ask AI" };
 

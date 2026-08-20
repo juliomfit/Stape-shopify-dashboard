@@ -1,4 +1,6 @@
 import { cache } from "react";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { CHANNEL_SQL } from "@/lib/stape/channel-sql";
@@ -113,7 +115,8 @@ async function loadFunnelMetrics(
     const queryOptions = { location: config.location };
     const params = { startMs: period.startMs, endMs: period.endMs };
 
-    const [rows] = await client.query({
+    const [[rows], [dailyRows]] = await Promise.all([
+      client.query({
       ...queryOptions,
       params,
       query: `
@@ -176,9 +179,8 @@ async function loadFunnelMetrics(
           (SELECT COUNT(*) FROM unique_orders) AS purchases,
           (SELECT IFNULL(SUM(revenue), 0) FROM unique_orders) AS purchase_revenue
       `,
-    });
-
-    const [dailyRows] = await client.query({
+    }),
+      client.query({
       ...queryOptions,
       params,
       query: `
@@ -199,7 +201,8 @@ async function loadFunnelMetrics(
         GROUP BY 1
         ORDER BY 1
       `,
-    });
+    }),
+    ]);
 
     const row = (rows[0] ?? {}) as Record<string, unknown>;
     const sessions = toNumber(row.sessions);
@@ -251,18 +254,20 @@ async function loadFunnelMetrics(
   }
 }
 
-const loadFunnelCached = cache(async (key: string, serialized: string) => {
-  void key;
-  return loadFunnelMetrics(JSON.parse(serialized) as DashboardPeriod);
+const loadFunnelCached = cache(async (period: DashboardPeriod) => {
+  return cachedLoad({
+    key: ["stape-funnel", ...periodCacheKey(period)],
+    tags: [CACHE_TAGS.stape],
+    loader: "stape_funnel",
+    period: `${period.startDate}..${period.endDate}`,
+    fn: () => loadFunnelMetrics(period),
+  });
 });
 
 export async function getStapeFunnelMetricsForPeriod(
   period: DashboardPeriod,
 ): Promise<StapeFunnelMetrics> {
-  return loadFunnelCached(
-    `${period.startMs}:${period.endMs}`,
-    JSON.stringify(period),
-  );
+  return loadFunnelCached(period);
 }
 
 export async function getStapeFunnelMetrics(): Promise<StapeFunnelMetrics> {

@@ -1,4 +1,6 @@
 import { cache } from "react";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { shopifyOrdersQuery, type DashboardPeriod } from "@/lib/period";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { shopifyGraphql } from "@/lib/shopify/client";
@@ -178,19 +180,17 @@ export async function getShopifyOverviewMetrics(): Promise<ShopifyOverviewMetric
   return getShopifyOverviewForPeriod(await getSelectedPeriod());
 }
 
-const loadOverviewCached = cache(async (key: string, serialized: string) => {
-  void key;
-  return loadShopifyOverview(JSON.parse(serialized) as DashboardPeriod);
-});
-
-export async function getShopifyOverviewForPeriod(
-  period: DashboardPeriod,
-): Promise<ShopifyOverviewMetrics> {
-  return loadOverviewCached(
-    `${period.startMs}:${period.endMs}`,
-    JSON.stringify(period),
-  );
-}
+export const getShopifyOverviewForPeriod = cache(
+  async (period: DashboardPeriod): Promise<ShopifyOverviewMetrics> => {
+    return cachedLoad({
+      key: ["shopify-overview", ...periodCacheKey(period)],
+      tags: [CACHE_TAGS.shopify],
+      loader: "shopify_overview",
+      period: `${period.startDate}..${period.endDate}`,
+      fn: () => loadShopifyOverview(period),
+    });
+  },
+);
 
 async function loadShopifyOverview(
   period: DashboardPeriod,

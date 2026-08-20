@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { GATE_COOKIE, dashboardPassword, gateCookieMatches } from "@/lib/dashboard-gate";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const password = dashboardPassword();
   const onVercel = Boolean(process.env.VERCEL);

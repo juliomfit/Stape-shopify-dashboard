@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { NavPrefetchLink } from "@/components/layout/NavPrefetchLink";
 import {
   Activity,
   Boxes,
@@ -107,7 +107,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             const active = isActivePath(pathname, item.href);
 
             return (
-              <Link
+              <NavPrefetchLink
                 key={item.href}
                 href={item.href}
                 onClick={onNavigate}
@@ -119,7 +119,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
               >
                 <NavIcon href={item.href} />
                 {item.label}
-              </Link>
+              </NavPrefetchLink>
             );
           })}
         </div>

@@ -47,8 +47,8 @@ import {
   summarizeMetaMapping,
 } from "@/lib/attribution/meta-credit";
 import { mappingCoverageStatus } from "@/lib/attribution/meta-ids";
+import { loggedFallback } from "@/lib/observability/loader-log";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Meta Ads" };
 
@@ -85,21 +85,23 @@ async function renderMetaPage() {
       pendingAccounts: [],
       provider: "none" as const,
     })),
-    getCampaignFacts(period).catch(() => []),
-    loadMetaCache().catch(() => ({ syncedAt: undefined })),
-    latestSuccessfulSync("meta").catch(() => null),
-    latestSync("meta").catch(() => null),
-    platformWarehouseStatus().catch(() => ({
-      ready: false,
-      projectId: "",
-      dataset: "goodsnova_platform",
-      serviceAccount: "",
-      message: "Warehouse check failed.",
-    })),
-    getShopifyOverviewMetrics().catch(() => null),
-    getAdsetFacts(period).catch(() => []),
-    getAdFacts(period).catch(() => []),
-    getAdCreativeMap().catch(() => new Map<string, string>()),
+    getCampaignFacts(period),
+    loadMetaCache().catch(loggedFallback("meta_cache_file", { syncedAt: undefined })),
+    latestSuccessfulSync("meta").catch(loggedFallback("meta_last_sync", null)),
+    latestSync("meta").catch(loggedFallback("meta_last_attempt", null)),
+    platformWarehouseStatus().catch(
+      loggedFallback("meta_warehouse_status", {
+        ready: false,
+        projectId: "",
+        dataset: "goodsnova_platform",
+        serviceAccount: "",
+        message: "Warehouse check failed.",
+      }),
+    ),
+    getShopifyOverviewMetrics().catch(loggedFallback("meta_shopify", null)),
+    getAdsetFacts(period).catch(loggedFallback("meta_adset_facts", [])),
+    getAdFacts(period).catch(loggedFallback("meta_ad_facts", [])),
+    getAdCreativeMap().catch(loggedFallback("meta_creative_map", new Map<string, string>())),
     getMetaFactTableCounts(),
   ]);
   let attrWarehouse: Awaited<ReturnType<typeof getWarehouseMetrics>> | null = null;
@@ -137,7 +139,7 @@ async function renderMetaPage() {
     graph: null,
   });
   const weekFacts =
-    totals.spend > 0 ? [] : await getCampaignFacts(getDashboardPeriod("7d")).catch(() => []);
+    totals.spend > 0 ? [] : await getCampaignFacts(getDashboardPeriod("7d"));
   const weekTotals = totalsFromFacts(weekFacts);
   const campaigns = rollupCampaigns(facts);
   const days = pacificDaysInRange(period.startDate, period.endDate);
@@ -415,7 +417,7 @@ async function renderMetaPage() {
           <h2 className="text-sm font-semibold text-foreground">Campaigns</h2>
         <p className="mt-1 text-xs text-muted">
           Click a campaign for ad sets. Sorted by spend.{" "}
-          <Link className="underline" href="/meta/creatives">
+          <Link prefetch={false} className="underline" href="/meta/creatives">
             Creatives
           </Link>
           . The table below is <strong>Meta platform ad performance</strong>{" "}

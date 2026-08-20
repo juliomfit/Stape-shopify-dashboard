@@ -15,7 +15,6 @@ import {
   getCanonicalAttributedOrders,
 } from "@/lib/warehouse/canonical-orders";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Journeys",

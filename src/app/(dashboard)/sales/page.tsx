@@ -13,7 +13,6 @@ import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Sales",

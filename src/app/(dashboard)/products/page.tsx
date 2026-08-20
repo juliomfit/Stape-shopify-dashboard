@@ -8,7 +8,6 @@ import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Products",

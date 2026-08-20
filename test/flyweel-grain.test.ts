@@ -15,6 +15,7 @@ import {
   FLYWEEL_CAMPAIGN_ONLY_WARNING,
   FLYWEEL_PARTIAL_HEALTHY_MESSAGE,
   shouldFetchDeepMetaInsights,
+  skipUnavailableMetaChildGrain,
 } from "../src/lib/ads/providers/config.ts";
 import {
   DEEP_GRAIN_MISSING_IDS,
@@ -64,6 +65,15 @@ test("Flyweel ads dimensions are campaign grain only", () => {
   assert.equal(flyweelSupportsAdGrain(), false);
   assert.equal(flyweelChildGrainVerified(), false);
   assert.equal(shouldFetchDeepMetaInsights("flyweel"), false);
+  assert.equal(skipUnavailableMetaChildGrain("flyweel"), true);
+  assert.equal(skipUnavailableMetaChildGrain("meta_graph"), false);
+});
+
+test("dashboard Meta query skips Flyweel child-grain BigQuery", () => {
+  const querySrc = readFileSync("src/lib/ads/meta-query.ts", "utf8");
+  assert.match(querySrc, /skipUnavailableMetaChildGrain/);
+  assert.match(querySrc, /if \(skipChildGrain\(\)\) \{\s*return \[\];/s);
+  assert.match(querySrc, /getAdCreativeMap[\s\S]*skipChildGrain\(\)/);
 });
 
 test("queryShapes actually respects level and dimensions", () => {

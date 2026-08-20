@@ -1,3 +1,6 @@
+import { cache } from "react";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { getGoogleClaimed } from "@/lib/ads/google";
 import { getMetaClaimed } from "@/lib/ads/meta";
 import type { PlatformClaim, PlatformReported } from "@/lib/ads/types";
@@ -43,7 +46,19 @@ function mergeClaim(
   };
 }
 
-export async function getPlatformReported(
+export const getPlatformReported = cache(
+  async (period: DashboardPeriod): Promise<PlatformReported> => {
+    return cachedLoad({
+      key: ["platform-reported", ...periodCacheKey(period)],
+      tags: [CACHE_TAGS.meta, CACHE_TAGS.dashboardCore],
+      loader: "platform_reported",
+      period: `${period.startDate}..${period.endDate}`,
+      fn: () => loadPlatformReported(period),
+    });
+  },
+);
+
+async function loadPlatformReported(
   period: DashboardPeriod,
 ): Promise<PlatformReported> {
   const [facebook, google, file] = await Promise.all([

@@ -21,9 +21,9 @@ import { getDataHealth } from "@/lib/platform/health";
 import { computeAnomalies } from "@/lib/platform/anomalies";
 import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
-import { pacificYesterdayYmd } from "@/lib/period";
-
-export const dynamic = "force-dynamic";
+import { pacificYesterdayYmd, previousDashboardPeriod } from "@/lib/period";
+import { getSelectedPeriod } from "@/lib/period-server";
+import { loggedFallback } from "@/lib/observability/loader-log";
 
 export const metadata: Metadata = {
   title: "Overview",
@@ -34,7 +34,14 @@ function roasLabel(value: number | null) {
 }
 
 export default async function OverviewPage() {
-  const data = await getCoreDashboard();
+  const periodHint = await getSelectedPeriod();
+  const previousHint = previousDashboardPeriod(periodHint);
+  const [data, health, metaNowFacts, metaPrevFacts] = await Promise.all([
+    getCoreDashboard(),
+    getDataHealth().catch(loggedFallback("overview_health", [])),
+    getCampaignFacts(periodHint).catch(loggedFallback("overview_meta_facts", [])),
+    getCampaignFacts(previousHint).catch(loggedFallback("overview_meta_facts_prev", [])),
+  ]);
   const {
     period,
     deltaLabel,
@@ -83,46 +90,30 @@ export default async function OverviewPage() {
     secondary: formatMoney({ amount: row.revenue, currencyCode: currency }),
   }));
 
-  let health: Awaited<ReturnType<typeof getDataHealth>> = [];
-  try {
-    health = await getDataHealth();
-  } catch {
-    health = [];
-  }
-
-  let anomalies: ReturnType<typeof computeAnomalies> = [];
-  try {
-    const [metaNowFacts, metaPrevFacts] = await Promise.all([
-      getCampaignFacts(period),
-      getCampaignFacts(data.previous),
-    ]);
-    const metaNow = totalsFromFacts(metaNowFacts);
-    const metaPrev = totalsFromFacts(metaPrevFacts);
-    anomalies = computeAnomalies({
-      revenue: shopifyConnected ? alignedShopify.revenue : null,
-      previousRevenue:
-        data.previousShopify.status.state === "connected"
-          ? data.previousAligned.revenue
-          : null,
-      orders: shopifyConnected ? alignedShopify.orders : null,
-      previousOrders:
-        data.previousShopify.status.state === "connected"
-          ? data.previousAligned.orders
-          : null,
-      spend: totalSpend,
-      previousSpend: null,
-      mer,
-      previousMer: null,
-      cpa,
-      previousCpa: null,
-      conversion: conversion.rate,
-      previousConversion: data.previousConversion.rate,
-      metaCpa: metaNow.cpa,
-      previousMetaCpa: metaPrev.cpa,
-    });
-  } catch {
-    anomalies = [];
-  }
+  const metaNow = totalsFromFacts(metaNowFacts);
+  const metaPrev = totalsFromFacts(metaPrevFacts);
+  const anomalies = computeAnomalies({
+    revenue: shopifyConnected ? alignedShopify.revenue : null,
+    previousRevenue:
+      data.previousShopify.status.state === "connected"
+        ? data.previousAligned.revenue
+        : null,
+    orders: shopifyConnected ? alignedShopify.orders : null,
+    previousOrders:
+      data.previousShopify.status.state === "connected"
+        ? data.previousAligned.orders
+        : null,
+    spend: totalSpend,
+    previousSpend: null,
+    mer,
+    previousMer: null,
+    cpa,
+    previousCpa: null,
+    conversion: conversion.rate,
+    previousConversion: data.previousConversion.rate,
+    metaCpa: metaNow.cpa,
+    previousMetaCpa: metaPrev.cpa,
+  });
   const shopifySource = shopifyConnected
     ? `Shopify · ${period.label}`
     : "Shopify · no data yet";
@@ -280,11 +271,11 @@ export default async function OverviewPage() {
             ? "—"
             : formatMoney({ amount: ads.facebook.spend, currencyCode: currency })}
           {" · "}
-          <Link className="underline" href="/meta">
+          <Link prefetch={false} className="underline" href="/meta">
             Meta Ads
           </Link>
           {" · same warehouse numbers. First-touch stays "}
-          <Link className="underline" href="/attribution">
+          <Link prefetch={false} className="underline" href="/attribution">
             gn_*
           </Link>
           . Google is paste, not a live API.

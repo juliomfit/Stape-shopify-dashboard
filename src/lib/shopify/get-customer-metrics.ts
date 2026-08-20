@@ -1,5 +1,7 @@
-import { shopifyOrdersQuery } from "@/lib/period";
+import { shopifyOrdersQuery, type DashboardPeriod } from "@/lib/period";
 import { getSelectedPeriod } from "@/lib/period-server";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import type {
@@ -102,7 +104,18 @@ function friendlyCustomerError(message: string) {
 
 export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetrics> {
   const period = await getSelectedPeriod();
+  return cachedLoad({
+    key: ["shopify-customers", ...periodCacheKey(period)],
+    tags: [CACHE_TAGS.shopify],
+    loader: "shopify_customers",
+    period: `${period.startDate}..${period.endDate}`,
+    fn: () => loadShopifyCustomerMetrics(period),
+  });
+}
 
+async function loadShopifyCustomerMetrics(
+  period: DashboardPeriod,
+): Promise<ShopifyCustomerMetrics> {
   if (!isShopifyConfigured()) {
     return emptyMetrics(period.label);
   }
