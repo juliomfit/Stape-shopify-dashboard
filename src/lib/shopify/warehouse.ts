@@ -8,7 +8,7 @@ import type { ShopifyCustomerMetrics, ShopifyOverviewMetrics } from "@/lib/shopi
 import {
   mergeCoverageRange,
   readCoverageFromDisk,
-  warehouseCoversPeriod,
+  warehouseReadDecision,
   writeCoverageToDisk,
   type ShopifyWarehouseCoverage,
 } from "@/lib/shopify/coverage";
@@ -456,9 +456,6 @@ export async function loadShopifyRecordsFromWarehouse(
   const table = shopifyOrdersTableFq();
   if (!table) return null;
   const resolved = coverage ?? (await readShopifyWarehouseCoverage());
-  if (!warehouseCoversPeriod(resolved, period.startDate, period.endDate)) {
-    return null;
-  }
   try {
     const { client, config } = getBigQueryClient();
     const [rows] = await client.query({
@@ -476,7 +473,15 @@ export async function loadShopifyRecordsFromWarehouse(
       params: { startDate: period.startDate, endDate: period.endDate },
       location: config.location,
     });
-    return (rows as WarehouseRow[]).map(warehouseRowToRecord);
+    const records = (rows as WarehouseRow[]).map(warehouseRowToRecord);
+    const decision = warehouseReadDecision({
+      coverage: resolved,
+      startDate: period.startDate,
+      endDate: period.endDate,
+      rowCount: records.length,
+    });
+    if (decision === "fallback") return null;
+    return records;
   } catch (error) {
     if (isMissingTableError(error)) return null;
     console.warn("[shopify-warehouse] read failed; using Admin API fallback", error);

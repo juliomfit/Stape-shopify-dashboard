@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { overviewFromRecords, recordToOrderPoint } from "../src/lib/shopify/order-record.ts";
-import { mergeCoverageRange, warehouseCoversPeriod } from "../src/lib/shopify/coverage.ts";
+import { mergeCoverageRange, warehouseCoversPeriod, warehouseReadDecision } from "../src/lib/shopify/coverage.ts";
 import { EMPTY_FIRST_TOUCH } from "../src/lib/shopify/first-touch.ts";
 import type { ShopifyOrderRecord } from "../src/lib/shopify/order-record.ts";
 
@@ -88,6 +88,37 @@ test("coverage range merge is inclusive and does not use cookies", () => {
   assert.equal(warehouseCoversPeriod(merged, "2026-08-01", "2026-08-20"), false);
 });
 
+test("warehouse rows for the period are served even without a coverage checkpoint", () => {
+  const empty = { minDate: null, maxDate: null, populatedAt: null };
+  assert.equal(
+    warehouseReadDecision({
+      coverage: empty,
+      startDate: "2026-08-10",
+      endDate: "2026-08-20",
+      rowCount: 4,
+    }),
+    "use",
+  );
+  assert.equal(
+    warehouseReadDecision({
+      coverage: empty,
+      startDate: "2026-08-10",
+      endDate: "2026-08-20",
+      rowCount: 0,
+    }),
+    "fallback",
+  );
+  assert.equal(
+    warehouseReadDecision({
+      coverage: { minDate: "2026-08-01", maxDate: "2026-08-20", populatedAt: "x" },
+      startDate: "2026-08-10",
+      endDate: "2026-08-20",
+      rowCount: 0,
+    }),
+    "empty-covered",
+  );
+});
+
 test("Shopify coverage checkpoint is BigQuery, not cookie durable-json", () => {
   const coverage = readFileSync("src/lib/shopify/coverage.ts", "utf8");
   assert.doesNotMatch(coverage, /cookies\(/);
@@ -96,4 +127,9 @@ test("Shopify coverage checkpoint is BigQuery, not cookie durable-json", () => {
   assert.match(warehouse, /shopify_ingest_coverage/);
   assert.match(warehouse, /readShopifyWarehouseCoverage/);
   assert.match(warehouse, /expandShopifyWarehouseCoverage/);
+  assert.match(warehouse, /warehouseReadDecision/);
+  assert.doesNotMatch(
+    warehouse.slice(warehouse.indexOf("export async function loadShopifyRecordsFromWarehouse")),
+    /if \(!warehouseCoversPeriod/,
+  );
 });

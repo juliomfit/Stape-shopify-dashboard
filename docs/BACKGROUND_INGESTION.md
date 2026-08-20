@@ -52,8 +52,8 @@ Canonical mirror: **`analytics.fct_shopify_orders`** (migration 004 + additive 0
 1. Webhook `POST /api/shopify/webhooks` HMAC-verifies, GraphQL-fetches that order, MERGE, invalidates Shopify cache
 2. Incremental cron: created_at window + updated_at overlap (refunds on older orders)
 3. Coverage checkpoint (`analytics.shopify_ingest_coverage`) advances only after a non-truncated created_at window. Cookie durable-json is **not** used for this checkpoint — Vercel cron cookies never reach dashboard readers.
-4. Reads use the warehouse when coverage spans the header range
-5. Otherwise Admin GraphQL pagination remains the fallback — Production must not crash if the table is missing
+4. Reads query `fct_shopify_orders` for the header range. Existing fact rows are served even before the coverage checkpoint is written. Admin GraphQL is the fallback only when the table is missing, the query fails, or the range is empty **and** uncovered.
+5. Production must not crash if the table is missing.
 
 Financial truth: `currentTotalPriceSet` net of refunds. New-customer truth: Shopify `numberOfOrders <= 1`. Guest: no customer.
 

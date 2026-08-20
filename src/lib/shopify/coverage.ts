@@ -22,6 +22,24 @@ export function warehouseCoversPeriod(
   return coverage.minDate <= startDate && coverage.maxDate >= endDate;
 }
 
+/**
+ * Serve prepared warehouse facts whenever they exist for the period.
+ * Checkpoint coverage is only required to treat a true empty range as
+ * warehouse-backed (no Admin fallback) instead of "not loaded yet".
+ */
+export function warehouseReadDecision(input: {
+  coverage: ShopifyWarehouseCoverage;
+  startDate: string;
+  endDate: string;
+  rowCount: number;
+}): "use" | "empty-covered" | "fallback" {
+  if (input.rowCount > 0) return "use";
+  if (warehouseCoversPeriod(input.coverage, input.startDate, input.endDate)) {
+    return "empty-covered";
+  }
+  return "fallback";
+}
+
 export function mergeCoverageRange(
   current: ShopifyWarehouseCoverage,
   startDate: string,
