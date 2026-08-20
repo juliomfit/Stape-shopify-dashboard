@@ -7,6 +7,7 @@ import { isShopifyConfigured } from "@/lib/shopify/config";
 import { isStapeConfigured } from "@/lib/stape/config";
 import { isOpenAiConfigured } from "@/lib/platform/config";
 import { latestSuccessfulSync, latestSync, type SyncRun } from "@/lib/platform/sync-runs";
+import { isSyncActivelyRunning } from "@/lib/platform/sync-run-state";
 import { getSelectedPeriod } from "@/lib/period-server";
 
 export type SourceHealthStatus =
@@ -35,18 +36,23 @@ function fromRun(run: SyncRun | null, success: SyncRun | null): {
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   runStatus: SourceHealthStatus | null;
+  staleRunning: boolean;
 } {
+  const staleRunning = Boolean(run && run.status === "running" && !isSyncActivelyRunning(run));
   return {
     lastAttemptAt: run?.started_at ?? null,
     lastSuccessAt: success?.completed_at ?? null,
+    staleRunning,
     runStatus: run
-      ? run.status === "running"
-        ? "syncing"
-        : run.status === "failed"
-          ? "error"
-          : run.status === "partial"
-            ? "partial"
-            : "healthy"
+      ? staleRunning
+        ? "error"
+        : run.status === "running"
+          ? "syncing"
+          : run.status === "failed"
+            ? "error"
+            : run.status === "partial"
+              ? "partial"
+              : "healthy"
       : null,
   };
 }
@@ -118,6 +124,10 @@ async function loadDataHealth(): Promise<SourceHealth[]> {
   if (metaFromRun.runStatus === "syncing") {
     metaStatus = "syncing";
     metaMessage = "Meta sync in progress.";
+  } else if (metaFromRun.staleRunning) {
+    metaStatus = "error";
+    metaMessage =
+      "Last Meta sync timed out (no completion within 300s). Press Refresh Meta once.";
   } else if (metaFromRun.runStatus === "error") {
     metaStatus = "error";
     metaMessage = metaRun?.error_message || "Last Meta sync failed.";

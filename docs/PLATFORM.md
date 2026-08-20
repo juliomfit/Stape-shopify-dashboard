@@ -53,7 +53,7 @@ Read-only: GoodsNova never calls `connect_ad_platform`. `select_ad_accounts` run
 
 Query limits: Flyweel `query_metrics` caps at 500 rows. Incremental Refresh Meta queries **today and yesterday as separate Flyweel days**, campaign grain unless `FLYWEEL_INGEST_LEVELS=all`, and keeps rows with spend. A 7-day date×campaign query hits the 500-row cap and fills with $0 campaigns — do not use that shape. `src/lib/ads/providers/chunk.ts` still splits long Graph ranges.
 
-Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. Vercel Hobby `maxDuration` is 60s (`POST /api/meta/sync`). Skip BigQuery DELETE while the streaming buffer is hot.
+Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. `POST /api/meta/sync` `maxDuration` is **300s** (needed for `FLYWEEL_INGEST_LEVELS=all`). Verify the deployed Production runtime accepts maxDuration=300. Skip BigQuery DELETE while the streaming buffer is hot. Vercel cookie `durable-json` is not a global lock; warehouse `sync_runs` is the concurrency guard.
 
 ## Meta setup
 

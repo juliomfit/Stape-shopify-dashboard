@@ -5,6 +5,7 @@ import { RefreshControls } from "@/components/dashboard/RefreshControls";
 import { MetaIngestHealthPanel } from "@/components/dashboard/MetaIngestHealthPanel";
 import { getDataHealth } from "@/lib/platform/health";
 import { listSyncRuns, latestSuccessfulSync } from "@/lib/platform/sync-runs";
+import { syncRunDisplayStatus } from "@/lib/platform/sync-run-state";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { coverageRatio } from "@/lib/metrics/formulas";
 import { getSelectedPeriod } from "@/lib/period-server";
@@ -178,7 +179,7 @@ export default async function HealthPage() {
           <ul className="mt-3 space-y-2 text-sm">
             {runs.slice(0, 20).map((run) => (
               <li key={run.id}>
-                {run.source} · {run.sync_type} · {run.status} · {run.started_at}
+                {run.source} · {run.sync_type} · {syncRunDisplayStatus(run)} · {run.started_at}
                 {run.error_message ? ` · ${run.error_message}` : ""}
               </li>
             ))}

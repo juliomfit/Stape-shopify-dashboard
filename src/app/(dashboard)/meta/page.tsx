@@ -236,7 +236,7 @@ async function renderMetaPage() {
             <ol className="mt-3 list-decimal space-y-1 pl-5">
               <li>Wait until Vercel finishes deploying if a deploy is in progress.</li>
               <li>Stay on this /meta page.</li>
-              <li>Press <strong>Refresh Meta</strong> once and wait up to a minute.</li>
+              <li>Press <strong>Refresh Meta</strong> once and wait up to 5 minutes.</li>
             </ol>
           </article>
         ) : null}

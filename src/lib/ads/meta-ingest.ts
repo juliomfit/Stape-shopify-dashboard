@@ -7,7 +7,12 @@ import { resolveFlyweelAccountId, resolveFlyweelApiKey } from "@/lib/ads/provide
 import type { MetaAccount, MetaAdsProvider, MetaInsightResult, MetaInsightRow } from "@/lib/ads/providers/types";
 import { isPlatformBqReady } from "@/lib/platform/bq";
 import { acquireSyncLock, releaseSyncLock } from "@/lib/platform/lock";
-import { finishSyncRun, startSyncRun, type SyncRun } from "@/lib/platform/sync-runs";
+import { findActiveSyncRun, finishSyncRun, listSyncRuns, startSyncRun, type SyncRun } from "@/lib/platform/sync-runs";
+import {
+  META_SYNC_ALREADY_RUNNING,
+  buildMetaSyncMetadata,
+  isMetaSyncWinner,
+} from "@/lib/platform/sync-run-state";
 import { getDashboardPeriod, pacificDaysInRange } from "@/lib/period";
 import { addDaysYmd } from "@/lib/ads/providers/chunk";
 
@@ -138,6 +143,12 @@ export async function ingestMetaRange(input: {
     };
   }
 
+  const resolvedProvider = provider;
+  const already = await findActiveSyncRun("meta");
+  if (already) {
+    return { ok: false, message: META_SYNC_ALREADY_RUNNING, run: already };
+  }
+
   const run = await startSyncRun({
     source: "meta",
     syncType: input.syncType || "insights",
@@ -145,20 +156,57 @@ export async function ingestMetaRange(input: {
     lookbackEnd: input.endDate,
     metadata: { provider: provider.id },
   });
+  const peers = await listSyncRuns("meta");
+  if (!isMetaSyncWinner([run, ...peers], run.id)) {
+    await finishSyncRun(run, {
+      status: "failed",
+      error_message: META_SYNC_ALREADY_RUNNING,
+    });
+    return { ok: false, message: META_SYNC_ALREADY_RUNNING, run };
+  }
   const locked = await acquireSyncLock("meta", run.id);
   if (!locked) {
     await finishSyncRun(run, {
       status: "failed",
-      error_message: "Another Meta sync is already running.",
+      error_message: META_SYNC_ALREADY_RUNNING,
     });
-    return { ok: false, message: "Another Meta sync is already running.", run };
+    return { ok: false, message: META_SYNC_ALREADY_RUNNING, run };
   }
 
   let inserted = 0;
   let failed = 0;
   let requests = 0;
+  let campaignRowCount = 0;
+  let adsetRowCount = 0;
+  let adRowCount = 0;
+  let adsetSkip: string | undefined;
+  let adSkip: string | undefined;
+  let accountId = "";
   const steps: string[] = [];
   const now = new Date().toISOString();
+  const deepIngest = shouldFetchDeepMetaInsights(provider.id);
+
+  function observabilityMetadata(extra?: Record<string, unknown>) {
+    const elapsedMs = Math.max(0, Date.now() - (Date.parse(run.started_at) || Date.now()));
+    const payload = {
+      ...buildMetaSyncMetadata({
+        provider: resolvedProvider.id,
+        deep_ingest_enabled: deepIngest,
+        campaign_row_count: campaignRowCount,
+        adset_row_count: adsetRowCount,
+        ad_row_count: adRowCount,
+        provider_requests: requests,
+        elapsed_ms: elapsedMs,
+        adset_skip: adsetSkip,
+        ad_skip: adSkip,
+        steps,
+        account_id: accountId || undefined,
+      }),
+      ...extra,
+    };
+    console.info("[meta-sync]", JSON.stringify(payload));
+    return JSON.stringify(payload);
+  }
 
   try {
     const keyProblem = provider.id === "flyweel" ? flyweelApiKeyProblem(await resolveFlyweelApiKey()) : null;
@@ -166,7 +214,7 @@ export async function ingestMetaRange(input: {
       throw new Error(keyProblem);
     }
     const account = await resolveAccount(provider);
-    const accountId = account.accountId.replace(/^act_/, "");
+    accountId = account.accountId.replace(/^act_/, "");
     steps.push(`provider:${provider.id}`, `account:${accountId}`);
 
     if (provider instanceof FlyweelMetaAdsProvider && process.env.FLYWEEL_SELECT_ON_REFRESH === "1") {
@@ -223,6 +271,7 @@ export async function ingestMetaRange(input: {
         level: "campaign",
       });
       requests += campaign.requests;
+      campaignRowCount += campaign.rows.length;
       let adset: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
       let ad: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
       const deep = shouldFetchDeepMetaInsights(provider.id);
@@ -235,8 +284,10 @@ export async function ingestMetaRange(input: {
             level: "adset",
           });
           requests += adset.requests;
+          adsetRowCount += adset.rows.length;
         } catch (error) {
-          steps.push(`adset-skip:${error instanceof Error ? error.message : "error"}`);
+          adsetSkip = error instanceof Error ? error.message : "error";
+          steps.push(`adset-skip:${adsetSkip}`);
         }
         try {
           ad = await provider.getInsights({
@@ -246,8 +297,10 @@ export async function ingestMetaRange(input: {
             level: "ad",
           });
           requests += ad.requests;
+          adRowCount += ad.rows.length;
         } catch (error) {
-          steps.push(`ad-skip:${error instanceof Error ? error.message : "error"}`);
+          adSkip = error instanceof Error ? error.message : "error";
+          steps.push(`ad-skip:${adSkip}`);
         }
       } else {
         steps.push("flyweel-campaign-only");
@@ -335,12 +388,7 @@ export async function ingestMetaRange(input: {
       error_message: isPlatformBqReady()
         ? null
         : "Insights cached locally. Run bigquery/platform/00_schema.sql to persist.",
-      metadata: JSON.stringify({
-        steps,
-        provider: provider.id,
-        provider_requests: requests,
-        account_id: accountId,
-      }),
+      metadata: observabilityMetadata(),
     });
     return {
       ok: true,
@@ -358,12 +406,7 @@ export async function ingestMetaRange(input: {
       records_failed: failed,
       records_requested: requests,
       error_message: message.slice(0, 2500),
-      metadata: JSON.stringify({
-        steps,
-        provider: provider.id,
-        provider_requests: requests,
-        flyweel: snippet || undefined,
-      }),
+      metadata: observabilityMetadata(snippet ? { flyweel: snippet } : undefined),
     });
     return { ok: false, message, run: finished };
   } finally {

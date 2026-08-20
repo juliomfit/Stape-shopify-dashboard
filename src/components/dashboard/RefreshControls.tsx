@@ -1,16 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { refreshMetaSyncUiMessage } from "@/lib/platform/sync-run-state";
 
 export function RefreshControls() {
   const router = useRouter();
+  const inFlight = useRef(false);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
   async function post(payload: Record<string, string>) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setPending(true);
     setMessage(payload.source === "meta" || payload.startDate ? "Syncing Meta..." : "Refreshing…");
     try {
@@ -20,37 +24,35 @@ export function RefreshControls() {
         body: JSON.stringify(payload),
       });
       const raw = await response.text();
-      let result: { ok?: boolean; message?: string; error?: string } = {};
+      let parsed: { ok?: boolean; message?: string; error?: string } | null = null;
       try {
-        result = raw ? (JSON.parse(raw) as typeof result) : {};
+        parsed = raw ? (JSON.parse(raw) as NonNullable<typeof parsed>) : {};
       } catch {
-        const clipped = raw.replace(/\s+/g, " ").trim().slice(0, 240);
-        setMessage(
-          response.status === 504 || /timeout|timed out/i.test(clipped)
-            ? "Meta sync timed out (Vercel 60s). Retry Refresh Meta once — it now does a single Flyweel query."
-            : clipped
-              ? `Refresh failed (HTTP ${response.status}): ${clipped}`
-              : `Refresh failed (HTTP ${response.status}). Wait for deploy, then try again.`,
-        );
-        return;
+        parsed = null;
       }
-      const text = result.message || result.error || `HTTP ${response.status}`;
-      setMessage(result.ok ? `Meta updated. ${text}` : text);
-      if (result.ok) {
+      const feedback = refreshMetaSyncUiMessage({
+        status: response.status,
+        ok: response.ok,
+        parsed,
+        raw,
+      });
+      setMessage(feedback.message);
+      if (feedback.shouldRefresh) {
         router.refresh();
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Sync request failed.");
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   }
 
   return (
-    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm" aria-busy={pending}>
       <h2 className="text-sm font-semibold text-foreground">Refresh data</h2>
       <p className="mt-1 text-xs text-muted">
-        Pulls Meta from Flyweel on the server (up to 60s), then reads BigQuery. Charts never call Flyweel live.
+        Pulls Meta from Flyweel on the server (up to 300s), then reads BigQuery. Charts never call Flyweel live. Press Refresh Meta once and wait.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {[
@@ -65,9 +67,9 @@ export function RefreshControls() {
             type="button"
             disabled={pending}
             onClick={() => post({ source })}
-            className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50"
+            className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50 disabled:pointer-events-none"
           >
-            {label}
+            {pending && source === "meta" ? "Syncing…" : label}
           </button>
         ))}
       </div>
@@ -86,6 +88,7 @@ export function RefreshControls() {
             onChange={(event) => setStartDate(event.target.value)}
             className="rounded-lg border border-border px-3 py-2"
             required
+            disabled={pending}
           />
         </label>
         <label className="grid gap-1 text-sm">
@@ -96,12 +99,13 @@ export function RefreshControls() {
             onChange={(event) => setEndDate(event.target.value)}
             className="rounded-lg border border-border px-3 py-2"
             required
+            disabled={pending}
           />
         </label>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-50"
+          className="rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:pointer-events-none"
         >
           Backfill Meta
         </button>
