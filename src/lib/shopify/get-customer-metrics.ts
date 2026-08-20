@@ -28,6 +28,7 @@ function customersFromOverview(
   overview: Awaited<ReturnType<typeof getShopifyOverviewForPeriod>>,
 ): ShopifyCustomerMetrics | null {
   if (overview.status.state !== "connected") return null;
+  const shopName = overview.status.shopName;
   const records = overview.orderPoints.map((point) => ({
     orderGid: point.legacyId || "",
     orderId: point.legacyId || "",
@@ -58,14 +59,14 @@ function customersFromOverview(
     customAttributes: [],
     lineItems: [],
     itemCount: 0,
-    shopName: overview.status.shopName,
+    shopName,
   }));
   return customersFromRecords({
     records,
     periodLabel: overview.periodLabel,
     startMs: 0,
     endMs: Number.MAX_SAFE_INTEGER,
-    shopName: overview.status.shopName,
+    shopName,
     truncated: overview.truncated,
   });
 }
