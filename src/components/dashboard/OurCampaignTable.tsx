@@ -59,7 +59,7 @@ function CampaignDetails({ row, currencyCode }: { row: OurCampaignRow; currencyC
         Confidence <span className="text-foreground">{badge.confidence}</span>
       </p>
       <p>
-        Meta purchases <span className="text-foreground">{formatNumber(row.metaPurchases)}</span>
+        Meta purchases <span className="text-foreground">{formatNumber(row.metaPurchases ?? 0)}</span>
       </p>
       <p>
         OUR attributed orders{" "}
@@ -124,7 +124,7 @@ function CampaignRow({
           <MappingBadge label={badge.label} confidence={badge.confidence} />
         </td>
         <td className="num">{row.spend ? money(row.spend, currencyCode) : "—"}</td>
-        <td className="num">{money(row.metaRevenue, currencyCode)}</td>
+        <td className="num">{money(row.metaRevenue ?? 0, currencyCode)}</td>
         <td className="num">
           <Link prefetch={false} href={ourOrdersHref(row)} className="hover:underline">
             {money(row.ourRevenue, currencyCode)}

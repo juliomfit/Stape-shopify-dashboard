@@ -26,11 +26,19 @@ export type MetaInsightFact = {
   frequency: number;
   clicks: number;
   inline_link_clicks: number;
-  purchases: number;
-  purchase_value: number;
-  ctr?: number;
-  cpc?: number;
-  cpm?: number;
+  unique_clicks?: number | null;
+  unique_ctr?: number | null;
+  outbound_clicks?: number | null;
+  conversions?: number | null;
+  purchases: number | null;
+  purchase_value: number | null;
+  add_to_cart?: number | null;
+  initiate_checkout?: number | null;
+  landing_page_views?: number | null;
+  ctr?: number | null;
+  cpc?: number | null;
+  cpm?: number | null;
+  extended_metrics?: Record<string, number | string | null> | string | null;
 };
 
 type CacheFile = {
@@ -62,6 +70,38 @@ function asNumber(value: unknown): number {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+function asOptionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (value && typeof value === "object" && "value" in (value as { value?: unknown })) {
+    return asOptionalNumber((value as { value: unknown }).value);
+  }
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function asExtendedMetrics(value: unknown): Record<string, number | string | null> {
+  if (!value) return {};
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, number | string | null>;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, number | string | null>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 function normalizeFacts(rows: MetaInsightFact[]): MetaInsightFact[] {
   return rows.map((row) => ({
     ...row,
@@ -72,8 +112,19 @@ function normalizeFacts(rows: MetaInsightFact[]): MetaInsightFact[] {
     frequency: asNumber(row.frequency),
     clicks: asNumber(row.clicks),
     inline_link_clicks: asNumber(row.inline_link_clicks),
-    purchases: asNumber(row.purchases),
-    purchase_value: asNumber(row.purchase_value),
+    unique_clicks: asOptionalNumber(row.unique_clicks),
+    unique_ctr: asOptionalNumber(row.unique_ctr),
+    outbound_clicks: asOptionalNumber(row.outbound_clicks),
+    conversions: asOptionalNumber(row.conversions),
+    purchases: asOptionalNumber(row.purchases),
+    purchase_value: asOptionalNumber(row.purchase_value),
+    add_to_cart: asOptionalNumber(row.add_to_cart),
+    initiate_checkout: asOptionalNumber(row.initiate_checkout),
+    landing_page_views: asOptionalNumber(row.landing_page_views),
+    ctr: asOptionalNumber(row.ctr),
+    cpc: asOptionalNumber(row.cpc),
+    cpm: asOptionalNumber(row.cpm),
+    extended_metrics: asExtendedMetrics(row.extended_metrics),
   }));
 }
 
@@ -100,9 +151,13 @@ async function queryFacts(
     return [];
   }
   try {
+    const campaignSelect =
+      "date, account_id, campaign_id, campaign_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, unique_clicks, unique_ctr, outbound_clicks, conversions, purchases, purchase_value, add_to_cart, initiate_checkout, landing_page_views, ctr, cpc, cpm, extended_metrics";
+    const campaignSelectLegacy =
+      "date, account_id, campaign_id, campaign_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value, add_to_cart, initiate_checkout, landing_page_views, ctr, cpc, cpm";
     const select =
       table === "meta_campaign_insights_daily"
-        ? "date, account_id, campaign_id, campaign_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value, ctr, cpc, cpm"
+        ? campaignSelect
         : table === "meta_adset_insights_daily"
           ? "date, account_id, campaign_id, adset_id, adset_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value"
           : "date, account_id, campaign_id, adset_id, ad_id, ad_name, spend, impressions, reach, frequency, clicks, inline_link_clicks, purchases, purchase_value, ctr, cpc, cpm";
@@ -112,22 +167,34 @@ async function queryFacts(
         : table === "meta_adset_insights_daily"
           ? "adset_id"
           : "ad_id";
-    const rows = await runPlatformQuery<MetaInsightFact>(
-      `SELECT ${select} FROM ${fq}
+    const sql = (columns: string) =>
+      `SELECT ${columns} FROM ${fq}
        WHERE date BETWEEN @startDate AND @endDate
          AND (IFNULL(spend, 0) > 0 OR IFNULL(impressions, 0) > 0 OR IFNULL(clicks, 0) > 0)
          ${extra}
        QUALIFY ROW_NUMBER() OVER (
          PARTITION BY date, account_id, ${grain}
          ORDER BY synced_at DESC
-       ) = 1`,
-      {
-        startDate: period.startDate,
-        endDate: period.endDate,
-        ...extraParams,
-      },
-    );
-    return normalizeFacts(rows).filter(hasActivity);
+       ) = 1`;
+    const params = {
+      startDate: period.startDate,
+      endDate: period.endDate,
+      ...extraParams,
+    };
+    try {
+      const rows = await runPlatformQuery<MetaInsightFact>(sql(select), params);
+      return normalizeFacts(rows).filter(hasActivity);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (
+        table === "meta_campaign_insights_daily" &&
+        /unrecognized name|extended_metrics|unique_ctr|outbound_clicks|conversions/i.test(message)
+      ) {
+        const rows = await runPlatformQuery<MetaInsightFact>(sql(campaignSelectLegacy), params);
+        return normalizeFacts(rows).filter(hasActivity);
+      }
+      throw error;
+    }
   } catch (error) {
     logLoader({
       loader: `meta_facts_${table}`,

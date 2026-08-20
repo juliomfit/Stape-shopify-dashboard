@@ -37,15 +37,17 @@ import {
   csvEscape,
   filterCampaignsByMapping,
   formatCountCell,
-  formatFrequencyCell,
   formatMoneyCell,
   formatOrdersCell,
   formatPercentCell,
   formatRoasCell,
+  formatCampaignMetricCell,
+  formatTotalsMetricCell,
   groupedHeader,
   isPlatformChartMetric,
   parseStoredColumns,
   resolvePlatformDailySeries,
+  pickerColumns,
   searchCampaignRows,
   searchText,
   sortAdRows,
@@ -53,6 +55,7 @@ import {
   sortCampaignRows,
   totalCampaignPerformance,
   visibleCampaignColumns,
+  PICKER_CATEGORIES,
   type AdColumnId,
   type AdsetColumnId,
   type CampaignColumnId,
@@ -153,6 +156,7 @@ export function MetaPerformanceWorkspace({
   const [query, setQuery] = useState("");
   const [mappingFilter, setMappingFilter] = useState<MappingFilter>("all");
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const [columnQuery, setColumnQuery] = useState("");
   const [visibleIds, setVisibleIds] = useState<CampaignColumnId[]>(readStoredColumns);
   const [sortKey, setSortKey] = useState<string>("spend");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -302,7 +306,7 @@ export function MetaPerformanceWorkspace({
                     : activeChartMetric === "attributedOrders"
                       ? row.ourOrders
                       : row.ourRevenue;
-      return { label: displayCampaignName(row.campaignName), value };
+      return { label: displayCampaignName(row.campaignName), value: value ?? 0 };
     });
   }, [grain, campaignRows, adsetRows, adRows, activeChartMetric]);
 
@@ -506,7 +510,7 @@ export function MetaPerformanceWorkspace({
                 Columns
               </button>
               {columnsOpen ? (
-                <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-border bg-surface p-3 shadow-lg">
+                <div className="absolute right-0 z-20 mt-2 w-80 rounded-xl border border-border bg-surface p-3 shadow-lg">
                   <div className="mb-2 flex flex-wrap gap-1">
                     {(Object.keys(COLUMN_PRESETS) as ColumnPreset[]).map((preset) => (
                       <button
@@ -515,24 +519,50 @@ export function MetaPerformanceWorkspace({
                         onClick={() => applyPreset(preset)}
                         className="rounded-full bg-elevated px-2 py-0.5 text-[11px] capitalize"
                       >
-                        {preset === "all" ? "All columns" : preset}
+                        {preset === "all"
+                          ? "All columns"
+                          : preset === "creative"
+                            ? "Creative / Video"
+                            : preset}
                       </button>
                     ))}
                   </div>
-                  <ul className="max-h-64 space-y-1 overflow-auto text-sm">
-                    {CAMPAIGN_COLUMNS.filter((column) => column.id !== "campaign").map((column) => (
-                      <li key={column.id}>
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={visibleIds.includes(column.id)}
-                            onChange={() => toggleColumn(column.id)}
-                          />
-                          {column.label}
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
+                  <label className="relative mb-2 block">
+                    <Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted" />
+                    <input
+                      value={columnQuery}
+                      onChange={(event) => setColumnQuery(event.target.value)}
+                      placeholder="Search metrics..."
+                      className="w-full rounded-lg border border-border bg-elevated py-1 pl-7 pr-2 text-xs"
+                    />
+                  </label>
+                  <div className="max-h-72 space-y-3 overflow-auto text-sm">
+                    {PICKER_CATEGORIES.map((category) => {
+                      const columns = pickerColumns(category, columnQuery);
+                      if (!columns.length) return null;
+                      return (
+                        <div key={category}>
+                          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                            {category}
+                          </p>
+                          <ul className="space-y-1">
+                            {columns.map((column) => (
+                              <li key={`${category}-${column.id}`}>
+                                <label className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={visibleIds.includes(column.id)}
+                                    onChange={() => toggleColumn(column.id)}
+                                  />
+                                  {column.label}
+                                </label>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -678,7 +708,7 @@ function CampaignGrid({
                 key={group.id}
                 colSpan={group.span}
                 className={
-                  group.id === "meta" ? "meta-group-meta" : group.id === "ours" ? "meta-group-ours" : ""
+                  group.id === "platform" ? "meta-group-meta" : group.id === "ours" ? "meta-group-ours" : ""
                 }
               >
                 {group.label}
@@ -757,67 +787,11 @@ function CampaignGrid({
 }
 
 function isPlatformColumn(id: CampaignColumnId) {
-  return [
-    "spend",
-    "impressions",
-    "reach",
-    "frequency",
-    "clicks",
-    "linkClicks",
-    "ctr",
-    "cpc",
-    "cpm",
-    "purchases",
-    "cpa",
-    "metaRevenue",
-    "metaRoas",
-  ].includes(id);
+  return Boolean(CAMPAIGN_COLUMNS.find((column) => column.id === id)?.platform);
 }
 
 function campaignCell(row: OurCampaignRow, id: CampaignColumnId, currencyCode: string) {
-  const platform = row.platformPresent;
-  switch (id) {
-    case "spend":
-      return formatMoneyCell(row.spend, platform, currencyCode);
-    case "impressions":
-      return formatCountCell(row.impressions, platform);
-    case "reach":
-      return formatCountCell(row.reach, platform);
-    case "frequency":
-      return formatFrequencyCell(row.frequency, platform);
-    case "clicks":
-      return formatCountCell(row.clicks, platform);
-    case "linkClicks":
-      return formatCountCell(row.linkClicks, platform);
-    case "ctr":
-      return formatPercentCell(row.ctr);
-    case "cpc":
-      return formatMoneyCell(row.cpc, row.cpc != null, currencyCode);
-    case "cpm":
-      return formatMoneyCell(row.cpm, row.cpm != null, currencyCode);
-    case "purchases":
-      return formatCountCell(row.metaPurchases, platform);
-    case "cpa":
-      return formatMoneyCell(row.metaCpa, row.metaCpa != null, currencyCode);
-    case "metaRevenue":
-      return formatMoneyCell(row.metaRevenue, platform, currencyCode);
-    case "metaRoas":
-      return formatRoasCell(row.metaRoas);
-    case "ourRevenue":
-      return formatMoneyCell(row.ourRevenue, true, currencyCode);
-    case "ourOrders":
-      return formatOrdersCell(row.ourOrders);
-    case "ourRoas":
-      return formatRoasCell(row.ourRoas);
-    case "newCustomerCredit":
-      return formatOrdersCell(row.newCustomerCredit);
-    case "newCustomerRevenue":
-      return formatMoneyCell(row.newCustomerRevenue, true, currencyCode);
-    case "attributedNcac":
-      return formatMoneyCell(row.attributedNcac, row.attributedNcac != null, currencyCode);
-    default:
-      return "";
-  }
+  return formatCampaignMetricCell(row, id, currencyCode);
 }
 
 function totalsCell(
@@ -825,48 +799,7 @@ function totalsCell(
   id: CampaignColumnId,
   currencyCode: string,
 ) {
-  switch (id) {
-    case "spend":
-      return formatMoneyCell(totals.spend, true, currencyCode);
-    case "impressions":
-      return formatCountCell(totals.impressions);
-    case "reach":
-      return formatCountCell(totals.reach, false);
-    case "frequency":
-      return formatFrequencyCell(totals.frequency, false);
-    case "clicks":
-      return formatCountCell(totals.clicks);
-    case "linkClicks":
-      return formatCountCell(totals.linkClicks);
-    case "ctr":
-      return formatPercentCell(totals.ctr);
-    case "cpc":
-      return formatMoneyCell(totals.cpc, totals.cpc != null, currencyCode);
-    case "cpm":
-      return formatMoneyCell(totals.cpm, totals.cpm != null, currencyCode);
-    case "purchases":
-      return formatCountCell(totals.purchases);
-    case "cpa":
-      return formatMoneyCell(totals.cpa, totals.cpa != null, currencyCode);
-    case "metaRevenue":
-      return formatMoneyCell(totals.metaRevenue, true, currencyCode);
-    case "metaRoas":
-      return formatRoasCell(totals.metaRoas);
-    case "ourRevenue":
-      return formatMoneyCell(totals.ourRevenue, true, currencyCode);
-    case "ourOrders":
-      return formatOrdersCell(totals.ourOrders);
-    case "ourRoas":
-      return formatRoasCell(totals.ourRoas);
-    case "newCustomerCredit":
-      return formatOrdersCell(totals.newCustomerCredit);
-    case "newCustomerRevenue":
-      return formatMoneyCell(totals.newCustomerRevenue, true, currencyCode);
-    case "attributedNcac":
-      return formatMoneyCell(totals.attributedNcac, totals.attributedNcac != null, currencyCode);
-    default:
-      return "";
-  }
+  return formatTotalsMetricCell(totals, id, currencyCode);
 }
 
 function CampaignMobile({

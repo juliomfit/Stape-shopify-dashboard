@@ -24,42 +24,23 @@ import type {
   ObservedMetaAdRollup,
   ObservedMetaAdsetRollup,
 } from "./observed-meta-grain.ts";
+import {
+  META_METRIC_DEFINITIONS,
+  campaignMetricValue,
+  rankingSortValue,
+  searchMetricDefinitions,
+  type MetaMetricDefinition,
+  type PickerCategory,
+  type TableGroupId,
+} from "./meta-metric-defs.ts";
 
-export const META_GRID_STORAGE_KEY = "goodsnova.meta.performance.columns.v1";
+export const META_GRID_STORAGE_KEY = "goodsnova.meta.performance.columns.v2";
 export const FLYWEEL_CAMPAIGN_ONLY_TOOLTIP =
   "Flyweel provides campaign-level reporting only.";
 
 export type MetaGrain = "campaigns" | "adsets" | "ads";
-export type ColumnGroupId =
-  | "identity"
-  | "delivery"
-  | "traffic"
-  | "meta"
-  | "ours"
-  | "diagnostics";
-
-export type CampaignColumnId =
-  | "campaign"
-  | "spend"
-  | "impressions"
-  | "reach"
-  | "frequency"
-  | "clicks"
-  | "linkClicks"
-  | "ctr"
-  | "cpc"
-  | "cpm"
-  | "purchases"
-  | "cpa"
-  | "metaRevenue"
-  | "metaRoas"
-  | "ourRevenue"
-  | "ourOrders"
-  | "ourRoas"
-  | "newCustomerCredit"
-  | "newCustomerRevenue"
-  | "attributedNcac"
-  | "mapping";
+export type ColumnGroupId = TableGroupId;
+export type CampaignColumnId = string;
 
 export type AdsetColumnId =
   | "adset"
@@ -104,40 +85,32 @@ export type ColumnDef<Id extends string> = {
   numeric: boolean;
   sticky?: boolean;
   defaultOn?: boolean;
+  category?: PickerCategory;
+  format?: MetaMetricDefinition["format"];
+  sortable?: boolean;
+  platform?: boolean;
 };
 
 export const COLUMN_GROUPS: { id: ColumnGroupId; label: string }[] = [
   { id: "identity", label: "Identity" },
-  { id: "delivery", label: "Delivery" },
-  { id: "traffic", label: "Traffic" },
-  { id: "meta", label: "Meta conversions" },
-  { id: "ours", label: "GoodsNova attribution" },
+  { id: "platform", label: "META PLATFORM" },
+  { id: "ours", label: "GOODSNOVA ATTRIBUTION" },
   { id: "diagnostics", label: "Diagnostics" },
 ];
 
-export const CAMPAIGN_COLUMNS: ColumnDef<CampaignColumnId>[] = [
-  { id: "campaign", label: "Campaign", group: "identity", groupLabel: "Identity", numeric: false, sticky: true, defaultOn: true },
-  { id: "spend", label: "Spend", group: "delivery", groupLabel: "Delivery", numeric: true, defaultOn: true },
-  { id: "impressions", label: "Impressions", group: "delivery", groupLabel: "Delivery", numeric: true },
-  { id: "reach", label: "Reach", group: "delivery", groupLabel: "Delivery", numeric: true },
-  { id: "frequency", label: "Frequency", group: "delivery", groupLabel: "Delivery", numeric: true },
-  { id: "clicks", label: "Clicks", group: "traffic", groupLabel: "Traffic", numeric: true },
-  { id: "linkClicks", label: "Link clicks", group: "traffic", groupLabel: "Traffic", numeric: true },
-  { id: "ctr", label: "CTR", group: "traffic", groupLabel: "Traffic", numeric: true, defaultOn: true },
-  { id: "cpc", label: "CPC", group: "traffic", groupLabel: "Traffic", numeric: true, defaultOn: true },
-  { id: "cpm", label: "CPM", group: "traffic", groupLabel: "Traffic", numeric: true },
-  { id: "purchases", label: "Purchases", group: "meta", groupLabel: "Meta conversions", numeric: true, defaultOn: true },
-  { id: "cpa", label: "CPA", group: "meta", groupLabel: "Meta conversions", numeric: true, defaultOn: true },
-  { id: "metaRevenue", label: "Meta revenue", group: "meta", groupLabel: "Meta conversions", numeric: true, defaultOn: true },
-  { id: "metaRoas", label: "Meta ROAS", group: "meta", groupLabel: "Meta conversions", numeric: true, defaultOn: true },
-  { id: "ourRevenue", label: "OUR revenue", group: "ours", groupLabel: "GoodsNova attribution", numeric: true, defaultOn: true },
-  { id: "ourOrders", label: "OUR attributed orders", group: "ours", groupLabel: "GoodsNova attribution", numeric: true, defaultOn: true },
-  { id: "ourRoas", label: "OUR ROAS", group: "ours", groupLabel: "GoodsNova attribution", numeric: true, defaultOn: true },
-  { id: "newCustomerCredit", label: "New customer credit", group: "ours", groupLabel: "GoodsNova attribution", numeric: true },
-  { id: "newCustomerRevenue", label: "New customer revenue", group: "ours", groupLabel: "GoodsNova attribution", numeric: true },
-  { id: "attributedNcac", label: "Attributed nCAC", group: "ours", groupLabel: "GoodsNova attribution", numeric: true },
-  { id: "mapping", label: "Mapping", group: "diagnostics", groupLabel: "Diagnostics", numeric: false, defaultOn: true },
-];
+export const CAMPAIGN_COLUMNS: ColumnDef<CampaignColumnId>[] = META_METRIC_DEFINITIONS.map((item) => ({
+  id: item.id,
+  label: item.label,
+  group: item.group,
+  groupLabel: item.groupLabel,
+  numeric: item.numeric,
+  sticky: item.sticky,
+  defaultOn: item.defaultOn,
+  category: item.category,
+  format: item.format,
+  sortable: item.sortable,
+  platform: item.platform,
+}));
 
 export const ADSET_COLUMNS: ColumnDef<AdsetColumnId>[] = [
   { id: "adset", label: "Ad Set", group: "identity", groupLabel: "Identity", numeric: false, sticky: true, defaultOn: true },
@@ -164,21 +137,9 @@ export const AD_COLUMNS: ColumnDef<AdColumnId>[] = [
   { id: "source", label: "Source", group: "diagnostics", groupLabel: "Diagnostics", numeric: false, defaultOn: true },
 ];
 
-export const CHILD_UNSUPPORTED_PLATFORM_METRICS = [
-  "spend",
-  "impressions",
-  "reach",
-  "frequency",
-  "clicks",
-  "linkClicks",
-  "ctr",
-  "cpc",
-  "cpm",
-  "purchases",
-  "cpa",
-  "metaRevenue",
-  "metaRoas",
-] as const;
+export const CHILD_UNSUPPORTED_PLATFORM_METRICS = CAMPAIGN_COLUMNS.filter(
+  (column) => column.platform,
+).map((column) => column.id);
 
 export const CAMPAIGN_CHART_METRICS: { id: ChartMetricId; label: string }[] = [
   { id: "spend", label: "Spend" },
@@ -270,12 +231,29 @@ export function resolvePlatformDailySeries(args: {
   return args.platformDailyByCampaign[args.entityKey] ?? null;
 }
 
-export type ColumnPreset = "performance" | "delivery" | "conversion" | "attribution" | "all";
+export type ColumnPreset =
+  | "performance"
+  | "funnel"
+  | "creative"
+  | "delivery"
+  | "conversion"
+  | "attribution"
+  | "all";
 
 export const COLUMN_PRESETS: Record<ColumnPreset, CampaignColumnId[]> = {
   performance: [
     "campaign",
     "spend",
+    "impressions",
+    "cpm",
+    "linkClicks",
+    "ctr",
+    "cpc",
+    "landingPageViews",
+    "addToCart",
+    "costAtc",
+    "initiateCheckout",
+    "costCheckout",
     "purchases",
     "cpa",
     "metaRevenue",
@@ -283,9 +261,40 @@ export const COLUMN_PRESETS: Record<ColumnPreset, CampaignColumnId[]> = {
     "ourRevenue",
     "ourOrders",
     "ourRoas",
+    "mapping",
+  ],
+  funnel: [
+    "campaign",
+    "spend",
+    "linkClicks",
+    "landingPageViews",
+    "costLpv",
+    "addToCart",
+    "costAtc",
+    "initiateCheckout",
+    "costCheckout",
+    "purchases",
+    "cpa",
+    "metaRevenue",
+    "metaRoas",
+  ],
+  creative: [
+    "campaign",
+    "spend",
+    "impressions",
+    "cpm",
+    "videoP25",
+    "videoP50",
+    "videoP75",
+    "videoP95",
+    "videoP100",
+    "video30s",
+    "videoAvgTime",
     "ctr",
     "cpc",
-    "mapping",
+    "purchases",
+    "cpa",
+    "metaRoas",
   ],
   delivery: ["campaign", "spend", "impressions", "reach", "frequency", "mapping"],
   conversion: ["campaign", "spend", "purchases", "cpa", "metaRevenue", "metaRoas", "mapping"],
@@ -369,52 +378,15 @@ function cmp(a: number | string | null | undefined, b: number | string | null | 
 }
 
 export function campaignSortValue(row: OurCampaignRow, column: CampaignColumnId): number | string | null {
-  switch (column) {
-    case "campaign":
-      return displayCampaignName(row.campaignName);
-    case "spend":
-      return row.platformPresent ? row.spend : null;
-    case "impressions":
-      return row.platformPresent ? row.impressions : null;
-    case "reach":
-      return row.platformPresent ? row.reach : null;
-    case "frequency":
-      return row.platformPresent ? row.frequency : null;
-    case "clicks":
-      return row.platformPresent ? row.clicks : null;
-    case "linkClicks":
-      return row.platformPresent ? row.linkClicks : null;
-    case "ctr":
-      return row.ctr;
-    case "cpc":
-      return row.cpc;
-    case "cpm":
-      return row.cpm;
-    case "purchases":
-      return row.platformPresent ? row.metaPurchases : null;
-    case "cpa":
-      return row.metaCpa;
-    case "metaRevenue":
-      return row.platformPresent ? row.metaRevenue : null;
-    case "metaRoas":
-      return row.metaRoas;
-    case "ourRevenue":
-      return row.ourRevenue;
-    case "ourOrders":
-      return row.ourOrders;
-    case "ourRoas":
-      return row.ourRoas;
-    case "newCustomerCredit":
-      return row.newCustomerCredit;
-    case "newCustomerRevenue":
-      return row.newCustomerRevenue;
-    case "attributedNcac":
-      return row.attributedNcac;
-    case "mapping":
-      return campaignMappingBadge(row).label;
-    default:
-      return null;
+  if (column === "mapping") {
+    return campaignMappingBadge(row).label;
   }
+  const def = CAMPAIGN_COLUMNS.find((item) => item.id === column);
+  const value = campaignMetricValue(row, column);
+  if (def?.format === "ranking" && typeof value === "string") {
+    return rankingSortValue(value);
+  }
+  return value;
 }
 
 export function sortCampaignRows(
@@ -515,13 +487,37 @@ export type CampaignTotals = {
   frequency: number | null;
   clicks: number;
   linkClicks: number;
+  uniqueClicks: number | null;
+  uniqueCtr: number | null;
+  outboundClicks: number | null;
+  landingPageViews: number | null;
+  addToCart: number | null;
+  initiateCheckout: number | null;
+  conversions: number | null;
+  costLpv: number | null;
+  costAtc: number | null;
+  costCheckout: number | null;
   ctr: number | null;
   cpc: number | null;
   cpm: number | null;
-  purchases: number;
+  purchases: number | null;
   cpa: number | null;
-  metaRevenue: number;
+  metaRevenue: number | null;
   metaRoas: number | null;
+  videoP25: number | null;
+  videoP50: number | null;
+  videoP75: number | null;
+  videoP95: number | null;
+  videoP100: number | null;
+  video30s: number | null;
+  videoAvgTime: number | null;
+  postEngagement: number | null;
+  pageEngagement: number | null;
+  postReactions: number | null;
+  messagingConversations: number | null;
+  qualityRanking: string | null;
+  engagementRateRanking: string | null;
+  conversionRateRanking: string | null;
   ourRevenue: number;
   ourOrders: number;
   ourRoas: number | null;
@@ -530,14 +526,30 @@ export type CampaignTotals = {
   attributedNcac: number | null;
 };
 
+function sumNullable(rows: OurCampaignRow[], read: (row: OurCampaignRow) => number | null | undefined) {
+  let saw = false;
+  let sum = 0;
+  for (const row of rows) {
+    const value = read(row);
+    if (value == null) continue;
+    saw = true;
+    sum += value;
+  }
+  return saw ? sum : null;
+}
+
 export function totalCampaignPerformance(rows: OurCampaignRow[]): CampaignTotals {
   const platform = rows.filter((row) => row.platformPresent);
   const spend = platform.reduce((sum, row) => sum + row.spend, 0);
   const impressions = platform.reduce((sum, row) => sum + row.impressions, 0);
   const clicks = platform.reduce((sum, row) => sum + row.clicks, 0);
   const linkClicks = platform.reduce((sum, row) => sum + row.linkClicks, 0);
-  const purchases = platform.reduce((sum, row) => sum + row.metaPurchases, 0);
-  const metaRevenue = platform.reduce((sum, row) => sum + row.metaRevenue, 0);
+  const landingPageViews = sumNullable(platform, (row) => row.landingPageViews);
+  const addToCart = sumNullable(platform, (row) => row.addToCart);
+  const initiateCheckout = sumNullable(platform, (row) => row.initiateCheckout);
+  const purchases = sumNullable(platform, (row) => row.metaPurchases);
+  const metaRevenue = sumNullable(platform, (row) => row.metaRevenue);
+  const conversions = sumNullable(platform, (row) => row.conversions);
   const ourRevenue = rows.reduce((sum, row) => sum + row.ourRevenue, 0);
   const ourOrders = rows.reduce((sum, row) => sum + row.ourOrders, 0);
   const newCustomerCredit = rows.reduce((sum, row) => sum + row.newCustomerCredit, 0);
@@ -545,18 +557,41 @@ export function totalCampaignPerformance(rows: OurCampaignRow[]): CampaignTotals
   return {
     spend,
     impressions,
-    // People can appear in multiple campaigns. Do not sum row-level reach.
     reach: null,
     frequency: null,
     clicks,
     linkClicks,
+    uniqueClicks: sumNullable(platform, (row) => row.uniqueClicks),
+    uniqueCtr: null,
+    outboundClicks: sumNullable(platform, (row) => row.outboundClicks),
+    landingPageViews,
+    addToCart,
+    initiateCheckout,
+    conversions,
+    costLpv: platformCpa(spend, landingPageViews),
+    costAtc: platformCpa(spend, addToCart),
+    costCheckout: platformCpa(spend, initiateCheckout),
     ctr: ctr(clicks, impressions),
     cpc: cpc(spend, clicks),
     cpm: cpm(spend, impressions),
     purchases,
     cpa: platformCpa(spend, purchases),
     metaRevenue,
-    metaRoas: platformRoas(metaRevenue, spend),
+    metaRoas: metaRevenue == null ? null : platformRoas(metaRevenue, spend),
+    videoP25: sumNullable(platform, (row) => row.videoP25),
+    videoP50: sumNullable(platform, (row) => row.videoP50),
+    videoP75: sumNullable(platform, (row) => row.videoP75),
+    videoP95: sumNullable(platform, (row) => row.videoP95),
+    videoP100: sumNullable(platform, (row) => row.videoP100),
+    video30s: sumNullable(platform, (row) => row.video30s),
+    videoAvgTime: null,
+    postEngagement: sumNullable(platform, (row) => row.postEngagement),
+    pageEngagement: sumNullable(platform, (row) => row.pageEngagement),
+    postReactions: sumNullable(platform, (row) => row.postReactions),
+    messagingConversations: sumNullable(platform, (row) => row.messagingConversations),
+    qualityRanking: null,
+    engagementRateRanking: null,
+    conversionRateRanking: null,
     ourRevenue,
     ourOrders,
     ourRoas: ratio(ourRevenue, spend),
@@ -647,6 +682,182 @@ export function formatFrequencyCell(value: number | null | undefined, available 
   if (!available || value == null) return "—";
   return value.toFixed(2);
 }
+
+export function formatDecimalCell(value: number | null | undefined, available = true) {
+  if (!available || value == null) return "—";
+  return value.toFixed(2);
+}
+
+export function formatDurationCell(value: number | null | undefined, available = true) {
+  if (!available || value == null) return "—";
+  return `${value.toFixed(1)}s`;
+}
+
+export function formatRankingCell(value: string | null | undefined) {
+  if (!value) return "—";
+  return value.replace(/_/g, " ");
+}
+
+export function formatCampaignMetricCell(
+  row: OurCampaignRow,
+  id: CampaignColumnId,
+  currencyCode: string,
+) {
+  const def = CAMPAIGN_COLUMNS.find((column) => column.id === id);
+  const value = campaignMetricValue(row, id);
+  const available = !def?.platform || row.platformPresent;
+  return formatMetricValue(def, value, available, currencyCode);
+}
+
+export function formatTotalsMetricCell(
+  totals: CampaignTotals,
+  id: CampaignColumnId,
+  currencyCode: string,
+) {
+  const def = CAMPAIGN_COLUMNS.find((column) => column.id === id);
+  const value = totalMetricValue(totals, id);
+  const available = id !== "reach" && id !== "frequency" && def?.format !== "ranking";
+  return formatMetricValue(def, value, available, currencyCode);
+}
+
+function totalMetricValue(totals: CampaignTotals, id: CampaignColumnId): number | string | null {
+  switch (id) {
+    case "spend":
+      return totals.spend;
+    case "impressions":
+      return totals.impressions;
+    case "reach":
+      return totals.reach;
+    case "frequency":
+      return totals.frequency;
+    case "clicks":
+      return totals.clicks;
+    case "linkClicks":
+      return totals.linkClicks;
+    case "uniqueClicks":
+      return totals.uniqueClicks;
+    case "uniqueCtr":
+      return totals.uniqueCtr;
+    case "outboundClicks":
+      return totals.outboundClicks;
+    case "ctr":
+      return totals.ctr;
+    case "cpc":
+      return totals.cpc;
+    case "cpm":
+      return totals.cpm;
+    case "landingPageViews":
+      return totals.landingPageViews;
+    case "costLpv":
+      return totals.costLpv;
+    case "addToCart":
+      return totals.addToCart;
+    case "costAtc":
+      return totals.costAtc;
+    case "initiateCheckout":
+      return totals.initiateCheckout;
+    case "costCheckout":
+      return totals.costCheckout;
+    case "purchases":
+      return totals.purchases;
+    case "cpa":
+      return totals.cpa;
+    case "conversions":
+      return totals.conversions;
+    case "metaRevenue":
+      return totals.metaRevenue;
+    case "metaRoas":
+      return totals.metaRoas;
+    case "videoP25":
+      return totals.videoP25;
+    case "videoP50":
+      return totals.videoP50;
+    case "videoP75":
+      return totals.videoP75;
+    case "videoP95":
+      return totals.videoP95;
+    case "videoP100":
+      return totals.videoP100;
+    case "video30s":
+      return totals.video30s;
+    case "videoAvgTime":
+      return totals.videoAvgTime;
+    case "postEngagement":
+      return totals.postEngagement;
+    case "pageEngagement":
+      return totals.pageEngagement;
+    case "postReactions":
+      return totals.postReactions;
+    case "messagingConversations":
+      return totals.messagingConversations;
+    case "qualityRanking":
+    case "engagementRateRanking":
+    case "conversionRateRanking":
+      return null;
+    case "ourRevenue":
+      return totals.ourRevenue;
+    case "ourOrders":
+      return totals.ourOrders;
+    case "ourRoas":
+      return totals.ourRoas;
+    case "newCustomerCredit":
+      return totals.newCustomerCredit;
+    case "newCustomerRevenue":
+      return totals.newCustomerRevenue;
+    case "attributedNcac":
+      return totals.attributedNcac;
+    default:
+      return null;
+  }
+}
+
+export function formatMetricValue(
+  def: ColumnDef<string> | undefined,
+  value: number | string | null,
+  available: boolean,
+  currencyCode: string,
+) {
+  const format = def?.format;
+  if (format === "currency") {
+    return formatMoneyCell(typeof value === "number" ? value : null, available && value != null, currencyCode);
+  }
+  if (format === "percent") {
+    return formatPercentCell(typeof value === "number" ? value : null);
+  }
+  if (format === "roas") {
+    return formatRoasCell(typeof value === "number" ? value : null);
+  }
+  if (format === "orders") {
+    return formatOrdersCell(typeof value === "number" ? value : null);
+  }
+  if (format === "duration") {
+    return formatDurationCell(typeof value === "number" ? value : null, available);
+  }
+  if (format === "ranking" || format === "text") {
+    return formatRankingCell(typeof value === "string" ? value : null);
+  }
+  if (format === "decimal") {
+    return formatDecimalCell(typeof value === "number" ? value : null, available);
+  }
+  if (format === "integer") {
+    return formatCountCell(typeof value === "number" ? value : null, available);
+  }
+  if (!available || value == null) return "—";
+  return String(value);
+}
+
+export function pickerColumns(category: PickerCategory, query: string) {
+  const searched = searchMetricDefinitions(query).filter((item) => item.id !== "campaign");
+  if (category === "All Meta Metrics") {
+    return searched.filter((item) => item.platform);
+  }
+  if (category === "Performance") {
+    return searched.filter((item) => item.platform && item.defaultOn);
+  }
+  return searched.filter((item) => item.category === category);
+}
+
+export { searchMetricDefinitions, PICKER_CATEGORIES } from "./meta-metric-defs.ts";
 
 export function mappingFilterLabel(filter: MappingFilter) {
   if (filter === "exact_id") return "Exact ID";

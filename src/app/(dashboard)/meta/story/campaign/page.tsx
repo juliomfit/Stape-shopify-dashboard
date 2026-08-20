@@ -50,9 +50,9 @@ export default function MetaStoryCampaignPage() {
             <MetricCard label="CPC" source="Spend ÷ clicks" value={formatMoney({ amount: campaign.cpc ?? 0, currencyCode: currency })} />
             <MetricCard label="CPM" source="Spend / impressions × 1000" value={formatMoney({ amount: campaign.cpm ?? 0, currencyCode: currency })} />
             <MetricCard label="Frequency" source="Impressions ÷ reach" value={campaign.frequency.toFixed(2)} />
-            <MetricCard label="Purchases" source="Ads Manager matching" value={formatNumber(campaign.metaPurchases)} />
+            <MetricCard label="Purchases" source="Ads Manager matching" value={formatNumber(campaign.metaPurchases ?? 0)} />
             <MetricCard label="CPA" source="Spend ÷ purchases" value={formatMoney({ amount: campaign.metaCpa ?? 0, currencyCode: currency })} />
-            <MetricCard label="Meta revenue" source="Meta platform purchase value" value={formatMoney({ amount: campaign.metaRevenue, currencyCode: currency })} />
+            <MetricCard label="Meta revenue" source="Meta platform purchase value" value={formatMoney({ amount: campaign.metaRevenue ?? 0, currencyCode: currency })} />
             <MetricCard label="Meta ROAS" source="Purchase value ÷ spend" value={`${(campaign.metaRoas ?? 0).toFixed(2)}x`} />
           </div>
         </div>

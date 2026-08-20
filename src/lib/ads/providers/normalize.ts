@@ -274,28 +274,7 @@ export function parseJsonOrTable(text: string): unknown {
   }
 }
 
-export function payloadLooksLikeError(payload: unknown): string | null {
-  if (typeof payload === "string") {
-    const text = payload.trim();
-    if (
-      /^(error|failed|unknown|invalid)/i.test(text) ||
-      /not connected|no ad account|no accounts? selected|isError|tool error/i.test(text)
-    ) {
-      return text.slice(0, 600);
-    }
-  }
-  const root = asRecord(payload);
-  if (!root) {
-    return null;
-  }
-  if (root.isError && (root.message || root.text || root.error)) {
-    return String(root.message || root.text || root.error).slice(0, 600);
-  }
-  if (typeof root.error === "string") {
-    return root.error.slice(0, 600);
-  }
-  return null;
-}
+export { payloadLooksLikeError } from "./flyweel-errors.ts";
 
 function columnNames(columns: unknown[]): string[] {
   return columns.map((column) => {
@@ -582,50 +561,252 @@ export function unwrapMcpToolResult(payload: unknown): unknown {
 
 const SPEND = ["spend", "cost", "amount_spent", "amountSpent"];
 const IMPRESSIONS = ["impressions", "impr"];
-const REACH = ["reach", "unique_reach", "uniqueReach"];
+const REACH = ["reach"];
+const UNIQUE_REACH = ["unique_reach", "uniqueReach"];
 const FREQUENCY = ["frequency"];
 const CLICKS = ["clicks", "inline_clicks"];
-const LINK_CLICKS = ["link_clicks", "inline_link_clicks", "outbound_clicks", "linkClicks"];
+const LINK_CLICKS = ["link_clicks", "inline_link_clicks", "linkClicks"];
+const OUTBOUND_CLICKS = ["outbound_clicks", "outboundClicks"];
+const UNIQUE_CLICKS = ["unique_clicks", "uniqueClicks"];
+const UNIQUE_CTR = ["unique_ctr", "uniqueCtr"];
 const CTR = ["ctr", "click_through_rate"];
 const CPC = ["cpc", "cost_per_click"];
 const CPM = ["cpm", "cost_per_mille"];
-const PURCHASES = ["purchases", "purchase", "conversions", "conversion", "omni_purchase"];
+/** Explicit Meta purchase metrics only. Generic conversions stay separate. */
+const PURCHASES = ["purchases", "purchase", "omni_purchase", "omni_purchases"];
+const CONVERSIONS = ["conversions", "conversion"];
 const PURCHASE_VALUE = [
   "purchase_value",
   "purchaseValue",
-  "conversion_value",
   "action_values_purchase",
-  "website_purchase_roas_value",
 ];
+const CONVERSION_VALUE = ["conversion_value", "conversion_values", "conversionValue"];
 const ROAS = ["roas", "purchase_roas", "website_purchase_roas", "return_on_ad_spend"];
-const CPA = ["cost_per_purchase", "cpa", "cost_per_conversion", "costPerPurchase"];
+const CPA = ["cost_per_purchase", "cpa", "costPerPurchase"];
+const COST_PER_CONVERSION = ["cost_per_conversion"];
 const LPV = ["landing_page_views", "landing_page_view", "landingPageViews"];
 const ATC = ["add_to_cart", "omni_add_to_cart", "addToCart"];
 const CHECKOUT = ["initiate_checkout", "omni_initiated_checkout", "checkouts", "initiateCheckout"];
+
+const DIMENSION_OR_META_KEYS = new Set([
+  "date",
+  "date_start",
+  "day",
+  "report_date",
+  "reportdate",
+  "day_date",
+  "dt",
+  "account",
+  "account_id",
+  "accountid",
+  "ad_account_id",
+  "campaign",
+  "campaign_id",
+  "campaignid",
+  "campaign_name",
+  "campaignname",
+  "campaign_status",
+  "channel",
+  "objective",
+  "currency",
+  "adset",
+  "adset_id",
+  "adsetid",
+  "adset_name",
+  "ad_set",
+  "ad_id",
+  "adid",
+  "ad_name",
+  "adname",
+  "ad",
+  "week",
+  "month",
+]);
+
+export function parseMetricScalar(value: unknown): number | string | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "boolean") {
+    return value ? 1 : 0;
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+  if (/^(above_average|average|below_average|unknown|not_applicable)$/i.test(text)) {
+    return text;
+  }
+  const cleaned = text.replace(/[$,%\s]/g, "");
+  if (!cleaned || /[a-z]/i.test(cleaned.replace(/[eE._+-]/g, ""))) {
+    return text;
+  }
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) ? amount : text;
+}
+
+function parseRanking(value: unknown): string | null {
+  const scalar = parseMetricScalar(value);
+  if (scalar == null || typeof scalar === "number") {
+    return null;
+  }
+  return scalar;
+}
+
+function costPer(spend: number, count: number | null): number | null {
+  if (count == null || count === 0) {
+    return null;
+  }
+  return spend / count;
+}
+
+const FIRST_CLASS_ALIASES = new Set(
+  [
+    ...SPEND,
+    ...IMPRESSIONS,
+    ...REACH,
+    ...UNIQUE_REACH,
+    ...FREQUENCY,
+    ...CLICKS,
+    ...LINK_CLICKS,
+    ...OUTBOUND_CLICKS,
+    ...UNIQUE_CLICKS,
+    ...UNIQUE_CTR,
+    ...CTR,
+    ...CPC,
+    ...CPM,
+    ...PURCHASES,
+    ...CONVERSIONS,
+    ...PURCHASE_VALUE,
+    ...CONVERSION_VALUE,
+    ...ROAS,
+    ...CPA,
+    ...COST_PER_CONVERSION,
+    ...LPV,
+    ...ATC,
+    ...CHECKOUT,
+    "video_views",
+    "video_play_actions",
+    "videoviews",
+    "video_p25_watched_actions",
+    "video_p50_watched_actions",
+    "video_p75_watched_actions",
+    "video_p95_watched_actions",
+    "video_p100_watched_actions",
+    "video_30_sec_watched",
+    "video_30_sec_watched_actions",
+    "video_avg_time_watched",
+    "video_avg_time_watched_actions",
+    "post_engagement",
+    "page_engagement",
+    "post_reactions",
+    "messaging_conversations_started",
+    "quality_ranking",
+    "engagement_rate_ranking",
+    "conversion_rate_ranking",
+  ].map((name) => name.toLowerCase()),
+);
+
+function collectExtendedMetrics(row: Record<string, unknown>): Record<string, number | string | null> {
+  const extended: Record<string, number | string | null> = {};
+  for (const [key, value] of Object.entries(row)) {
+    const lookup = key.toLowerCase().replace(/[\s-]+/g, "_");
+    if (DIMENSION_OR_META_KEYS.has(lookup) || FIRST_CLASS_ALIASES.has(lookup)) {
+      continue;
+    }
+    const scalar = parseMetricScalar(value);
+    if (scalar !== null) {
+      extended[lookup] = scalar;
+    }
+  }
+  const conversionValue = parseOptionalNumber(pickField(row, CONVERSION_VALUE));
+  if (conversionValue != null && extended.conversion_value == null) {
+    extended.conversion_value = conversionValue;
+  }
+  const costPerConversion = parseOptionalNumber(pickField(row, COST_PER_CONVERSION));
+  if (costPerConversion != null && extended.cost_per_conversion == null) {
+    extended.cost_per_conversion = costPerConversion;
+  }
+  return extended;
+}
+
+export function deriveInsightMetrics<
+  T extends {
+    spend: number | null;
+    impressions: number | null;
+    clicks: number | null;
+    ctr: number | null;
+    cpc: number | null;
+    cpm: number | null;
+    purchases: number | null;
+    purchaseValue: number | null;
+    costPerPurchase: number | null;
+    costPerLandingPageView: number | null;
+    costPerAddToCart: number | null;
+    costPerCheckout: number | null;
+    roas: number | null;
+    landingPageViews: number | null;
+    addToCart: number | null;
+    initiateCheckout: number | null;
+  },
+>(row: T): T {
+  const spend = row.spend;
+  const impressions = row.impressions;
+  const clicks = row.clicks;
+  return {
+    ...row,
+    ctr: row.ctr ?? (impressions != null && impressions > 0 && clicks != null ? clicks / impressions : null),
+    cpc: row.cpc ?? (spend != null && clicks != null && clicks > 0 ? spend / clicks : null),
+    cpm: row.cpm ?? (spend != null && impressions != null && impressions > 0 ? (spend / impressions) * 1000 : null),
+    costPerPurchase: row.costPerPurchase ?? (spend != null ? costPer(spend, row.purchases) : null),
+    costPerLandingPageView:
+      row.costPerLandingPageView ?? (spend != null ? costPer(spend, row.landingPageViews) : null),
+    costPerAddToCart: row.costPerAddToCart ?? (spend != null ? costPer(spend, row.addToCart) : null),
+    costPerCheckout: row.costPerCheckout ?? (spend != null ? costPer(spend, row.initiateCheckout) : null),
+    roas:
+      row.roas ??
+      (spend != null && spend > 0 && row.purchaseValue != null ? row.purchaseValue / spend : null),
+  };
+}
 
 export function normalizeInsightRow(
   row: Record<string, unknown>,
   fallback: { accountId: string; provider: string; date?: string },
 ) {
-  const date = parseYmdLoose(pickField(row, ["date", "date_start", "day", "report_date", "reportDate", "day_date", "dt"]))
-    || fallback.date
-    || "";
-  const spend = parseNumber(pickField(row, SPEND));
-  const impressions = parseNumber(pickField(row, IMPRESSIONS));
-  const reach = parseNumber(pickField(row, REACH));
-  const clicks = parseNumber(pickField(row, CLICKS));
-  const purchases = parseNumber(pickField(row, PURCHASES));
-  const purchaseValue = parseNumber(pickField(row, PURCHASE_VALUE));
+  const date =
+    parseYmdLoose(
+      pickField(row, ["date", "date_start", "day", "report_date", "reportDate", "day_date", "dt"]),
+    ) ||
+    fallback.date ||
+    "";
+  const spend = parseOptionalNumber(pickField(row, SPEND));
+  const impressions = parseOptionalNumber(pickField(row, IMPRESSIONS));
+  const uniqueReach = parseOptionalNumber(pickField(row, UNIQUE_REACH));
+  const reach = parseOptionalNumber(pickField(row, REACH)) ?? uniqueReach;
+  const clicks = parseOptionalNumber(pickField(row, CLICKS));
+  const purchases = parseOptionalNumber(pickField(row, PURCHASES));
+  const conversions = parseOptionalNumber(pickField(row, CONVERSIONS));
+  const purchaseValue = parseOptionalNumber(pickField(row, PURCHASE_VALUE));
   const frequencyRaw = parseOptionalNumber(pickField(row, FREQUENCY));
   const ctrRaw = parseOptionalNumber(pickField(row, CTR));
   const cpcRaw = parseOptionalNumber(pickField(row, CPC));
   const cpmRaw = parseOptionalNumber(pickField(row, CPM));
   const roasRaw = parseOptionalNumber(pickField(row, ROAS));
   const cpaRaw = parseOptionalNumber(pickField(row, CPA));
+  const landingPageViews = parseOptionalNumber(pickField(row, LPV));
+  const addToCart = parseOptionalNumber(pickField(row, ATC));
+  const initiateCheckout = parseOptionalNumber(pickField(row, CHECKOUT));
 
-  return {
+  return deriveInsightMetrics({
     date,
-    accountId: pickString(row, ["account_id", "accountId", "ad_account_id", "account"]) || fallback.accountId,
+    accountId:
+      pickString(row, ["account_id", "accountId", "ad_account_id", "account"]) || fallback.accountId,
     campaignId: pickString(row, ["campaign_id", "campaignId"]) || undefined,
     campaignName: pickString(row, ["campaign_name", "campaignName", "campaign"]) || undefined,
     adsetId: pickString(row, ["adset_id", "adsetId", "ad_set_id"]) || undefined,
@@ -635,27 +816,55 @@ export function normalizeInsightRow(
     spend,
     impressions,
     reach,
-    frequency: frequencyRaw ?? (reach > 0 ? impressions / reach : 0),
+    frequency: frequencyRaw ?? (reach && reach > 0 && impressions ? impressions / reach : null),
     clicks,
-    linkClicks: parseNumber(pickField(row, LINK_CLICKS)),
-    landingPageViews: parseNumber(pickField(row, LPV)),
-    ctr: ctrRaw !== null && ctrRaw > 1 ? ctrRaw / 100 : ctrRaw ?? (impressions > 0 ? clicks / impressions : 0),
-    cpc: cpcRaw ?? (clicks > 0 ? spend / clicks : 0),
-    cpm: cpmRaw ?? (impressions > 0 ? (spend / impressions) * 1000 : 0),
+    linkClicks: parseOptionalNumber(pickField(row, LINK_CLICKS)),
+    uniqueClicks: parseOptionalNumber(pickField(row, UNIQUE_CLICKS)),
+    uniqueCtr: parseOptionalNumber(pickField(row, UNIQUE_CTR)),
+    outboundClicks: parseOptionalNumber(pickField(row, OUTBOUND_CLICKS)),
+    landingPageViews,
+    conversions,
+    ctr: ctrRaw !== null && ctrRaw > 1 ? ctrRaw / 100 : ctrRaw,
+    cpc: cpcRaw,
+    cpm: cpmRaw,
     purchases,
     purchaseValue,
-    costPerPurchase: cpaRaw ?? (purchases > 0 ? spend / purchases : 0),
-    roas: roasRaw ?? (spend > 0 ? purchaseValue / spend : 0),
-    addToCart: parseNumber(pickField(row, ATC)),
-    initiateCheckout: parseNumber(pickField(row, CHECKOUT)),
-    videoViews: parseOptionalNumber(pickField(row, ["video_views", "video_play_actions", "videoViews"])) ?? undefined,
-    videoP25: parseOptionalNumber(pickField(row, ["video_p25_watched_actions", "video_25", "videoP25"])) ?? undefined,
-    videoP50: parseOptionalNumber(pickField(row, ["video_p50_watched_actions", "video_50", "videoP50"])) ?? undefined,
-    videoP75: parseOptionalNumber(pickField(row, ["video_p75_watched_actions", "video_75", "videoP75"])) ?? undefined,
-    videoP100: parseOptionalNumber(pickField(row, ["video_p100_watched_actions", "video_100", "videoP100"])) ?? undefined,
+    costPerPurchase: cpaRaw,
+    costPerLandingPageView: null as number | null,
+    costPerAddToCart: null as number | null,
+    costPerCheckout: null as number | null,
+    roas: roasRaw,
+    addToCart,
+    initiateCheckout,
+    videoViews: parseOptionalNumber(pickField(row, ["video_views", "video_play_actions", "videoViews"])),
+    videoP25: parseOptionalNumber(pickField(row, ["video_p25_watched_actions", "video_25", "videoP25"])),
+    videoP50: parseOptionalNumber(pickField(row, ["video_p50_watched_actions", "video_50", "videoP50"])),
+    videoP75: parseOptionalNumber(pickField(row, ["video_p75_watched_actions", "video_75", "videoP75"])),
+    videoP95: parseOptionalNumber(pickField(row, ["video_p95_watched_actions", "video_95", "videoP95"])),
+    videoP100: parseOptionalNumber(pickField(row, ["video_p100_watched_actions", "video_100", "videoP100"])),
+    video30s: parseOptionalNumber(
+      pickField(row, ["video_30_sec_watched", "video_30_sec_watched_actions", "video30s"]),
+    ),
+    videoAvgTime: parseOptionalNumber(
+      pickField(row, ["video_avg_time_watched", "video_avg_time_watched_actions", "videoAvgTime"]),
+    ),
+    postEngagement: parseOptionalNumber(pickField(row, ["post_engagement", "postEngagement"])),
+    pageEngagement: parseOptionalNumber(pickField(row, ["page_engagement", "pageEngagement"])),
+    postReactions: parseOptionalNumber(pickField(row, ["post_reactions", "postReactions"])),
+    messagingConversations: parseOptionalNumber(
+      pickField(row, ["messaging_conversations_started", "messagingConversations"]),
+    ),
+    qualityRanking: parseRanking(pickField(row, ["quality_ranking", "qualityRanking"])),
+    engagementRateRanking: parseRanking(
+      pickField(row, ["engagement_rate_ranking", "engagementRateRanking"]),
+    ),
+    conversionRateRanking: parseRanking(
+      pickField(row, ["conversion_rate_ranking", "conversionRateRanking"]),
+    ),
+    extended: collectExtendedMetrics(row),
     provider: fallback.provider,
     raw: row,
-  };
+  });
 }
 
 export function normalizeAccount(row: Record<string, unknown>, provider: string) {
@@ -687,6 +896,140 @@ export function insightPersistKey(row: {
   return [row.date, row.accountId, row.campaignId || "", row.adsetId || "", row.adId || ""].join("|");
 }
 
+const RAW_DATE_ALIASES = ["date", "date_start", "day", "report_date", "reportDate", "day_date", "dt"];
+const RAW_ACCOUNT_ALIASES = ["account_id", "accountId", "ad_account_id", "account"];
+const RAW_CAMPAIGN_ID_ALIASES = ["campaign_id", "campaignId"];
+
+export function flyweelRawFactIdentity(
+  row: Record<string, unknown>,
+  fallbackAccountId: string,
+): string {
+  const date = parseYmdLoose(pickField(row, RAW_DATE_ALIASES)) || "";
+  const account = pickString(row, RAW_ACCOUNT_ALIASES) || fallbackAccountId;
+  const campaignId = pickString(row, RAW_CAMPAIGN_ID_ALIASES);
+  return [date, account, campaignId].join("|");
+}
+
+/**
+ * Merge raw Flyweel query_metrics rows for the same campaign/day BEFORE
+ * normalizeInsightRow. Later batches add fields; they must not replace the row.
+ * Explicit 0 is kept. Missing keys stay missing (not coerced to 0).
+ */
+export function mergeFlyweelMetricRows(
+  rows: Record<string, unknown>[],
+  fallbackAccountId: string,
+): Record<string, unknown>[] {
+  const map = new Map<string, Record<string, unknown>>();
+  for (const row of rows) {
+    const key = flyweelRawFactIdentity(row, fallbackAccountId);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...row });
+      continue;
+    }
+    for (const [field, value] of Object.entries(row)) {
+      if (value !== undefined) {
+        existing[field] = value;
+      }
+    }
+  }
+  return [...map.values()];
+}
+
+export function mergeOptionalScalar<T>(
+  previous: T | null | undefined,
+  next: T | null | undefined,
+): T | null | undefined {
+  if (next !== null && next !== undefined) {
+    return next;
+  }
+  if (previous !== null && previous !== undefined) {
+    return previous;
+  }
+  return next === null ? null : previous;
+}
+
+function mergeExtended(
+  previous: Record<string, number | string | null> | undefined,
+  next: Record<string, number | string | null> | undefined,
+) {
+  const out: Record<string, number | string | null> = { ...(previous || {}) };
+  for (const [key, value] of Object.entries(next || {})) {
+    const merged = mergeOptionalScalar(out[key], value);
+    if (merged !== undefined) {
+      out[key] = merged as number | string | null;
+    }
+  }
+  return out;
+}
+
+export function mergeInsightRow(
+  previous: ReturnType<typeof normalizeInsightRow>,
+  next: ReturnType<typeof normalizeInsightRow>,
+): ReturnType<typeof normalizeInsightRow> {
+  const spend = mergeOptionalScalar(previous.spend, next.spend) ?? null;
+  const impressions = mergeOptionalScalar(previous.impressions, next.impressions) ?? null;
+  const clicks = mergeOptionalScalar(previous.clicks, next.clicks) ?? null;
+  const reach = mergeOptionalScalar(previous.reach, next.reach) ?? null;
+  return deriveInsightMetrics({
+    ...previous,
+    ...next,
+    date: next.date || previous.date,
+    accountId: next.accountId || previous.accountId,
+    campaignId: next.campaignId || previous.campaignId,
+    campaignName: next.campaignName || previous.campaignName,
+    adsetId: next.adsetId || previous.adsetId,
+    adsetName: next.adsetName || previous.adsetName,
+    adId: next.adId || previous.adId,
+    adName: next.adName || previous.adName,
+    spend,
+    impressions,
+    reach,
+    clicks,
+    frequency: mergeOptionalScalar(previous.frequency, next.frequency) ?? null,
+    linkClicks: mergeOptionalScalar(previous.linkClicks, next.linkClicks) ?? null,
+    uniqueClicks: mergeOptionalScalar(previous.uniqueClicks, next.uniqueClicks) ?? null,
+    uniqueCtr: mergeOptionalScalar(previous.uniqueCtr, next.uniqueCtr) ?? null,
+    outboundClicks: mergeOptionalScalar(previous.outboundClicks, next.outboundClicks) ?? null,
+    landingPageViews: mergeOptionalScalar(previous.landingPageViews, next.landingPageViews) ?? null,
+    conversions: mergeOptionalScalar(previous.conversions, next.conversions) ?? null,
+    ctr: mergeOptionalScalar(previous.ctr, next.ctr) ?? null,
+    cpc: mergeOptionalScalar(previous.cpc, next.cpc) ?? null,
+    cpm: mergeOptionalScalar(previous.cpm, next.cpm) ?? null,
+    purchases: mergeOptionalScalar(previous.purchases, next.purchases) ?? null,
+    purchaseValue: mergeOptionalScalar(previous.purchaseValue, next.purchaseValue) ?? null,
+    costPerPurchase: mergeOptionalScalar(previous.costPerPurchase, next.costPerPurchase) ?? null,
+    costPerLandingPageView:
+      mergeOptionalScalar(previous.costPerLandingPageView, next.costPerLandingPageView) ?? null,
+    costPerAddToCart: mergeOptionalScalar(previous.costPerAddToCart, next.costPerAddToCart) ?? null,
+    costPerCheckout: mergeOptionalScalar(previous.costPerCheckout, next.costPerCheckout) ?? null,
+    roas: mergeOptionalScalar(previous.roas, next.roas) ?? null,
+    addToCart: mergeOptionalScalar(previous.addToCart, next.addToCart) ?? null,
+    initiateCheckout: mergeOptionalScalar(previous.initiateCheckout, next.initiateCheckout) ?? null,
+    videoViews: mergeOptionalScalar(previous.videoViews, next.videoViews) ?? null,
+    videoP25: mergeOptionalScalar(previous.videoP25, next.videoP25) ?? null,
+    videoP50: mergeOptionalScalar(previous.videoP50, next.videoP50) ?? null,
+    videoP75: mergeOptionalScalar(previous.videoP75, next.videoP75) ?? null,
+    videoP95: mergeOptionalScalar(previous.videoP95, next.videoP95) ?? null,
+    videoP100: mergeOptionalScalar(previous.videoP100, next.videoP100) ?? null,
+    video30s: mergeOptionalScalar(previous.video30s, next.video30s) ?? null,
+    videoAvgTime: mergeOptionalScalar(previous.videoAvgTime, next.videoAvgTime) ?? null,
+    postEngagement: mergeOptionalScalar(previous.postEngagement, next.postEngagement) ?? null,
+    pageEngagement: mergeOptionalScalar(previous.pageEngagement, next.pageEngagement) ?? null,
+    postReactions: mergeOptionalScalar(previous.postReactions, next.postReactions) ?? null,
+    messagingConversations:
+      mergeOptionalScalar(previous.messagingConversations, next.messagingConversations) ?? null,
+    qualityRanking: mergeOptionalScalar(previous.qualityRanking, next.qualityRanking) ?? null,
+    engagementRateRanking:
+      mergeOptionalScalar(previous.engagementRateRanking, next.engagementRateRanking) ?? null,
+    conversionRateRanking:
+      mergeOptionalScalar(previous.conversionRateRanking, next.conversionRateRanking) ?? null,
+    extended: mergeExtended(previous.extended, next.extended),
+    provider: next.provider || previous.provider,
+    raw: { ...previous.raw, ...next.raw },
+  });
+}
+
 export function mergeInsightBatches(
   batches: ReturnType<typeof normalizeInsightRow>[][],
 ): ReturnType<typeof normalizeInsightRow>[] {
@@ -694,8 +1037,9 @@ export function mergeInsightBatches(
   for (const batch of batches) {
     for (const row of batch) {
       const key = insightPersistKey(row);
-      map.set(key, row);
+      const existing = map.get(key);
+      map.set(key, existing ? mergeInsightRow(existing, row) : row);
     }
   }
-  return [...map.values()];
+  return [...map.values()].map((row) => deriveInsightMetrics(row));
 }

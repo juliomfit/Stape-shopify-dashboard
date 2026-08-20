@@ -93,7 +93,7 @@ test("queryShapes actually respects level and dimensions", () => {
     const query = (shape.queries as Record<string, unknown>[])[0];
     assert.deepEqual(query.metrics, ["spend", "impressions", "clicks", "conversions"]);
   }
-  assert.match(flyweelSrc, /this\.queryShapes\(params, metrics, dimensions\)/);
+  assert.match(flyweelSrc, /this\.queryShapes\(params, metrics, dimensions/);
 });
 
 test("campaign query cannot masquerade as adset query", () => {

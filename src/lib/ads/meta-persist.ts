@@ -24,7 +24,10 @@ export function insightToCampaignFact(row: MetaInsightRow, syncRunId: string, sy
     frequency: row.frequency,
     clicks: row.clicks,
     inline_link_clicks: row.linkClicks,
-    unique_clicks: null,
+    unique_clicks: row.uniqueClicks,
+    unique_ctr: row.uniqueCtr,
+    outbound_clicks: row.outboundClicks,
+    conversions: row.conversions,
     cpc: row.cpc,
     cpm: row.cpm,
     ctr: row.ctr,
@@ -35,6 +38,7 @@ export function insightToCampaignFact(row: MetaInsightRow, syncRunId: string, sy
     landing_page_views: row.landingPageViews,
     actions_json: JSON.stringify([]),
     action_values_json: JSON.stringify([]),
+    extended_metrics: JSON.stringify(row.extended || {}),
     provider: row.provider,
     synced_at: syncedAt,
     sync_run_id: syncRunId,
@@ -109,7 +113,7 @@ export async function persistMetaWarehouse(input: {
 }) {
   const accountId = input.account.accountId.replace(/^act_/, "");
   const campaignFacts = input.campaignInsights
-    .filter((row) => row.spend > 0 || row.impressions > 0 || row.clicks > 0)
+    .filter((row) => (row.spend ?? 0) > 0 || (row.impressions ?? 0) > 0 || (row.clicks ?? 0) > 0)
     .map((row) => insightToCampaignFact(row, input.syncRunId, input.syncedAt));
   const adsetFacts = input.adsetInsights.map((row) =>
     insightToAdsetFact(row, input.syncRunId, input.syncedAt),
