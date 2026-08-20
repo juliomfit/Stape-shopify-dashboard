@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { invalidateCachedSources, updateCachedMutation } from "@/lib/cache/invalidate";
 import { runScheduledSync, syncMetaBackfill } from "@/lib/platform/orchestrator";
 import { addChangeLog } from "@/lib/platform/change-log";
 import { saveBusinessContext } from "@/lib/platform/business-context";
@@ -14,7 +15,7 @@ function refresh() {
 }
 
 export async function refreshSourceAction(source: string) {
-  const result = await runScheduledSync(source);
+  const result = await runScheduledSync(source, { invalidation: "hard" });
   refresh();
   return result;
 }
@@ -24,6 +25,9 @@ export async function backfillMetaAction(startDate: string, endDate: string) {
     return { ok: false, message: "Use YYYY-MM-DD with start ≤ end." };
   }
   const result = await syncMetaBackfill(startDate, endDate);
+  if (result.ok) {
+    await invalidateCachedSources("meta", { mode: "hard" });
+  }
   refresh();
   return result;
 }
@@ -32,6 +36,7 @@ export async function saveFlyweelKeyForm(formData: FormData) {
   const apiKey = String(formData.get("apiKey") || "");
   const accountId = String(formData.get("accountId") || "209273195421975");
   await saveFlyweelCredentials({ apiKey, accountId });
+  updateCachedMutation("credentials");
   refresh();
 }
 
@@ -62,6 +67,7 @@ export async function saveCogsDayForm(formData: FormData) {
     note: String(formData.get("note") || ""),
   });
   if (result.ok) {
+    updateCachedMutation("cogs");
     refresh();
   }
   return result;

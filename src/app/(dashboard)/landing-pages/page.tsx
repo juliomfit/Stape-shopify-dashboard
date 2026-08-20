@@ -6,7 +6,6 @@ import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { DEFAULT_LOOKBACK } from "@/lib/warehouse/constants";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Landing pages",

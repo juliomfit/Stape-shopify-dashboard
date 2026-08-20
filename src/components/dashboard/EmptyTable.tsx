@@ -24,7 +24,7 @@ export function EmptyTable({
         <div className="mt-4 flex flex-wrap gap-2">
           {next.map((item) =>
             item.kind === "href" ? (
-              <Link
+              <Link prefetch={false}
                 key={item.href + item.label}
                 href={item.href}
                 className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent-soft"

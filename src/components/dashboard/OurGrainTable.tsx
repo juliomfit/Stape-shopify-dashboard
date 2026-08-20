@@ -73,7 +73,7 @@ export function OurGrainTable({
                   : null;
                 const ourRoas = ours ? grainOurRoas(ours.attributedRevenue, row.spend) : null;
                 const nameCell = hrefPrefix ? (
-                  <Link className="underline" href={`${hrefPrefix}/${row.id}`}>
+                  <Link prefetch={false} className="underline" href={`${hrefPrefix}/${row.id}`}>
                     {row.name}
                   </Link>
                 ) : (
@@ -96,7 +96,7 @@ export function OurGrainTable({
                       <>
                         <td className="num">
                           {ours ? (
-                            <Link className="underline" href={ourHref}>
+                            <Link prefetch={false} className="underline" href={ourHref}>
                               {money(ours.attributedRevenue)}
                             </Link>
                           ) : (

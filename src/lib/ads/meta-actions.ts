@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { updateCachedMutation } from "@/lib/cache/invalidate";
 import {
   clearMetaCredentials,
   getMetaCredentials,
@@ -53,6 +54,7 @@ export async function saveAndSyncMeta(
     const period = await getSelectedPeriod();
     const claim = await fetchMetaInsights(period, accessToken, adAccountId);
     await saveMetaCredentials({ accessToken, adAccountId });
+    updateCachedMutation("credentials");
     refreshDashboard();
     return {
       ok: true,
@@ -102,6 +104,7 @@ export async function syncMetaSpend(): Promise<MetaSyncState> {
 export async function disconnectMeta(): Promise<MetaSyncState> {
   await clearMetaCredentials();
   await clearPendingOAuth();
+  updateCachedMutation("credentials");
   refreshDashboard();
   return {
     ok: true,
@@ -125,6 +128,7 @@ export async function selectMetaAdAccount(adAccountId: string): Promise<MetaSync
     adAccountId: match.id,
   });
   await clearPendingOAuth();
+  updateCachedMutation("credentials");
   refreshDashboard();
   return { ok: true, message: `Connected ${match.name}.` };
 }
@@ -152,6 +156,7 @@ export async function saveMetaPasteAction(
 
   const period = await getSelectedPeriod();
   await saveMetaPaste(period, paste);
+  updateCachedMutation("paste");
   refreshDashboard();
   return {
     ok: true,
@@ -179,6 +184,7 @@ export async function saveMetaCsvAction(
 
     const period = await getSelectedPeriod();
     await saveMetaPaste(period, paste);
+    updateCachedMutation("paste");
     refreshDashboard();
     return {
       ok: true,
@@ -218,6 +224,7 @@ export async function saveGooglePasteAction(
 
   const period = await getSelectedPeriod();
   await saveGooglePaste(period, paste);
+  updateCachedMutation("paste");
   refreshDashboard();
   return {
     ok: true,
@@ -228,6 +235,7 @@ export async function saveGooglePasteAction(
 export async function clearMetaPasteAction(): Promise<MetaSyncState> {
   const period = await getSelectedPeriod();
   await clearMetaPaste(period);
+  updateCachedMutation("paste");
   refreshDashboard();
   return {
     ok: true,

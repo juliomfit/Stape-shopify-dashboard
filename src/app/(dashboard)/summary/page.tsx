@@ -9,7 +9,6 @@ import { Header } from "@/components/layout/Header";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Summary",

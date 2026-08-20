@@ -6,6 +6,7 @@ import { OrderAttributionDebugger } from "@/components/dashboard/OrderAttributio
 import { journeyStats } from "@/lib/attribution/journey";
 import type { AttributedOrder } from "@/lib/stape/attribution-types";
 import { formatMoney, formatNumber } from "@/lib/format";
+import { ShowMoreButton, useShowMore } from "@/components/dashboard/ShowMore";
 
 type JourneyExplorerProps = {
   orders: AttributedOrder[];
@@ -40,8 +41,9 @@ export function JourneyExplorer({
       }
       return b.order.revenue - a.order.revenue;
     });
-    return sorted.slice(0, 200);
+    return sorted;
   }, [orders, sortKey, query]);
+  const { visible, remaining, showMore } = useShowMore(rows);
 
   if (orders.length === 0) {
     return (
@@ -97,7 +99,7 @@ export function JourneyExplorer({
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ order, stats }) => {
+            {visible.map(({ order, stats }) => {
               const isOpen = expanded === order.transactionId;
               return (
                 <Fragment key={order.transactionId}>
@@ -142,6 +144,7 @@ export function JourneyExplorer({
           </tbody>
         </table>
       </div>
+      <ShowMoreButton remaining={remaining} onMore={showMore} />
     </article>
   );
 }

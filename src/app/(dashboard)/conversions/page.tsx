@@ -9,7 +9,6 @@ import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Conversions",

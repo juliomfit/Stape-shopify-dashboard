@@ -12,6 +12,7 @@ import {
   ratio,
   blendedNcac,
   attributedNcac,
+  metaFrequency,
 } from "../src/lib/metrics/formulas.ts";
 
 test("missing spend is null not zero", () => {
@@ -71,6 +72,14 @@ test("contribution profit subtracts supplied COGS only", () => {
 test("coverage does not divide by zero", () => {
   assert.equal(coverageRatio(10, 0), null);
   assert.equal(coverageRatio(9, 10), 0.9);
+});
+
+test("Meta frequency is impressions divided by reach", () => {
+  assert.equal(metaFrequency(1000, 250), 4);
+  assert.equal(metaFrequency(0, 250), 0);
+  assert.equal(metaFrequency(1000, 0), 0);
+  assert.equal(metaFrequency(1000, Number.NaN), 0);
+  assert.equal(metaFrequency(Number.POSITIVE_INFINITY, 10), 0);
 });
 
 test("Our Paid ROAS only includes paid channels that have a spend source", () => {

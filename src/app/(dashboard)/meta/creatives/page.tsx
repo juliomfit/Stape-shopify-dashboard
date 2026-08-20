@@ -8,7 +8,6 @@ import { getSelectedPeriod } from "@/lib/period-server";
 import { getDashboardPeriod } from "@/lib/period";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Meta creatives" };
 
@@ -70,7 +69,7 @@ export default async function MetaCreativesPage() {
                         ) : (
                           <span className="inline-block h-10 w-10 rounded bg-slate-100" />
                         )}
-                        <Link href={`/meta/${row.creativeId}`} className="hover:underline">
+                        <Link prefetch={false} href={`/meta/${row.creativeId}`} className="hover:underline">
                           {row.name}
                         </Link>
                       </div>

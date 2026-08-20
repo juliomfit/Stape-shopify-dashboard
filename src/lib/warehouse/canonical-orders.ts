@@ -1,4 +1,6 @@
 import { cache } from "react";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
 import {
   ATTRIBUTION_MODELS,
@@ -17,7 +19,7 @@ import {
   matchShopifyOrder,
   shopifyMoneyForOrder,
 } from "@/lib/attribution/shopify-money";
-import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { getShopifyOverviewForPeriod } from "@/lib/shopify/get-overview-metrics";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { getBigQueryConfig } from "@/lib/stape/config";
 import type { AttributedOrder, JourneyTouch } from "@/lib/stape/attribution-types";
@@ -112,7 +114,19 @@ async function loadCanonicalAttributedOrdersUnguarded(options?: {
     options?.lookbackDays && options.lookbackDays > 0
       ? options.lookbackDays
       : DEFAULT_LOOKBACK;
+  return cachedLoad({
+    key: ["canonical-orders", ...periodCacheKey(period), String(lookbackDays)],
+    tags: [CACHE_TAGS.warehouse, CACHE_TAGS.shopify],
+    loader: "canonical_orders",
+    period: `${period.startDate}..${period.endDate}`,
+    fn: () => computeCanonicalAttributedOrders(period, lookbackDays),
+  });
+}
 
+async function computeCanonicalAttributedOrders(
+  period: Awaited<ReturnType<typeof getAlignedPeriod>>,
+  lookbackDays: number,
+): Promise<CanonicalAttributedOrder[]> {
   if (!getBigQueryConfig()) {
     return [];
   }
@@ -120,7 +134,7 @@ async function loadCanonicalAttributedOrdersUnguarded(options?: {
   const { client, config } = getBigQueryClient();
   const rawTable = `\`${config.projectId}.stape_data.raw_events_full\``;
   const ctes = warehouseCtes(rawTable);
-  const shopify = await getShopifyOverviewMetrics();
+  const shopify = await getShopifyOverviewForPeriod(period);
   if (shopify.status.state === "error") {
     throw new Error(`Shopify orders unavailable: ${shopify.status.message}`);
   }

@@ -1,8 +1,15 @@
 import { readDurableJson } from "@/lib/durable-json";
 import { isPlatformBqReady, runPlatformQuery } from "@/lib/platform/bq";
 import { platformTable } from "@/lib/platform/config";
-import { cpc, cpm, ctr, platformCpa, platformRoas } from "@/lib/metrics/formulas";
+import { cpc, cpm, ctr, metaFrequency, platformCpa, platformRoas } from "@/lib/metrics/formulas";
 import type { DashboardPeriod } from "@/lib/period";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
+import { logLoader } from "@/lib/observability/loader-log";
+import {
+  activeMetaProviderForQueries,
+  skipUnavailableMetaChildGrain,
+} from "@/lib/ads/providers/config";
 
 export type MetaInsightFact = {
   date: string;
@@ -121,15 +128,52 @@ async function queryFacts(
       },
     );
     return normalizeFacts(rows).filter(hasActivity);
-  } catch {
-    return [];
+  } catch (error) {
+    logLoader({
+      loader: `meta_facts_${table}`,
+      elapsed_ms: 0,
+      source: "live",
+      fallback_used: false,
+      period: `${period.startDate}..${period.endDate}`,
+      error,
+    });
+    throw error;
   }
 }
 
 export async function getCampaignFacts(period: DashboardPeriod) {
-  const live = await queryFacts("meta_campaign_insights_daily", period);
-  if (live.length > 0) {
-    return live;
+  return cachedLoad({
+    key: ["meta-campaign-facts", ...periodCacheKey(period)],
+    tags: [CACHE_TAGS.meta],
+    loader: "meta_facts",
+    period: `${period.startDate}..${period.endDate}`,
+    fn: () => loadCampaignFacts(period),
+  });
+}
+
+async function loadCampaignFacts(period: DashboardPeriod) {
+  try {
+    const live = await queryFacts("meta_campaign_insights_daily", period);
+    if (live.length > 0) {
+      return live;
+    }
+  } catch (error) {
+    const cache = await loadMetaCache();
+    const fallback = normalizeFacts(
+      (cache.campaigns || []).filter((row) => inRange(asDate(row.date), period)),
+    ).filter(hasActivity);
+    if (fallback.length > 0) {
+      logLoader({
+        loader: "meta_facts",
+        elapsed_ms: 0,
+        source: "stale-fallback",
+        fallback_used: true,
+        period: `${period.startDate}..${period.endDate}`,
+        error,
+      });
+      return fallback;
+    }
+    throw error;
   }
   const cache = await loadMetaCache();
   return normalizeFacts(
@@ -137,7 +181,14 @@ export async function getCampaignFacts(period: DashboardPeriod) {
   ).filter(hasActivity);
 }
 
+function skipChildGrain() {
+  return skipUnavailableMetaChildGrain(activeMetaProviderForQueries());
+}
+
 export async function getAdsetFacts(period: DashboardPeriod, campaignId?: string) {
+  if (skipChildGrain()) {
+    return [];
+  }
   const extra = campaignId ? "AND campaign_id = @campaignId" : "";
   const live = await queryFacts(
     "meta_adset_insights_daily",
@@ -164,6 +215,9 @@ export async function getAdFacts(
   period: DashboardPeriod,
   filter?: { campaignId?: string; adsetId?: string },
 ) {
+  if (skipChildGrain()) {
+    return [];
+  }
   const live = await queryFacts("meta_ad_insights_daily", period);
   const rows =
     live.length > 0
@@ -234,7 +288,7 @@ function rollup(
       impressions,
       reach,
       clicks,
-      frequency: impressions > 0 ? reach / impressions : 0,
+      frequency: metaFrequency(impressions, reach),
       roas: platformRoas(purchaseValue, spend),
       cpa: platformCpa(spend, purchases),
       ctr: ctr(clicks, impressions),
@@ -288,7 +342,7 @@ export function totalsFromFacts(rows: MetaInsightFact[]) {
     impressions,
     clicks,
     reach,
-    frequency: impressions > 0 ? reach / impressions : 0,
+    frequency: metaFrequency(impressions, reach),
     roas: platformRoas(purchaseValue, spend || null),
     cpa: platformCpa(spend || null, purchases),
     ctr: ctr(clicks, impressions),
@@ -363,6 +417,9 @@ export async function getCreativePerformance(period: DashboardPeriod): Promise<C
 }
 
 async function queryCreativeWarehouse(period: DashboardPeriod): Promise<CreativeRow[]> {
+  if (skipChildGrain()) {
+    return [];
+  }
   const fqCreatives = platformTable("meta_creatives");
   const fqAds = platformTable("meta_ad_insights_daily");
   const fqEntities = platformTable("meta_ads");
@@ -425,13 +482,24 @@ async function queryCreativeWarehouse(period: DashboardPeriod): Promise<Creative
         lastSeen: asDate(row.last_seen_at) || null,
       };
     });
-  } catch {
+  } catch (error) {
+    logLoader({
+      loader: "meta_creative_warehouse",
+      elapsed_ms: 0,
+      source: "live",
+      fallback_used: true,
+      period: `${period.startDate}..${period.endDate}`,
+      error,
+    });
     return [];
   }
 }
 
 /** Deterministic ad_id → creative_id from goodsnova_platform.meta_ads. No name inference. */
 export async function getAdCreativeMap(): Promise<Map<string, string>> {
+  if (skipChildGrain()) {
+    return new Map();
+  }
   const fq = platformTable("meta_ads");
   if (!fq || !isPlatformBqReady()) {
     return new Map();
@@ -452,7 +520,14 @@ export async function getAdCreativeMap(): Promise<Map<string, string>> {
       }
     }
     return map;
-  } catch {
+  } catch (error) {
+    logLoader({
+      loader: "meta_creative_map",
+      elapsed_ms: 0,
+      source: "live",
+      fallback_used: true,
+      error,
+    });
     return new Map();
   }
 }

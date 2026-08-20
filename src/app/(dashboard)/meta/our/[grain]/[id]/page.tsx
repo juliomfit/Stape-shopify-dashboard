@@ -21,7 +21,6 @@ import {
   UNMAPPED_META_LABEL,
 } from "@/lib/attribution/meta-credit";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "OUR Meta orders" };
 
@@ -98,7 +97,7 @@ export default async function MetaOurOrdersPage({
       />
       <section className="dash-page gap-6">
         <p className="text-sm text-muted">
-          <Link href="/meta" className="text-accent hover:underline">
+          <Link prefetch={false} href="/meta" className="text-accent hover:underline">
             ← Meta Ads
           </Link>
         </p>

@@ -40,7 +40,7 @@ export function UnmappedMetaBucket({
           <span>{money(campaignMappedRevenue)}</span>
         </li>
         <li className="flex justify-between gap-4">
-          <Link className="underline" href="/meta/our/unmapped/_">
+          <Link prefetch={false} className="underline" href="/meta/our/unmapped/_">
             Unmapped to campaign
           </Link>
           <span>{money(campaignUnmapped)}</span>

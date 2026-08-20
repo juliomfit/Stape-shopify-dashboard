@@ -1,9 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import type { ShopifyOrder } from "@/lib/shopify/types";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { ChannelLabel } from "@/components/dashboard/ChannelMark";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
+import { ShowMoreButton, useShowMore } from "@/components/dashboard/ShowMore";
 
 type OrdersTableProps = {
   orders: ShopifyOrder[];
@@ -24,6 +27,7 @@ export function OrdersTable({
   periodLabel,
   connected = false,
 }: OrdersTableProps) {
+  const { visible, remaining, showMore } = useShowMore(orders);
   if (orders.length === 0) {
     return (
       <EmptyTable
@@ -68,7 +72,7 @@ export function OrdersTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {orders.map((order) => {
+            {visible.map((order) => {
               const href = order.legacyId
                 ? `/sales/${order.legacyId}`
                 : undefined;
@@ -77,7 +81,7 @@ export function OrdersTable({
                 <tr key={order.id}>
                   <td className="px-6 py-3 font-medium text-foreground">
                     {href ? (
-                      <Link href={href} className="hover:text-accent">
+                      <Link prefetch={false} href={href} className="hover:text-accent">
                         {order.name}
                       </Link>
                     ) : (
@@ -124,6 +128,7 @@ export function OrdersTable({
           </tbody>
         </table>
       </div>
+      <ShowMoreButton remaining={remaining} onMore={showMore} />
     </article>
   );
 }

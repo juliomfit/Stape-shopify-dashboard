@@ -94,6 +94,19 @@ export function shouldFetchDeepMetaInsights(providerId: string) {
   return flyweelDeepIngestEnabled() && flyweelVerifiedChildGrain();
 }
 
+/**
+ * Flyweel is campaign-grain only. Skip adset/ad/creative BigQuery when the
+ * active provider cannot produce verified child rows.
+ */
+export function skipUnavailableMetaChildGrain(providerId: string): boolean {
+  return providerId === "flyweel" && !shouldFetchDeepMetaInsights(providerId);
+}
+
+export function activeMetaProviderForQueries(): ActiveMetaProviderId {
+  if (requestedMetaProvider() === "meta_graph") return "meta_graph";
+  return flyweelConfigured() ? "flyweel" : "none";
+}
+
 export function metaInsightLevelsToFetch(providerId: string): MetaInsightLevel[] {
   if (shouldFetchDeepMetaInsights(providerId)) {
     return ["campaign", "adset", "ad"];

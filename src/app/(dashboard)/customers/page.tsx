@@ -13,7 +13,6 @@ import { ltvByChannel, rollupLtvCohorts } from "@/lib/shopify/ltv";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { LtvTable } from "@/components/dashboard/LtvTable";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Customers",

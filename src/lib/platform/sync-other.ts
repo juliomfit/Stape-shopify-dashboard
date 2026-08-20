@@ -26,8 +26,11 @@ export async function syncGoogleAdsPlaceholder() {
   const claim = await getGoogleClaimed(period);
   if (claim.state !== "connected") {
     return finishSyncRun(run, {
-      status: "failed",
-      error_message: claim.message || "No Google Ads spend for this range.",
+      status: "completed",
+      records_inserted: 0,
+      metadata: JSON.stringify({
+        note: "Google Ads is not configured for this range. Not an application error.",
+      }),
     });
   }
   return finishSyncRun(run, {

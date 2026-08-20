@@ -20,7 +20,6 @@ import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { blendedAdSpendSource, firstTouchSourceLine } from "@/lib/metrics/source-lines";
 import { getGa4Snapshot } from "@/lib/ads/ga4-query";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "First-touch attribution",

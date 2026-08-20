@@ -1,6 +1,9 @@
+"use client";
+
 import type { CustomerPerformance } from "@/lib/shopify/types";
 import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
+import { ShowMoreButton, useShowMore } from "@/components/dashboard/ShowMore";
 
 type CustomersTableProps = {
   customers: CustomerPerformance[];
@@ -13,6 +16,7 @@ export function CustomersTable({
   periodLabel,
   connected = false,
 }: CustomersTableProps) {
+  const { visible, remaining, showMore } = useShowMore(customers);
   if (customers.length === 0) {
     return (
       <EmptyTable
@@ -58,7 +62,7 @@ export function CustomersTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {customers.map((customer) => (
+            {visible.map((customer) => (
               <tr key={customer.id}>
                 <td className="px-6 py-3 text-foreground">{customer.name}</td>
                 <td className="px-6 py-3 text-muted">
@@ -81,6 +85,7 @@ export function CustomersTable({
           </tbody>
         </table>
       </div>
+      <ShowMoreButton remaining={remaining} onMore={showMore} />
     </article>
   );
 }

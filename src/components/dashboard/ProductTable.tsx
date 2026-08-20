@@ -1,6 +1,9 @@
+"use client";
+
 import type { TopProduct } from "@/lib/shopify/types";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
+import { ShowMoreButton, useShowMore } from "@/components/dashboard/ShowMore";
 
 type ProductTableProps = {
   products: TopProduct[];
@@ -13,6 +16,7 @@ export function ProductTable({
   periodLabel,
   connected = false,
 }: ProductTableProps) {
+  const { visible, remaining, showMore } = useShowMore(products);
   if (products.length === 0) {
     return (
       <EmptyTable
@@ -55,7 +59,7 @@ export function ProductTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {products.map((product) => (
+            {visible.map((product) => (
               <tr key={product.id}>
                 <td className="px-6 py-3 text-foreground">{product.title}</td>
                 <td className="px-6 py-3 text-right text-muted">
@@ -69,6 +73,7 @@ export function ProductTable({
           </tbody>
         </table>
       </div>
+      <ShowMoreButton remaining={remaining} onMore={showMore} />
     </article>
   );
 }

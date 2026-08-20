@@ -20,7 +20,6 @@ import {
 } from "@/lib/warehouse/constants";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Warehouse attribution",

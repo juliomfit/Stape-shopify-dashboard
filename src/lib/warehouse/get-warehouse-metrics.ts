@@ -1,7 +1,9 @@
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
-import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
+import { getShopifyOverviewForPeriod } from "@/lib/shopify/get-overview-metrics";
 import { getBigQueryClient } from "@/lib/stape/client";
 import { getBigQueryConfig } from "@/lib/stape/config";
 import {
@@ -206,6 +208,25 @@ export async function getWarehouseMetrics(options: {
   const period = await getAlignedPeriod();
   const model = options.model ?? DEFAULT_MODEL;
   const lookbackDays = options.lookbackDays ?? DEFAULT_LOOKBACK;
+  return cachedLoad({
+    key: [
+      "warehouse-metrics",
+      ...periodCacheKey(period),
+      model,
+      String(lookbackDays),
+    ],
+    tags: [CACHE_TAGS.warehouse, CACHE_TAGS.shopify, CACHE_TAGS.meta],
+    loader: "warehouse_metrics",
+    period: `${period.startDate}..${period.endDate}`,
+    fn: () => loadWarehouseMetrics(period, model, lookbackDays),
+  });
+}
+
+async function loadWarehouseMetrics(
+  period: Awaited<ReturnType<typeof getAlignedPeriod>>,
+  model: WarehouseModel,
+  lookbackDays: number,
+): Promise<WarehouseMetrics> {
   const base = emptyMetrics(period.label, model, lookbackDays);
 
   try {
@@ -224,7 +245,7 @@ export async function getWarehouseMetrics(options: {
     const queryOptions = { location: config.location, params };
 
     const [shopify, platform] = await Promise.all([
-      getShopifyOverviewMetrics(),
+      getShopifyOverviewForPeriod(period),
       getPlatformReported(period),
     ]);
     if (shopify.status.state === "error") {
@@ -244,7 +265,17 @@ export async function getWarehouseMetrics(options: {
       );
     }).length;
 
-    const [orderRows] = await client.query({
+    const [
+      [orderRows],
+      [copyRows],
+      [sessionRows],
+      [landingRows],
+      [confRows],
+      [prepRows],
+      [timingRows],
+      canonical,
+    ] = await Promise.all([
+    client.query({
       ...queryOptions,
       query: `
         ${ctes}
@@ -261,9 +292,9 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(order_timestamp) >= @startMs
           AND UNIX_MILLIS(order_timestamp) < @endMs
       `,
-    });
+    }),
 
-    const [copyRows] = await client.query({
+    client.query({
       ...queryOptions,
       query: `
         ${ctes}
@@ -276,9 +307,9 @@ export async function getWarehouseMetrics(options: {
             AND UNIX_MILLIS(event_timestamp) >= @startMs
             AND UNIX_MILLIS(event_timestamp) < @endMs) AS late_events
       `,
-    });
+    }),
 
-    const [sessionRows] = await client.query({
+    client.query({
       ...queryOptions,
       query: `
         ${ctes}
@@ -306,9 +337,9 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(session_start) >= @startMs
           AND UNIX_MILLIS(session_start) < @endMs
       `,
-    });
+    }),
 
-    const [landingRows] = await client.query({
+    client.query({
       ...queryOptions,
       query: `
         ${ctes}
@@ -323,9 +354,9 @@ export async function getWarehouseMetrics(options: {
         ORDER BY sessions DESC
         LIMIT 100
       `,
-    });
+    }),
 
-    const [confRows] = await client.query({
+    client.query({
       ...queryOptions,
       query: `
         ${ctes},
@@ -359,9 +390,9 @@ export async function getWarehouseMetrics(options: {
           AND UNIX_MILLIS(o.order_timestamp) < @endMs
       `,
       params: { ...params, model },
-    });
+    }),
 
-    const [prepRows] = await client.query({
+    client.query({
       ...queryOptions,
       query: `
         ${ctes}
@@ -374,9 +405,9 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(o.order_timestamp) >= @startMs
           AND UNIX_MILLIS(o.order_timestamp) < @endMs
       `,
-    });
+    }),
 
-    const [timingRows] = await client.query({
+    client.query({
       ...queryOptions,
       query: `
         ${ctes}
@@ -403,7 +434,11 @@ export async function getWarehouseMetrics(options: {
         WHERE UNIX_MILLIS(o.order_timestamp) >= @startMs
           AND UNIX_MILLIS(o.order_timestamp) < @endMs
       `,
-    });
+    }),
+      getCanonicalAttributedOrders({ lookbackDays }),
+    ]);
+
+
 
     const order = (orderRows[0] ?? {}) as Record<string, unknown>;
     const copies = (copyRows[0] ?? {}) as Record<string, unknown>;
@@ -422,7 +457,6 @@ export async function getWarehouseMetrics(options: {
     )
       ? (model as AttributionModel)
       : "last_non_direct";
-    const canonical = await getCanonicalAttributedOrders({ lookbackDays });
     const byChannel = aggregateChannelsFromCanonical(
       canonical,
       engineModel,

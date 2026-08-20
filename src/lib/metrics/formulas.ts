@@ -142,6 +142,17 @@ export function ctr(clicks: number | null, impressions: number | null): number |
   return clicks / impressions;
 }
 
+/**
+ * Meta frequency = impressions ÷ reach (Ads Manager definition).
+ * Never reach ÷ impressions. Zero/non-finite reach is 0, not Infinity.
+ */
+export function metaFrequency(impressions: number, reach: number): number {
+  if (!Number.isFinite(impressions) || !Number.isFinite(reach) || reach <= 0) {
+    return 0;
+  }
+  return impressions / reach;
+}
+
 export function platformRoas(
   purchaseValue: number | null,
   spend: number | null,

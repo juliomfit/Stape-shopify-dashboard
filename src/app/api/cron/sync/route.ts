@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
   const source = new URL(request.url).searchParams.get("source") || "all";
-  const result = await runScheduledSync(source);
+  const result = await runScheduledSync(source, { invalidation: "swr" });
   return NextResponse.json({
     ok: result.ok,
     message: result.message,

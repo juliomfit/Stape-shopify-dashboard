@@ -15,7 +15,6 @@ import { DASHBOARD_TZ, pacificYesterdayYmd } from "@/lib/period";
 import { loadCogsLedger } from "@/lib/platform/cogs-store";
 import { lastEnteredDays } from "@/lib/platform/cogs-ledger";
 
-export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Integrations" };
 

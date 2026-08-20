@@ -6,7 +6,6 @@ import { formatDate, formatMoney, formatNumber } from "@/lib/format";
 import { clickIdLabel } from "@/lib/shopify/first-touch";
 import { getShopifyOrder } from "@/lib/shopify/get-order";
 
-export const dynamic = "force-dynamic";
 
 type OrderPageProps = {
   params: Promise<{ id: string }>;
@@ -49,7 +48,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
       />
       <section className="dash-page gap-6">
         <p className="text-sm text-muted">
-          <Link href="/sales" className="text-accent hover:underline">
+          <Link prefetch={false} href="/sales" className="text-accent hover:underline">
             ← Sales
           </Link>
         </p>
@@ -88,14 +87,14 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
               />
               {order.customerId ? (
                 <p className="pt-3 text-sm">
-                  <Link href="/customers" className="text-accent hover:underline">
+                  <Link prefetch={false} href="/customers" className="text-accent hover:underline">
                     Customers
                   </Link>
                   <span className="text-muted"> · Shopify customer {order.customerId}</span>
                 </p>
               ) : (
                 <p className="pt-3 text-sm">
-                  <Link href="/customers" className="text-accent hover:underline">
+                  <Link prefetch={false} href="/customers" className="text-accent hover:underline">
                     Customers
                   </Link>
                   <span className="text-muted"> · guest / no customer id</span>
@@ -139,15 +138,15 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
         </div>
         <p className="text-sm text-muted">
           Same header period on{" "}
-          <Link href="/products" className="text-accent hover:underline">
+          <Link prefetch={false} href="/products" className="text-accent hover:underline">
             Products
           </Link>
           ,{" "}
-          <Link href="/attribution" className="text-accent hover:underline">
+          <Link prefetch={false} href="/attribution" className="text-accent hover:underline">
             First-touch
           </Link>
           , and{" "}
-          <Link href="/meta" className="text-accent hover:underline">
+          <Link prefetch={false} href="/meta" className="text-accent hover:underline">
             Meta Ads
           </Link>
           . First-touch is gn_*, not Ads Manager.
@@ -164,7 +163,7 @@ export default async function OrderDetailPage({ params }: OrderPageProps) {
               ))}
             </ul>
             <p className="mt-3 text-xs text-muted">
-              <Link href="/products" className="underline">
+              <Link prefetch={false} href="/products" className="underline">
                 Products
               </Link>{" "}
               uses the same Shopify order range as Sales.

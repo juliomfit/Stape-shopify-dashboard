@@ -31,7 +31,7 @@ export function StackRow({
     "flex flex-col gap-1.5 px-4 py-3.5 active:bg-slate-50 md:px-6";
   if (href) {
     return (
-      <Link href={href} className={className}>
+      <Link prefetch={false} href={href} className={className}>
         {children}
       </Link>
     );
