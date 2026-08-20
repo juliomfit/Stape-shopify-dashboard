@@ -149,6 +149,7 @@ sessions AS (
     ARRAY_AGG(e.raw_source IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_source,
     ARRAY_AGG(e.raw_medium IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_medium,
     ARRAY_AGG(e.raw_campaign IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_campaign,
+    ARRAY_AGG(e.raw_content IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_content,
     ARRAY_AGG(e.gclid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS gclid,
     ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
     ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
@@ -179,6 +180,7 @@ eligible_session_landing AS (
     ARRAY_AGG(e.raw_source IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_source,
     ARRAY_AGG(e.raw_medium IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_medium,
     ARRAY_AGG(e.raw_campaign IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_campaign,
+    ARRAY_AGG(e.raw_content IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS first_content,
     ARRAY_AGG(e.gclid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS gclid,
     ARRAY_AGG(e.gbraid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS gbraid,
     ARRAY_AGG(e.wbraid IGNORE NULLS ORDER BY e.event_timestamp, IFNULL(e.event_id, "") LIMIT 1)[SAFE_OFFSET(0)] AS wbraid,
@@ -213,6 +215,7 @@ touchpoints AS (
     l.first_source AS source,
     l.first_medium AS medium,
     l.first_campaign AS campaign,
+    l.first_content AS content,
     l.channel,
     CASE
       WHEN l.gclid IS NOT NULL THEN "gclid"
@@ -281,6 +284,7 @@ order_touches AS (
     t.source,
     t.medium,
     t.campaign,
+    t.content,
     t.channel,
     t.click_id_type,
     t.click_id,

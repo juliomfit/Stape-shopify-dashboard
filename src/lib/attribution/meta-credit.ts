@@ -18,6 +18,7 @@ import type {
   CampaignMappingConfidence,
   CampaignMappingMethod,
 } from "./campaign-map.ts";
+import { canonicalCampaignName, displayAdName } from "./campaign-map.ts";
 
 export const META_CHANNEL = "Facebook / Meta Ads";
 export const UNMAPPED_META_LABEL = "Unmapped Meta";
@@ -35,6 +36,7 @@ export type MetaCreditTouch = {
   ts: number;
   channel: string;
   campaign?: string | null;
+  content?: string | null;
   campaignId?: string | null;
   adsetId?: string | null;
   adId?: string | null;
@@ -74,6 +76,13 @@ export type EnrichedCredit = {
   adMapped: boolean;
   adsetMapped: boolean;
   adMappingMethod: MetaAdMappingMethod;
+  observedCampaignId: string | null;
+  observedAdsetId: string | null;
+  observedAdId: string | null;
+  observedAdName: string | null;
+  platformVerifiedAdset: boolean;
+  platformVerifiedAd: boolean;
+  purchaseTs: number;
   hierarchyConflict: boolean;
   sessionIdConflict: boolean;
   unmappedReason: MetaUnmappedReason;
@@ -118,8 +127,8 @@ export type MetaFactIndexes = {
   adParentCampaign: Map<string, string>;
 };
 
-function normalizeName(name: string | null | undefined): string {
-  return (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+function grainKey(name: string | null | undefined): string {
+  return canonicalCampaignName(name);
 }
 
 function toEngineTouch(touch: MetaCreditTouch): Touchpoint {
@@ -172,9 +181,9 @@ export function buildMetaFactIndexes(args: {
       campaignById.set(id, { campaignId: id, campaignName: name || id });
     }
     if (name) {
-      const set = idsByName.get(normalizeName(name)) ?? new Set<string>();
+      const set = idsByName.get(grainKey(name)) ?? new Set<string>();
       if (id) set.add(id);
-      idsByName.set(normalizeName(name), set);
+      idsByName.set(grainKey(name), set);
     }
   }
   const campaignByUniqueName = new Map<
@@ -293,7 +302,7 @@ export function mapCampaignIdentity(
       return { campaignId, method: "unmapped", confidence: "NONE" };
     }
   }
-  const nameKey = normalizeName(touch.campaign);
+  const nameKey = grainKey(touch.campaign);
   if (!nameKey || nameKey === "(unmapped)") {
     return { campaignId: null, method: "unmapped", confidence: "NONE" };
   }
@@ -356,16 +365,14 @@ export function attachMetaIdsToCredits(args: {
           };
     const adsetId = sanitizeMetaId(touch?.adsetId);
     const adId = sanitizeMetaId(touch?.adId);
+    const isMeta = credit.channel === META_CHANNEL;
     const adsetMapped =
-      credit.channel === META_CHANNEL &&
-      !childBlocked &&
-      !!adsetId &&
-      indexes.adsetIds.has(adsetId);
-    const adMapped =
-      credit.channel === META_CHANNEL &&
-      !childBlocked &&
-      !!adId &&
-      indexes.adIds.has(adId);
+      isMeta && !childBlocked && !!adsetId && indexes.adsetIds.has(adsetId);
+    const adMapped = isMeta && !childBlocked && !!adId && indexes.adIds.has(adId);
+    const observedCampaignId =
+      isMeta && !childBlocked ? sanitizeMetaId(touch?.campaignId) : null;
+    const observedAdsetId = isMeta && !childBlocked && adsetId ? adsetId : null;
+    const observedAdId = isMeta && !childBlocked && adId ? adId : null;
     return {
       orderName: order.transactionId,
       model,
@@ -387,6 +394,14 @@ export function attachMetaIdsToCredits(args: {
       adsetMapped,
       adMapped,
       adMappingMethod: adMapped ? "ad_id_exact" : "unmapped",
+      observedCampaignId,
+      observedAdsetId,
+      observedAdId,
+      observedAdName:
+        isMeta && !childBlocked ? displayAdName(touch?.content) || null : null,
+      platformVerifiedAdset: adsetMapped,
+      platformVerifiedAd: adMapped,
+      purchaseTs: order.purchaseTs,
       hierarchyConflict: hierarchy.conflict,
       sessionIdConflict,
       unmappedReason,

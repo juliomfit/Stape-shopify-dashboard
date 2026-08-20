@@ -124,6 +124,9 @@ test("warehouse SQL extracts gn_meta_* from page_location and does not require t
   assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]gn_meta_campaign_id=/);
   assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]gn_meta_adset_id=/);
   assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]gn_meta_ad_id=/);
+  assert.match(warehouse, /REGEXP_EXTRACT\(page_location, r"\[\?&\]utm_content=/);
+  assert.match(warehouse, /AS first_content/);
+  assert.match(warehouse, /l\.first_content AS content/);
   assert.match(warehouse, /meta_campaign_id_conflict/);
   assert.match(warehouse, /ORDER BY e\.event_timestamp, IFNULL\(e\.event_id, ""\) LIMIT 1/);
   assert.doesNotMatch(creditFix, /gn_meta_campaign_id/);

@@ -240,6 +240,7 @@ export type EntityRollup = {
   impressions: number;
   reach: number;
   clicks: number;
+  linkClicks: number;
   frequency: number;
   roas: number | null;
   cpa: number | null;
@@ -273,6 +274,10 @@ function rollup(
       0,
     );
     const clicks = list.reduce((sum, row) => sum + Number(row.clicks || 0), 0);
+    const linkClicks = list.reduce(
+      (sum, row) => sum + Number(row.inline_link_clicks || 0),
+      0,
+    );
     const reach = list.reduce((sum, row) => sum + Number(row.reach || 0), 0);
     const first = list[0];
     return {
@@ -286,6 +291,7 @@ function rollup(
       impressions,
       reach,
       clicks,
+      linkClicks,
       frequency: metaFrequency(impressions, reach),
       roas: platformRoas(purchaseValue, spend),
       cpa: platformCpa(spend, purchases),
@@ -332,6 +338,10 @@ export function totalsFromFacts(rows: MetaInsightFact[]) {
     0,
   );
   const clicks = rows.reduce((sum, row) => sum + Number(row.clicks || 0), 0);
+  const linkClicks = rows.reduce(
+    (sum, row) => sum + Number(row.inline_link_clicks || 0),
+    0,
+  );
   const reach = rows.reduce((sum, row) => sum + Number(row.reach || 0), 0);
   return {
     spend,
@@ -339,6 +349,7 @@ export function totalsFromFacts(rows: MetaInsightFact[]) {
     purchaseValue,
     impressions,
     clicks,
+    linkClicks,
     reach,
     frequency: metaFrequency(impressions, reach),
     roas: platformRoas(purchaseValue, spend || null),

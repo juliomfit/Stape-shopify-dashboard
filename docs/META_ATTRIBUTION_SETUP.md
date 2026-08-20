@@ -69,6 +69,8 @@ utm_source=facebook&utm_medium=cpc&utm_campaign={{campaign.name}}&utm_content={{
 
 IDs are the join keys. Do not put campaign ID into `utm_campaign` and pretend that is typed identity.
 
+The live contract does **not** include an ad-set name parameter. `/meta` therefore displays `Ad Set {short id}` unless a future explicit parameter such as `gn_meta_adset_name={{adset.name}}` is added. Do not treat `utm_term` as ad-set name. Ad names may display from existing `utm_content={{ad.name}}` when that query param is present on the canonical landing URL.
+
 # Merge with existing URL parameters
 
 1. Open the ad’s current URL parameters string.
