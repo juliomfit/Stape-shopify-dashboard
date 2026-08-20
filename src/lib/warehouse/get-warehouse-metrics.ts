@@ -1,5 +1,6 @@
 import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
 import { CACHE_TAGS } from "@/lib/cache/tags";
+import type { DashboardPeriod } from "@/lib/period";
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
 import { getAlignedPeriod, shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
@@ -19,7 +20,7 @@ import {
   aggregateCampaignsFromCanonical,
   aggregateChannelsFromCanonical,
   aggregateJourneyPaths,
-  getCanonicalAttributedOrders,
+  getCanonicalAttributedOrdersForPeriod,
 } from "@/lib/warehouse/canonical-orders";
 import { ATTRIBUTION_MODELS, type AttributionModel } from "@/lib/attribution/engine";
 import type {
@@ -206,24 +207,64 @@ export async function getWarehouseMetrics(options: {
   lookbackDays?: number;
 } = {}): Promise<WarehouseMetrics> {
   const period = await getAlignedPeriod();
+  return getWarehouseMetricsForPeriod(period, options);
+}
+
+export async function getWarehouseMetricsForPeriod(
+  period: DashboardPeriod,
+  options: {
+    model?: WarehouseModel;
+    lookbackDays?: number;
+  } = {},
+): Promise<WarehouseMetrics> {
   const model = options.model ?? DEFAULT_MODEL;
   const lookbackDays = options.lookbackDays ?? DEFAULT_LOOKBACK;
-  return cachedLoad({
+  const cached = await cachedLoad({
     key: [
       "warehouse-metrics",
       ...periodCacheKey(period),
       model,
       String(lookbackDays),
     ],
-    tags: [CACHE_TAGS.warehouse, CACHE_TAGS.shopify, CACHE_TAGS.meta],
+    tags: [CACHE_TAGS.warehouse, CACHE_TAGS.shopify],
     loader: "warehouse_metrics",
     period: `${period.startDate}..${period.endDate}`,
     fn: () => loadWarehouseMetrics(period, model, lookbackDays),
   });
+  const platform = await getPlatformReported(period);
+  return applyPlatformSpend(cached, platform, period);
+}
+
+function applyPlatformSpend(
+  metrics: WarehouseMetrics,
+  platform: Awaited<ReturnType<typeof getPlatformReported>>,
+  period: DashboardPeriod,
+): WarehouseMetrics {
+  const gaps = [...metrics.gaps];
+  if (platform.facebook.spend === null && platform.google.spend === null) {
+    gaps.push(
+      "Platform Meta/Google spend is — for this header range. Overview blended cards stay — until warehouse or paste fills.",
+    );
+  } else {
+    gaps.push(blendedAdSpendSource(platform, period.label));
+  }
+  if (platform.facebook.claimKind === "warehouse" && platform.facebook.spend === 0) {
+    gaps.push(
+      "Meta warehouse spend is $0 for this day (Flyweel often lags Today). Click Yesterday or 7d. This is not gn_* first-touch attribution.",
+    );
+  }
+  return {
+    ...metrics,
+    gaps,
+    metaSpend: platform.facebook.spend,
+    googleSpend: platform.google.spend,
+    totalSpend: platform.totalSpend,
+    spendSource: blendedAdSpendSource(platform, period.label),
+  };
 }
 
 async function loadWarehouseMetrics(
-  period: Awaited<ReturnType<typeof getAlignedPeriod>>,
+  period: DashboardPeriod,
   model: WarehouseModel,
   lookbackDays: number,
 ): Promise<WarehouseMetrics> {
@@ -244,10 +285,7 @@ async function loadWarehouseMetrics(
     };
     const queryOptions = { location: config.location, params };
 
-    const [shopify, platform] = await Promise.all([
-      getShopifyOverviewForPeriod(period),
-      getPlatformReported(period),
-    ]);
+    const shopify = await getShopifyOverviewForPeriod(period);
     if (shopify.status.state === "error") {
       throw new Error(`Shopify orders unavailable: ${shopify.status.message}`);
     }
@@ -435,7 +473,7 @@ async function loadWarehouseMetrics(
           AND UNIX_MILLIS(o.order_timestamp) < @endMs
       `,
     }),
-      getCanonicalAttributedOrders({ lookbackDays }),
+      getCanonicalAttributedOrdersForPeriod(period, { lookbackDays }),
     ]);
 
 
@@ -512,18 +550,6 @@ async function loadWarehouseMetrics(
       "Conversion-lag default stays 7d until query 11 is re-run after migration 005 (prior lag used the old touch grain).",
       "Meta channel attribution can be valid while campaign/adset/ad IDs are missing. Exact gn_meta_* IDs are the only HIGH-confidence join. Campaign-name match is legacy PARTIAL. Unmapped Meta credit stays visible. Do not infer ad/adset IDs from aggregate Meta facts.",
     ];
-    if (platform.facebook.spend === null && platform.google.spend === null) {
-      gaps.push(
-        "Platform Meta/Google spend is — for this header range. Overview blended cards stay — until warehouse or paste fills.",
-      );
-    } else {
-      gaps.push(blendedAdSpendSource(platform, period.label));
-    }
-    if (platform.facebook.claimKind === "warehouse" && platform.facebook.spend === 0) {
-      gaps.push(
-        "Meta warehouse spend is $0 for this day (Flyweel often lags Today). Click Yesterday or 7d. This is not gn_* first-touch attribution.",
-      );
-    }
 
     return {
       status: { state: "connected", projectId: config.projectId },
@@ -560,10 +586,10 @@ async function loadWarehouseMetrics(
       avgSessionsToPurchase: timing.avg_sessions == null ? null : toNumber(timing.avg_sessions),
       quality,
       gaps,
-      metaSpend: platform.facebook.spend,
-      googleSpend: platform.google.spend,
-      totalSpend: platform.totalSpend,
-      spendSource: blendedAdSpendSource(platform, period.label),
+      metaSpend: null,
+      googleSpend: null,
+      totalSpend: null,
+      spendSource: "No ad spend for this range",
     };
   } catch (error) {
     const message =

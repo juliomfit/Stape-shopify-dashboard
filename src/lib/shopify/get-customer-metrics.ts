@@ -103,7 +103,12 @@ function friendlyCustomerError(message: string) {
 }
 
 export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetrics> {
-  const period = await getSelectedPeriod();
+  return getShopifyCustomerMetricsForPeriod(await getSelectedPeriod());
+}
+
+export async function getShopifyCustomerMetricsForPeriod(
+  period: DashboardPeriod,
+): Promise<ShopifyCustomerMetrics> {
   return cachedLoad({
     key: ["shopify-customers", ...periodCacheKey(period)],
     tags: [CACHE_TAGS.shopify],

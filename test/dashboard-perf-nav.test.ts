@@ -7,9 +7,11 @@ test("sidebar and bottom nav disable automatic viewport prefetch", () => {
   const sidebar = readFileSync("src/components/layout/NavLinks.tsx", "utf8");
   const bottom = readFileSync("src/components/layout/BottomNav.tsx", "utf8");
   assert.match(navLink, /prefetch=\{false\}/);
-  assert.match(navLink, /router\.prefetch/);
-  assert.match(sidebar, /NavPrefetchLink/);
-  assert.doesNotMatch(sidebar, /<Link[\s\S]*href=\{item\.href\}/);
+  assert.doesNotMatch(navLink, /router\.prefetch/);
+  assert.doesNotMatch(navLink, /useRouter/);
+  assert.match(sidebar, /prefetch=\{false\}/);
+  assert.doesNotMatch(sidebar, /NavPrefetchLink/);
+  assert.doesNotMatch(sidebar, /router\.prefetch/);
   assert.match(bottom, /prefetch=\{false\}/);
 });
 

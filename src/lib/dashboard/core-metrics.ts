@@ -1,6 +1,4 @@
 import { cache } from "react";
-import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
-import { CACHE_TAGS } from "@/lib/cache/tags";
 import { getPlatformReported } from "@/lib/ads/get-platform-reported";
 import {
   getAlignedPeriod,
@@ -50,20 +48,7 @@ export const getCoreDashboard = cache(async () => {
 });
 
 export async function getCoreDashboardForPeriod(period: Awaited<ReturnType<typeof getAlignedPeriod>>) {
-  return cachedLoad({
-    key: ["core-dashboard", ...periodCacheKey(period)],
-    tags: [
-      CACHE_TAGS.dashboardCore,
-      CACHE_TAGS.shopify,
-      CACHE_TAGS.stape,
-      CACHE_TAGS.meta,
-      CACHE_TAGS.cogs,
-      CACHE_TAGS.paste,
-    ],
-    loader: "core_dashboard",
-    period: `${period.startDate}..${period.endDate}`,
-    fn: () => computeCoreDashboard(period),
-  });
+  return computeCoreDashboard(period);
 }
 
 async function computeCoreDashboard(period: Awaited<ReturnType<typeof getAlignedPeriod>>) {

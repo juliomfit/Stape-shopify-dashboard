@@ -2,6 +2,7 @@ import { cache } from "react";
 import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
 import { CACHE_TAGS } from "@/lib/cache/tags";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
+import type { DashboardPeriod } from "@/lib/period";
 import {
   ATTRIBUTION_MODELS,
   attribute,
@@ -106,25 +107,35 @@ function lastClick(touches: CanonicalTouchpoint[]) {
   return found?.channel ?? "Unknown";
 }
 
-async function loadCanonicalAttributedOrdersUnguarded(options?: {
+export const getCanonicalAttributedOrdersForPeriod = cache(
+  async (
+    period: DashboardPeriod,
+    options?: { lookbackDays?: number },
+  ): Promise<CanonicalAttributedOrder[]> => {
+    const lookbackDays =
+      options?.lookbackDays && options.lookbackDays > 0
+        ? options.lookbackDays
+        : DEFAULT_LOOKBACK;
+    return cachedLoad({
+      key: ["canonical-orders", ...periodCacheKey(period), String(lookbackDays)],
+      tags: [CACHE_TAGS.warehouse, CACHE_TAGS.shopify],
+      loader: "canonical_orders",
+      period: `${period.startDate}..${period.endDate}`,
+      fn: () => computeCanonicalAttributedOrders(period, lookbackDays),
+    });
+  },
+);
+
+/** Resolves the header period outside cache, then reads the period-explicit loader. */
+export async function getCanonicalAttributedOrders(options?: {
   lookbackDays?: number;
 }): Promise<CanonicalAttributedOrder[]> {
   const period = await getAlignedPeriod();
-  const lookbackDays =
-    options?.lookbackDays && options.lookbackDays > 0
-      ? options.lookbackDays
-      : DEFAULT_LOOKBACK;
-  return cachedLoad({
-    key: ["canonical-orders", ...periodCacheKey(period), String(lookbackDays)],
-    tags: [CACHE_TAGS.warehouse, CACHE_TAGS.shopify],
-    loader: "canonical_orders",
-    period: `${period.startDate}..${period.endDate}`,
-    fn: () => computeCanonicalAttributedOrders(period, lookbackDays),
-  });
+  return getCanonicalAttributedOrdersForPeriod(period, options);
 }
 
 async function computeCanonicalAttributedOrders(
-  period: Awaited<ReturnType<typeof getAlignedPeriod>>,
+  period: DashboardPeriod,
   lookbackDays: number,
 ): Promise<CanonicalAttributedOrder[]> {
   if (!getBigQueryConfig()) {
@@ -262,12 +273,6 @@ async function computeCanonicalAttributedOrders(
     };
   });
 }
-
-/**
- * Canonical order/journey service. Touchpoints are the same identity → session
- * → eligible acquisition grain as the warehouse engine. Shopify is money truth.
- */
-export const getCanonicalAttributedOrders = cache(loadCanonicalAttributedOrdersUnguarded);
 
 export function aggregateChannelsFromCanonical(
   orders: CanonicalAttributedOrder[],
