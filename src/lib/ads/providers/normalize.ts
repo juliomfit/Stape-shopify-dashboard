@@ -274,28 +274,7 @@ export function parseJsonOrTable(text: string): unknown {
   }
 }
 
-export function payloadLooksLikeError(payload: unknown): string | null {
-  if (typeof payload === "string") {
-    const text = payload.trim();
-    if (
-      /^(error|failed|unknown|invalid)/i.test(text) ||
-      /not connected|no ad account|no accounts? selected|isError|tool error/i.test(text)
-    ) {
-      return text.slice(0, 600);
-    }
-  }
-  const root = asRecord(payload);
-  if (!root) {
-    return null;
-  }
-  if (root.isError && (root.message || root.text || root.error)) {
-    return String(root.message || root.text || root.error).slice(0, 600);
-  }
-  if (typeof root.error === "string") {
-    return root.error.slice(0, 600);
-  }
-  return null;
-}
+export { payloadLooksLikeError } from "./flyweel-errors.ts";
 
 function columnNames(columns: unknown[]): string[] {
   return columns.map((column) => {
@@ -915,6 +894,46 @@ export function insightPersistKey(row: {
   adId?: string;
 }) {
   return [row.date, row.accountId, row.campaignId || "", row.adsetId || "", row.adId || ""].join("|");
+}
+
+const RAW_DATE_ALIASES = ["date", "date_start", "day", "report_date", "reportDate", "day_date", "dt"];
+const RAW_ACCOUNT_ALIASES = ["account_id", "accountId", "ad_account_id", "account"];
+const RAW_CAMPAIGN_ID_ALIASES = ["campaign_id", "campaignId"];
+
+export function flyweelRawFactIdentity(
+  row: Record<string, unknown>,
+  fallbackAccountId: string,
+): string {
+  const date = parseYmdLoose(pickField(row, RAW_DATE_ALIASES)) || "";
+  const account = pickString(row, RAW_ACCOUNT_ALIASES) || fallbackAccountId;
+  const campaignId = pickString(row, RAW_CAMPAIGN_ID_ALIASES);
+  return [date, account, campaignId].join("|");
+}
+
+/**
+ * Merge raw Flyweel query_metrics rows for the same campaign/day BEFORE
+ * normalizeInsightRow. Later batches add fields; they must not replace the row.
+ * Explicit 0 is kept. Missing keys stay missing (not coerced to 0).
+ */
+export function mergeFlyweelMetricRows(
+  rows: Record<string, unknown>[],
+  fallbackAccountId: string,
+): Record<string, unknown>[] {
+  const map = new Map<string, Record<string, unknown>>();
+  for (const row of rows) {
+    const key = flyweelRawFactIdentity(row, fallbackAccountId);
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...row });
+      continue;
+    }
+    for (const [field, value] of Object.entries(row)) {
+      if (value !== undefined) {
+        existing[field] = value;
+      }
+    }
+  }
+  return [...map.values()];
 }
 
 export function mergeOptionalScalar<T>(

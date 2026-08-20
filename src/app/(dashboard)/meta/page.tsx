@@ -38,7 +38,8 @@ import {
 import { getAdsetFacts, getAdFacts, getAdCreativeMap } from "@/lib/ads/meta-query";
 import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
 import { FLYWEEL_CAMPAIGN_ONLY_WARNING, FLYWEEL_PARTIAL_HEALTHY_MESSAGE, flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
-import { warehouseFinishErrorFromMetadata } from "@/lib/platform/sync-run-state";
+import { warehouseFinishErrorFromMetadata, parseSyncRunMetadata } from "@/lib/platform/sync-run-state";
+import { sanitizeFlyweelUserError } from "@/lib/ads/providers/flyweel-errors";
 import {
   buildMetaFactIndexes,
   metaCreditForOrders,
@@ -148,6 +149,14 @@ async function renderMetaPage() {
   const days = pacificDaysInRange(period.startDate, period.endDate);
   const currency = "USD";
   const viewContext = `Meta Ads · ${period.label} · ${period.startDate} to ${period.endDate}`;
+  const flyweelSyncMeta = parseSyncRunMetadata(lastSync?.metadata || lastAttempt?.metadata);
+  const flyweelHealthNote =
+    typeof flyweelSyncMeta.flyweel_health_message === "string"
+      ? flyweelSyncMeta.flyweel_health_message
+      : null;
+  const skippedFlyweelMetrics = Array.isArray(flyweelSyncMeta.flyweel_unknown_metrics)
+    ? flyweelSyncMeta.flyweel_unknown_metrics.filter((name): name is string => typeof name === "string")
+    : [];
   const alignedShopify = shopify
     ? shopifyMetricsSince(shopify.orderPoints, period.startMs, period.endMs)
     : null;
@@ -266,7 +275,7 @@ async function renderMetaPage() {
         </p>
         {lastAttempt?.status === "failed" && lastAttempt.error_message ? (
           <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">
-            Last sync error: {lastAttempt.error_message}
+            Last sync error: {sanitizeFlyweelUserError(lastAttempt.error_message)}
           </p>
         ) : null}
         {warehouseFinishErrorFromMetadata(lastAttempt?.metadata) ||
@@ -280,6 +289,17 @@ async function renderMetaPage() {
         {flyweelCampaignOnlyWarning(connection.provider) ? (
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
             {FLYWEEL_PARTIAL_HEALTHY_MESSAGE} {FLYWEEL_CAMPAIGN_ONLY_WARNING}
+          </p>
+        ) : null}
+        {flyweelHealthNote ? (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            {flyweelHealthNote}
+            {skippedFlyweelMetrics.length ? (
+              <details className="mt-2 text-xs">
+                <summary className="cursor-pointer">View technical details</summary>
+                <p className="mt-1">Skipped unsupported Flyweel metrics: {skippedFlyweelMetrics.join(", ")}</p>
+              </details>
+            ) : null}
           </p>
         ) : null}
         {lastSync && totals.spend === 0 && weekTotals.spend > 0 ? (

@@ -3,6 +3,7 @@ import { persistMetaWarehouse } from "@/lib/ads/meta-persist";
 import { getMetaAdsProvider } from "@/lib/ads/providers";
 import { flyweelApiKeyProblem, flyweelVerifiedChildGrain, shouldFetchDeepMetaInsights } from "@/lib/ads/providers/config";
 import { FlyweelMetaAdsProvider, preferredFlyweelAccount } from "@/lib/ads/providers/flyweel";
+import { formatExtendedMetricsHealthMessage, sanitizeFlyweelUserError } from "@/lib/ads/providers/flyweel-errors";
 import { resolveFlyweelAccountId, resolveFlyweelApiKey } from "@/lib/ads/providers/flyweel-credentials";
 import type { MetaAccount, MetaAdsProvider, MetaInsightResult, MetaInsightRow } from "@/lib/ads/providers/types";
 import { isPlatformBqReady } from "@/lib/platform/bq";
@@ -237,13 +238,22 @@ export async function ingestMetaRange(input: {
         child_grain_verified: flyweelVerifiedChildGrain(),
         ...(metricHealth
           ? {
+              flyweel_candidate_metric_count: metricHealth.flyweel_candidate_metric_count,
               flyweel_metric_catalog_count: metricHealth.flyweel_metric_catalog_count,
               flyweel_metrics_requested: metricHealth.flyweel_metrics_requested,
+              flyweel_metrics_requested_count: metricHealth.flyweel_metrics_requested_count,
               flyweel_metric_batches: metricHealth.flyweel_metric_batches,
               flyweel_metrics_returned: metricHealth.flyweel_metrics_returned,
               flyweel_unknown_metrics: metricHealth.flyweel_unknown_metrics,
               campaign_rows: metricHealth.campaign_rows,
               flyweel_metric_coverage: metricHealth.coverage,
+              flyweel_ecommerce_support: metricHealth.flyweel_ecommerce_support,
+              flyweel_health_message: formatExtendedMetricsHealthMessage({
+                coverage: metricHealth.coverage,
+                candidateCount: metricHealth.flyweel_candidate_metric_count,
+                acceptedCount: metricHealth.flyweel_metrics_requested_count,
+                unknownCount: metricHealth.flyweel_unknown_metrics.length,
+              }) || undefined,
             }
           : {}),
       }),
@@ -394,7 +404,6 @@ export async function ingestMetaRange(input: {
       }
       if (provider.id === "flyweel" && campaign.rows.length === 0) {
         const flyweel = provider instanceof FlyweelMetaAdsProvider ? provider : null;
-        const querySnippet = flyweel?.lastDebug() || "";
         let setupMessage = "";
         try {
           if (flyweel) {
@@ -415,7 +424,6 @@ export async function ingestMetaRange(input: {
             setupMessage,
             "Flyweel returned 0 campaign rows after parsing.",
             "Stay on /meta and press Refresh Meta once. This does not pause ads.",
-            querySnippet ? `Last metrics payload: ${querySnippet.slice(0, 700)}` : "",
           ]
             .filter(Boolean)
             .join(" "),
@@ -487,16 +495,16 @@ export async function ingestMetaRange(input: {
     };
   } catch (error) {
     failed += 1;
-    const message = error instanceof Error ? error.message : "Meta sync failed";
-    const snippet =
-      provider instanceof FlyweelMetaAdsProvider ? provider.lastDebug() : "";
+    const message = sanitizeFlyweelUserError(
+      error instanceof Error ? error.message : "Meta sync failed",
+    );
     const finished = await finishSyncRun(run, {
       status: inserted > 0 ? "partial" : "failed",
       records_inserted: inserted,
       records_failed: failed,
       records_requested: requests,
-      error_message: message.slice(0, 2500),
-      metadata: observabilityMetadata(snippet ? { flyweel: snippet } : undefined),
+      error_message: message.slice(0, 400),
+      metadata: observabilityMetadata(),
     });
     return { ok: false, message, run: finished };
   } finally {

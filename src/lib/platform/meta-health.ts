@@ -8,6 +8,7 @@ import {
   warehouseFinishErrorFromMetadata,
   type SyncRunLike,
 } from "./sync-run-state.ts";
+import { formatExtendedMetricsHealthMessage, sanitizeFlyweelUserError } from "../ads/providers/flyweel-errors.ts";
 
 export type MetaAdsHealthStatus =
   | "healthy"
@@ -67,7 +68,7 @@ export function presentMetaAdsHealth(input: {
       "Last Meta sync timed out (no completion within 300s). Press Refresh Meta once.";
   } else if (latest?.status === "failed" && !lastSuccess) {
     status = "error";
-    message = latest.error_message || "Last Meta sync failed.";
+    message = sanitizeFlyweelUserError(latest.error_message || "Last Meta sync failed.");
   } else if (input.connected && lastSuccess) {
     const base = flyweelOn
       ? FLYWEEL_PARTIAL_HEALTHY_MESSAGE
@@ -89,15 +90,29 @@ export function presentMetaAdsHealth(input: {
       : "Token saved but no successful platform sync yet. Press Refresh Meta.";
   }
 
-  const coverage = parseSyncRunMetadata(input.lastSuccess?.metadata).flyweel_metric_coverage;
-  const unknown = parseSyncRunMetadata(input.lastSuccess?.metadata).flyweel_unknown_metrics;
+  const meta = parseSyncRunMetadata(input.lastSuccess?.metadata);
+  const coverage = meta.flyweel_metric_coverage;
+  const unknown = meta.flyweel_unknown_metrics;
+  const healthMessage =
+    typeof meta.flyweel_health_message === "string"
+      ? meta.flyweel_health_message
+      : formatExtendedMetricsHealthMessage({
+          coverage:
+            coverage === "baseline" || coverage === "partial" || coverage === "unavailable" || coverage === "full"
+              ? coverage
+              : "partial",
+          candidateCount: Number(meta.flyweel_candidate_metric_count || 0),
+          acceptedCount: Number(meta.flyweel_metrics_requested_count || 0),
+          unknownCount: Array.isArray(unknown) ? unknown.length : 0,
+        });
   if (
     flyweelOn &&
     (coverage === "partial" ||
       coverage === "baseline" ||
+      coverage === "unavailable" ||
       (Array.isArray(unknown) && unknown.length > 0))
   ) {
-    message = `${message} Extended Meta metrics partial.`;
+    message = `${message} ${healthMessage || "Extended Meta metrics partial."}`.trim();
   }
 
   if (persistError && status !== "error" && status !== "disconnected" && status !== "syncing") {

@@ -18,13 +18,16 @@ import {
 } from "./flyweel-catalog.ts";
 
 export type FlyweelMetricHealth = {
+  flyweel_candidate_metric_count: number;
   flyweel_metric_catalog_count: number;
   flyweel_metrics_requested: string[];
+  flyweel_metrics_requested_count: number;
   flyweel_metric_batches: number;
   flyweel_metrics_returned: string[];
   flyweel_unknown_metrics: string[];
   campaign_rows: number;
-  coverage: "full" | "partial" | "baseline";
+  coverage: "full" | "partial" | "baseline" | "unavailable";
+  flyweel_ecommerce_support: Record<string, "SUPPORTED" | "UNSUPPORTED">;
 };
 
 type MemoryCache = {

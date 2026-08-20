@@ -1,3 +1,5 @@
+import { sanitizeFlyweelUserError } from "../ads/providers/flyweel-errors.ts";
+
 export const META_SYNC_MAX_DURATION_SECONDS = 300;
 export const META_SYNC_MAX_DURATION_MS = META_SYNC_MAX_DURATION_SECONDS * 1000;
 export const META_SYNC_ALREADY_RUNNING = "Meta sync already running";
@@ -37,7 +39,9 @@ export function refreshMetaSyncUiMessage(input: {
     return { message, alreadyRunning: false, shouldRefresh: false };
   }
   if (!input.ok) {
-    const clipped = (parsedText || input.raw.replace(/\s+/g, " ").trim()).slice(0, 240);
+    const clipped = sanitizeFlyweelUserError(
+      parsedText || input.raw.replace(/\s+/g, " ").trim(),
+    ).slice(0, 240);
     const message = clipped
       ? `Refresh failed (HTTP ${input.status}): ${clipped}`
       : `Refresh failed (HTTP ${input.status}). Wait for deploy, then try again.`;
@@ -191,13 +195,17 @@ export type MetaSyncObservability = {
   ad_valid_ad_id_rows?: number;
   warehouse_finish_error?: string;
   child_grain_verified?: boolean;
+  flyweel_candidate_metric_count?: number;
   flyweel_metric_catalog_count?: number;
   flyweel_metrics_requested?: string[];
+  flyweel_metrics_requested_count?: number;
   flyweel_metric_batches?: number;
   flyweel_metrics_returned?: string[];
   flyweel_unknown_metrics?: string[];
   campaign_rows?: number;
   flyweel_metric_coverage?: string;
+  flyweel_ecommerce_support?: Record<string, string>;
+  flyweel_health_message?: string;
 };
 
 export function buildMetaSyncMetadata(
@@ -247,11 +255,17 @@ export function buildMetaSyncMetadata(
     ...(input.child_grain_verified != null
       ? { child_grain_verified: input.child_grain_verified }
       : {}),
+    ...(input.flyweel_candidate_metric_count != null
+      ? { flyweel_candidate_metric_count: input.flyweel_candidate_metric_count }
+      : {}),
     ...(input.flyweel_metric_catalog_count != null
       ? { flyweel_metric_catalog_count: input.flyweel_metric_catalog_count }
       : {}),
     ...(input.flyweel_metrics_requested
       ? { flyweel_metrics_requested: input.flyweel_metrics_requested }
+      : {}),
+    ...(input.flyweel_metrics_requested_count != null
+      ? { flyweel_metrics_requested_count: input.flyweel_metrics_requested_count }
       : {}),
     ...(input.flyweel_metric_batches != null
       ? { flyweel_metric_batches: input.flyweel_metric_batches }
@@ -265,6 +279,12 @@ export function buildMetaSyncMetadata(
     ...(input.campaign_rows != null ? { campaign_rows: input.campaign_rows } : {}),
     ...(input.flyweel_metric_coverage
       ? { flyweel_metric_coverage: input.flyweel_metric_coverage }
+      : {}),
+    ...(input.flyweel_ecommerce_support
+      ? { flyweel_ecommerce_support: input.flyweel_ecommerce_support }
+      : {}),
+    ...(input.flyweel_health_message
+      ? { flyweel_health_message: input.flyweel_health_message }
       : {}),
   };
 }
