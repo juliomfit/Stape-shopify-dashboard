@@ -188,10 +188,11 @@ export default async function MetaCampaignPage({
           <>
             <ObservedBarChart
               title="OUR attributed revenue by ad set"
+              grain="adset"
               rows={observed.adsets.map((row) => ({
                 label: row.adsetLabel,
                 revenue: row.attributedRevenue,
-                orders: row.attributedOrders,
+                attributedOrders: row.attributedOrders,
               }))}
               currencyCode={currency}
               emptyLabel="No observed ad-set IDs in this range."

@@ -52,7 +52,7 @@ export function ObservedAdsetTable({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-foreground">Ad sets</h2>
-          <FirstPartySourceLabel />
+          <FirstPartySourceLabel extra="Flyweel does not provide ad-set spend." />
         </div>
       </div>
       {adsets.length === 0 && unidentified.attributedRevenue <= 0 && conflict.attributedRevenue <= 0 ? (
@@ -65,7 +65,7 @@ export function ObservedAdsetTable({
                 <tr>
                   <th>Ad Set</th>
                   <th className="num">OUR Revenue</th>
-                  <th className="num">OUR Orders</th>
+                  <th className="num">Attributed orders</th>
                   <th className="num">New Customer Credit</th>
                   <th className="num">Share of Campaign</th>
                 </tr>
@@ -138,7 +138,7 @@ export function ObservedAdTable({
   return (
     <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">Ads</h2>
-      <FirstPartySourceLabel />
+      <FirstPartySourceLabel extra="Flyweel does not provide ad-level spend." />
       {ads.length === 0 && unidentified.attributedRevenue <= 0 && conflict.attributedRevenue <= 0 ? (
         <p className="mt-6 text-sm text-muted">No first-party ad IDs captured for this ad set in the selected range.</p>
       ) : (
@@ -149,7 +149,7 @@ export function ObservedAdTable({
                 <tr>
                   <th>Ad</th>
                   <th className="num">OUR Revenue</th>
-                  <th className="num">OUR Orders</th>
+                  <th className="num">Attributed orders</th>
                   <th className="num">New Customer Credit</th>
                   <th className="num">Share of Ad Set</th>
                 </tr>

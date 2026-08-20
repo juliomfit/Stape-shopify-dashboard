@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   attachMetaIdsToCredits,
   buildMetaFactIndexes,
@@ -8,9 +9,12 @@ import {
   type MetaCreditOrder,
 } from "../src/lib/attribution/meta-credit.ts";
 import {
+  dailyObservedByEntity,
+  dailyObservedMetaRevenue,
   observedHierarchyHolds,
   rollupObservedMetaChildren,
 } from "../src/lib/attribution/observed-meta-grain.ts";
+import { pacificYmd } from "../src/lib/period.ts";
 import { SESSION_ID_CONFLICT } from "../src/lib/attribution/meta-ids.ts";
 
 const T0 = Date.UTC(2026, 7, 19, 16, 0, 0);
@@ -210,4 +214,196 @@ test("Flyweel UUID does not HIGH-match a native observed campaign ID", () => {
   assert.notEqual(credits[0]?.campaignMappingMethod, "campaign_id_exact");
   assert.notEqual(credits[0]?.campaignMappingConfidence, "HIGH");
   assert.equal(credits[0]?.observedCampaignId, "1202149000");
+});
+
+function organic(touchpointId: string): MetaCreditOrder["touches"][number] {
+  return {
+    touchpointId,
+    ts: T0,
+    channel: "Organic Search",
+    campaign: null,
+    campaignId: null,
+    adsetId: null,
+    adId: null,
+    isPaid: false,
+    isDirect: false,
+  };
+}
+
+test("daily attributed orders are sum of credit.weight, uniqueOrders stay separate", () => {
+  const credits = [
+    ...attachMetaIdsToCredits({
+      order: order(
+        [
+          touch({ touchpointId: "t-a", adsetId: "120001", adId: "130001" }),
+          organic("t-a-org"),
+        ],
+        { transactionId: "1001" },
+      ),
+      model: "linear",
+      windowDays: 7,
+      indexes: emptyFlyweelIndexes,
+    }),
+    ...attachMetaIdsToCredits({
+      order: order(
+        [
+          touch({ touchpointId: "t-b", adsetId: "120001", adId: "130001" }),
+          organic("t-b-org"),
+        ],
+        { transactionId: "1002" },
+      ),
+      model: "linear",
+      windowDays: 7,
+      indexes: emptyFlyweelIndexes,
+    }),
+  ].filter((credit) => credit.channel === META_CHANNEL);
+  assert.equal(credits.length, 2);
+  assert.equal(credits[0]?.weight, 0.5);
+  assert.equal(credits[1]?.weight, 0.5);
+  const day = pacificYmd(PURCHASE);
+  const points = dailyObservedMetaRevenue(credits, [day], "adset", "120001");
+  assert.equal(points.length, 1);
+  assert.equal(points[0]?.attributedOrders, 1);
+  assert.equal(points[0]?.uniqueOrders, 2);
+  assert.notEqual(points[0]?.attributedOrders, points[0]?.uniqueOrders);
+});
+
+test("adset daily series filters by observedAdsetId", () => {
+  const credits = [
+    ...attachMetaIdsToCredits({
+      order: order([touch({ touchpointId: "t1", adsetId: "120001", adId: "130001" })], {
+        revenue: 80,
+      }),
+      model: "last_non_direct",
+      windowDays: 7,
+      indexes: emptyFlyweelIndexes,
+    }),
+    ...attachMetaIdsToCredits({
+      order: order(
+        [touch({ touchpointId: "t2", adsetId: "120002", adId: "130002" })],
+        { transactionId: "1002", revenue: 20 },
+      ),
+      model: "last_non_direct",
+      windowDays: 7,
+      indexes: emptyFlyweelIndexes,
+    }),
+  ];
+  const day = pacificYmd(PURCHASE);
+  const onlyA = dailyObservedMetaRevenue(credits, [day], "adset", "120001");
+  const onlyB = dailyObservedMetaRevenue(credits, [day], "adset", "120002");
+  assert.equal(onlyA[0]?.revenue, 80);
+  assert.equal(onlyB[0]?.revenue, 20);
+  assert.equal(onlyA[0]?.attributedOrders, 1);
+  assert.equal(onlyB[0]?.attributedOrders, 1);
+});
+
+test("ad daily series filters by observedAdId", () => {
+  const credits = [
+    ...attachMetaIdsToCredits({
+      order: order([touch({ touchpointId: "t1", adsetId: "120001", adId: "130001" })], {
+        revenue: 70,
+      }),
+      model: "last_non_direct",
+      windowDays: 7,
+      indexes: emptyFlyweelIndexes,
+    }),
+    ...attachMetaIdsToCredits({
+      order: order(
+        [touch({ touchpointId: "t2", adsetId: "120001", adId: "130002" })],
+        { transactionId: "1002", revenue: 30 },
+      ),
+      model: "last_non_direct",
+      windowDays: 7,
+      indexes: emptyFlyweelIndexes,
+    }),
+  ];
+  const day = pacificYmd(PURCHASE);
+  const adA = dailyObservedMetaRevenue(credits, [day], "ad", "130001");
+  const adB = dailyObservedMetaRevenue(credits, [day], "ad", "130002");
+  assert.equal(adA[0]?.revenue, 70);
+  assert.equal(adB[0]?.revenue, 30);
+});
+
+test("campaign/adset/ad selectors receive different entity series", () => {
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t1",
+        campaignId: "120001",
+        adsetId: "120001",
+        adId: "130001",
+        campaign: "USA+CBO+%7C+APRIL+17",
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes: emptyFlyweelIndexes,
+  });
+  const day = pacificYmd(PURCHASE);
+  const campaigns = dailyObservedByEntity(credits, [day], "campaign");
+  const adsets = dailyObservedByEntity(credits, [day], "adset");
+  const ads = dailyObservedByEntity(credits, [day], "ad");
+  assert.ok(campaigns.length >= 1);
+  assert.deepEqual(adsets.map((row) => row.key), ["120001"]);
+  assert.deepEqual(ads.map((row) => row.key), ["130001"]);
+  assert.notEqual(campaigns[0]?.key, ads[0]?.key);
+  assert.notDeepEqual(
+    campaigns.map((row) => row.key),
+    adsets.map((row) => row.key),
+  );
+});
+
+test("daily revenue buckets reconcile to the corresponding rollup", () => {
+  const credits = [
+    ...attachMetaIdsToCredits({
+      order: order([touch({ touchpointId: "t1", adsetId: "120001", adId: "130001" })], {
+        revenue: 80,
+      }),
+      model: "last_non_direct",
+      windowDays: 7,
+      indexes: emptyFlyweelIndexes,
+    }),
+    ...attachMetaIdsToCredits({
+      order: order(
+        [touch({ touchpointId: "t2", adsetId: "120002", adId: "130002" })],
+        { transactionId: "1002", revenue: 20, purchaseTs: PURCHASE + 24 * 60 * 60 * 1000 },
+      ),
+      model: "last_non_direct",
+      windowDays: 7,
+      indexes: emptyFlyweelIndexes,
+    }),
+  ];
+  const dayA = pacificYmd(PURCHASE);
+  const dayB = pacificYmd(PURCHASE + 24 * 60 * 60 * 1000);
+  const days = [dayA, dayB];
+  const hierarchy = rollupObservedMetaChildren(credits);
+  const allDays = dailyObservedMetaRevenue(credits, days, "campaign");
+  assert.equal(
+    allDays.reduce((sum, point) => sum + point.revenue, 0),
+    hierarchy.parentRevenue,
+  );
+  const adsetA = dailyObservedMetaRevenue(credits, days, "adset", "120001");
+  assert.equal(
+    adsetA.reduce((sum, point) => sum + point.revenue, 0),
+    hierarchy.adsets.find((row) => row.adsetId === "120001")?.attributedRevenue,
+  );
+  const adB = dailyObservedMetaRevenue(credits, days, "ad", "130002");
+  assert.equal(
+    adB.reduce((sum, point) => sum + point.revenue, 0),
+    hierarchy.ads.find((row) => row.adId === "130002")?.attributedRevenue,
+  );
+  const byAdset = dailyObservedByEntity(credits, days, "adset");
+  assert.equal(byAdset[0]?.key, "120001");
+  assert.equal(byAdset[0]?.revenue, 80);
+});
+
+test("Meta analytics chart plots one metric and grain-specific Flyweel copy", () => {
+  const src = readFileSync("src/components/dashboard/MetaAnalyticsChart.tsx", "utf8");
+  assert.match(src, /campaignSeries/);
+  assert.match(src, /adsetSeries/);
+  assert.match(src, /adSeries/);
+  assert.match(src, /FLYWEEL_ADSET_SPEND_UNAVAILABLE/);
+  assert.match(src, /FLYWEEL_AD_SPEND_UNAVAILABLE/);
+  assert.match(src, /option value="attributedOrders"/);
+  assert.doesNotMatch(src, /seriesB=\{\{\s*label: "Attributed orders"/);
 });

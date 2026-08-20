@@ -45,6 +45,8 @@ import {
   metaCreditForOrders,
 } from "@/lib/attribution/meta-credit";
 import {
+  ALL_CAMPAIGNS_KEY,
+  dailyObservedByEntity,
   dailyObservedMetaRevenue,
   measureMetaIdCoverage,
   rollupObservedMetaChildren,
@@ -187,7 +189,18 @@ async function renderMetaPage() {
     touches: canonical.flatMap((order) => order.touches),
     credits: metaOur.credits,
   });
-  const ourDaily = dailyObservedMetaRevenue(metaOur.credits, days, "campaign");
+  const campaignSeries = dailyObservedByEntity(metaOur.credits, days, "campaign");
+  const adsetSeries = dailyObservedByEntity(metaOur.credits, days, "adset");
+  const adSeries = dailyObservedByEntity(metaOur.credits, days, "ad");
+  const allCampaignPoints = dailyObservedMetaRevenue(metaOur.credits, days, "campaign");
+  const allCampaigns = {
+    key: ALL_CAMPAIGNS_KEY,
+    label: "All campaigns",
+    revenue: allCampaignPoints.reduce((sum, point) => sum + point.revenue, 0),
+    attributedOrders: allCampaignPoints.reduce((sum, point) => sum + point.attributedOrders, 0),
+    uniqueOrders: allCampaignPoints.reduce((sum, point) => sum + point.uniqueOrders, 0),
+    points: allCampaignPoints,
+  };
   const ourRoas = ratio(observed.parentRevenue, claimed.spend);
   const campaignRows = joinMetaAndOurCampaigns(
     facts,
@@ -378,22 +391,24 @@ async function renderMetaPage() {
             cpc: dailyMetricSeries(facts, days, "cpc"),
             frequency: dailyMetricSeries(facts, days, "frequency"),
           }}
-          ourDailyRevenue={ourDaily.map((point) => point.revenue)}
-          ourDailyOrders={ourDaily.map((point) => point.orders)}
+          campaignSeries={campaignSeries}
+          adsetSeries={adsetSeries}
+          adSeries={adSeries}
+          allCampaigns={allCampaigns}
           campaignBars={observed.campaigns.map((row) => ({
             label: row.campaignLabel,
             revenue: row.attributedRevenue,
-            orders: row.attributedOrders,
+            attributedOrders: row.attributedOrders,
           }))}
           adsetBars={observed.adsets.map((row) => ({
             label: row.adsetLabel,
             revenue: row.attributedRevenue,
-            orders: row.attributedOrders,
+            attributedOrders: row.attributedOrders,
           }))}
           adBars={observed.ads.map((row) => ({
             label: row.adLabel,
             revenue: row.attributedRevenue,
-            orders: row.attributedOrders,
+            attributedOrders: row.attributedOrders,
           }))}
         />
         <p className="text-xs text-muted">

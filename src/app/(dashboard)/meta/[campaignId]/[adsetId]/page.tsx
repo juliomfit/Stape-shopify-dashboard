@@ -143,10 +143,11 @@ export default async function MetaAdsetPage({
             </div>
             <ObservedBarChart
               title="OUR attributed revenue by ad"
+              grain="ad"
               rows={observed.ads.map((row) => ({
                 label: row.adLabel,
                 revenue: row.attributedRevenue,
-                orders: row.attributedOrders,
+                attributedOrders: row.attributedOrders,
               }))}
               currencyCode={currency}
               emptyLabel="No observed ad IDs in this ad set."

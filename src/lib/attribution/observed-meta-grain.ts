@@ -19,8 +19,11 @@ export const UNIDENTIFIED_ADSET_LABEL = "Unidentified ad set";
 export const UNIDENTIFIED_AD_LABEL = "Unidentified ad";
 export const ID_CONFLICT_LABEL = "Needs mapping / ID conflict";
 export const FIRST_PARTY_SOURCE = "GoodsNova first-party attribution";
+export const FLYWEEL_ADSET_SPEND_UNAVAILABLE = "Flyweel does not provide ad-set spend.";
+export const FLYWEEL_AD_SPEND_UNAVAILABLE = "Flyweel does not provide ad-level spend.";
 export const FLYWEEL_CHILD_SPEND_UNAVAILABLE =
   "Platform spend unavailable at this grain from Flyweel.";
+export const ALL_CAMPAIGNS_KEY = "__all_campaigns__";
 
 export type ObservedChildPresence = "observed" | "missing" | "conflict";
 
@@ -358,10 +361,45 @@ export function observedHierarchyHolds(
 export type ObservedDailyPoint = {
   day: string;
   revenue: number;
-  orders: number;
+  attributedOrders: number;
+  uniqueOrders: number;
 };
 
 export type ObservedDailyGrain = "campaign" | "adset" | "ad";
+
+export type ObservedEntityDailySeries = {
+  key: string;
+  label: string;
+  revenue: number;
+  attributedOrders: number;
+  uniqueOrders: number;
+  points: ObservedDailyPoint[];
+};
+
+function campaignKey(credit: EnrichedCredit): string {
+  return (
+    credit.metaCampaignId ||
+    credit.observedCampaignId ||
+    canonicalCampaignName(credit.campaign) ||
+    "(unmapped)"
+  );
+}
+
+function matchesDailyEntity(
+  credit: EnrichedCredit,
+  grain: ObservedDailyGrain,
+  entityId?: string | null,
+): boolean {
+  if (!entityId || entityId === ALL_CAMPAIGNS_KEY) return true;
+  if (grain === "adset") return credit.observedAdsetId === entityId;
+  if (grain === "ad") return credit.observedAdId === entityId;
+  return (
+    credit.metaCampaignId === entityId ||
+    credit.observedCampaignId === entityId ||
+    canonicalCampaignName(credit.campaign) === canonicalCampaignName(entityId) ||
+    campaignKey(credit) === entityId
+  );
+}
 
 export function dailyObservedMetaRevenue(
   credits: EnrichedCredit[],
@@ -369,59 +407,86 @@ export function dailyObservedMetaRevenue(
   grain: ObservedDailyGrain,
   entityId?: string | null,
 ): ObservedDailyPoint[] {
-  const byDay = new Map<string, ObservedDailyPoint>();
+  const byDay = new Map<string, ObservedDailyPoint & { orderIds: Set<string> }>();
   for (const day of days) {
-    byDay.set(day, { day, revenue: 0, orders: 0 });
+    byDay.set(day, {
+      day,
+      revenue: 0,
+      attributedOrders: 0,
+      uniqueOrders: 0,
+      orderIds: new Set(),
+    });
   }
-  const orderDays = new Map<string, Set<string>>();
   for (const credit of credits) {
     if (credit.channel !== META_CHANNEL) continue;
-    if (grain === "adset" && entityId && credit.observedAdsetId !== entityId) continue;
-    if (grain === "ad" && entityId && credit.observedAdId !== entityId) continue;
-    if (grain === "campaign" && entityId) {
-      const matches =
-        credit.metaCampaignId === entityId ||
-        credit.observedCampaignId === entityId ||
-        canonicalCampaignName(credit.campaign) === canonicalCampaignName(entityId);
-      if (!matches) continue;
-    }
+    if (!matchesDailyEntity(credit, grain, entityId)) continue;
     const day = pacificYmd(credit.purchaseTs);
     const point = byDay.get(day);
     if (!point) continue;
     point.revenue += credit.creditDollars;
-    const orders = orderDays.get(day) ?? new Set<string>();
-    orders.add(credit.orderName);
-    orderDays.set(day, orders);
-    point.orders = orders.size;
+    point.attributedOrders += credit.weight;
+    point.orderIds.add(credit.orderName);
+    point.uniqueOrders = point.orderIds.size;
   }
-  return days.map((day) => byDay.get(day)!);
+  return days.map((day) => {
+    const point = byDay.get(day)!;
+    return {
+      day: point.day,
+      revenue: point.revenue,
+      attributedOrders: point.attributedOrders,
+      uniqueOrders: point.uniqueOrders,
+    };
+  });
+}
+
+function summarizePoints(points: ObservedDailyPoint[]) {
+  return {
+    revenue: points.reduce((sum, point) => sum + point.revenue, 0),
+    attributedOrders: points.reduce((sum, point) => sum + point.attributedOrders, 0),
+    uniqueOrders: points.reduce((sum, point) => sum + point.uniqueOrders, 0),
+  };
 }
 
 export function dailyObservedByEntity(
   credits: EnrichedCredit[],
   days: string[],
   grain: ObservedDailyGrain,
-): { key: string; label: string; points: ObservedDailyPoint[] }[] {
+): ObservedEntityDailySeries[] {
   const keys = new Set<string>();
+  const labelByKey = new Map<string, string>();
   for (const credit of credits) {
     if (credit.channel !== META_CHANNEL) continue;
-    if (grain === "adset" && credit.observedAdsetId) keys.add(credit.observedAdsetId);
-    if (grain === "ad" && credit.observedAdId) keys.add(credit.observedAdId);
-    if (grain === "campaign") {
-      keys.add(
-        credit.metaCampaignId ||
-          credit.observedCampaignId ||
-          canonicalCampaignName(credit.campaign) ||
-          "(unmapped)",
-      );
+    if (grain === "adset") {
+      if (!credit.observedAdsetId) continue;
+      keys.add(credit.observedAdsetId);
+      labelByKey.set(credit.observedAdsetId, adsetLabel(credit.observedAdsetId));
+    } else if (grain === "ad") {
+      if (!credit.observedAdId) continue;
+      keys.add(credit.observedAdId);
+      labelByKey.set(credit.observedAdId, adLabel(credit.observedAdId));
+    } else {
+      const key = campaignKey(credit);
+      keys.add(key);
+      if (!labelByKey.has(key)) {
+        const named = displayCampaignName(credit.campaign);
+        labelByKey.set(
+          key,
+          named && named !== "(unmapped)" ? named : displayCampaignName(key) || key,
+        );
+      }
     }
   }
-  return [...keys].map((key) => ({
-    key,
-    label:
-      grain === "adset" ? adsetLabel(key) : grain === "ad" ? adLabel(key) : displayCampaignName(key) || key,
-    points: dailyObservedMetaRevenue(credits, days, grain, key),
-  }));
+  return [...keys]
+    .map((key) => {
+      const points = dailyObservedMetaRevenue(credits, days, grain, key);
+      return {
+        key,
+        label: labelByKey.get(key) || key,
+        ...summarizePoints(points),
+        points,
+      };
+    })
+    .sort((a, b) => b.revenue - a.revenue);
 }
 
 export type MetaFirstPartyIdCoverage = {

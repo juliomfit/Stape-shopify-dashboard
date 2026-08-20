@@ -198,10 +198,11 @@ export default async function MetaOurOrdersPage({
               <>
                 <ObservedBarChart
                   title="OUR attributed revenue by ad set"
+                  grain="adset"
                   rows={observed.adsets.map((row) => ({
                     label: row.adsetLabel,
                     revenue: row.attributedRevenue,
-                    orders: row.attributedOrders,
+                    attributedOrders: row.attributedOrders,
                   }))}
                   currencyCode={currency}
                 />
@@ -218,10 +219,11 @@ export default async function MetaOurOrdersPage({
               <>
                 <ObservedBarChart
                   title="OUR attributed revenue by ad"
+                  grain="ad"
                   rows={observed.ads.map((row) => ({
                     label: row.adLabel,
                     revenue: row.attributedRevenue,
-                    orders: row.attributedOrders,
+                    attributedOrders: row.attributedOrders,
                   }))}
                   currencyCode={currency}
                 />
