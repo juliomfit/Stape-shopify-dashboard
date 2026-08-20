@@ -10,6 +10,7 @@ export const CACHE_TAGS = {
   health: "health",
   cogs: "cogs",
   paste: "paste",
+  attribution: "attribution",
 } as const;
 
 export type CacheTag = (typeof CACHE_TAGS)[keyof typeof CACHE_TAGS];
@@ -35,9 +36,9 @@ export type CacheMutation = "cogs" | "paste" | "credentials";
 export function tagsForSource(source: InvalidationSource): readonly string[] {
   switch (source) {
     case "shopify":
-      return [CACHE_TAGS.shopify, CACHE_TAGS.dashboardCore, CACHE_TAGS.health];
+      return [CACHE_TAGS.shopify, CACHE_TAGS.dashboardCore, CACHE_TAGS.health, CACHE_TAGS.attribution];
     case "meta":
-      return [CACHE_TAGS.meta, CACHE_TAGS.dashboardCore, CACHE_TAGS.health];
+      return [CACHE_TAGS.meta, CACHE_TAGS.dashboardCore, CACHE_TAGS.health, CACHE_TAGS.attribution];
     case "stape":
       return [
         CACHE_TAGS.stape,

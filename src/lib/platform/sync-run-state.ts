@@ -9,8 +9,9 @@ export type RefreshSyncParsed = {
 };
 
 /**
- * Map /api/meta/sync HTTP results to RefreshControls copy.
+ * Map /api/meta/refresh (and legacy /api/meta/sync) HTTP results to RefreshControls copy.
  * 409 / already-running must be classified before any generic !ok failure.
+ * 202 means the provider job was enqueued and the browser must not wait for Flyweel.
  */
 export function refreshMetaSyncUiMessage(input: {
   status: number;
@@ -24,6 +25,13 @@ export function refreshMetaSyncUiMessage(input: {
       message: META_SYNC_ALREADY_RUNNING,
       alreadyRunning: true,
       shouldRefresh: false,
+    };
+  }
+  if (input.status === 202) {
+    return {
+      message: parsedText || "Meta refresh started",
+      alreadyRunning: false,
+      shouldRefresh: true,
     };
   }
   if (!input.parsed) {
@@ -61,11 +69,12 @@ export type SyncRunLike = {
 export function isSyncActivelyRunning(
   run: SyncRunLike | null | undefined,
   nowMs = Date.now(),
+  windowMs = META_SYNC_MAX_DURATION_MS,
 ): boolean {
   if (!run || run.status !== "running") return false;
   const started = Date.parse(run.started_at);
   if (!Number.isFinite(started)) return false;
-  return nowMs - started < META_SYNC_MAX_DURATION_MS;
+  return nowMs - started < windowMs;
 }
 
 export function syncRunDisplayStatus(run: SyncRunLike, nowMs = Date.now()): string {

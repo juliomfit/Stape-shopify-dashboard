@@ -96,6 +96,7 @@ test("repeat Meta refresh is rejected while an active sync exists", () => {
   assert.match(refresh, /inFlight\.current/);
   assert.match(refresh, /disabled=\{pending\}/);
   assert.match(refresh, /refreshMetaSyncUiMessage/);
+  assert.match(refresh, /\/api\/meta\/refresh/);
 });
 
 test("HTTP 409 UI path is reachable before generic !ok failure", () => {
@@ -137,6 +138,18 @@ test("HTTP 409 UI path is reachable before generic !ok failure", () => {
   });
   assert.equal(generic500.message, "Refresh failed (HTTP 500): boom");
   assert.match(refresh, /finally \{[\s\S]*inFlight\.current = false[\s\S]*setPending\(false\)/);
+});
+
+test("HTTP 202 enqueue is shown as started, not as a completed Flyweel wait", () => {
+  const accepted = refreshMetaSyncUiMessage({
+    status: 202,
+    ok: true,
+    parsed: { ok: true, message: "Meta refresh started" },
+    raw: '{"ok":true,"message":"Meta refresh started"}',
+  });
+  assert.equal(accepted.message, "Meta refresh started");
+  assert.equal(accepted.alreadyRunning, false);
+  assert.equal(accepted.shouldRefresh, true);
 });
 
 test("completed sync no longer appears as a duplicate running + completed state", () => {

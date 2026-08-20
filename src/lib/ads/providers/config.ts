@@ -73,7 +73,7 @@ export const FLYWEEL_CAMPAIGN_ONLY_WARNING =
 
 /** Health/UI copy when Flyweel campaign grain works but child grains do not. */
 export const FLYWEEL_PARTIAL_HEALTHY_MESSAGE =
-  "Flyweel campaign reporting active. Native ad set/ad deterministic facts are unavailable from this provider.";
+  "Meta reporting active. Campaign data available. Native ad set/ad deterministic attribution unavailable from current provider.";
 
 export type MetaInsightLevel = "campaign" | "adset" | "ad";
 

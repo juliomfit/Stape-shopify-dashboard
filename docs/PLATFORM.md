@@ -53,7 +53,7 @@ Read-only: GoodsNova never calls `connect_ad_platform`. `select_ad_accounts` run
 
 Query limits: Flyweel `query_metrics` caps at 500 rows. Incremental Refresh Meta queries **today and yesterday as separate Flyweel days**, campaign grain, and keeps rows with spend. A 7-day date×campaign query hits the 500-row cap and fills with $0 campaigns — do not use that shape. `src/lib/ads/providers/chunk.ts` still splits long Graph ranges.
 
-Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. `POST /api/meta/sync` `maxDuration` is **300s**. Verify the deployed Production runtime accepts maxDuration=300. Skip BigQuery DELETE while the streaming buffer is hot. Vercel cookie `durable-json` is not a global lock; warehouse `sync_runs` is the concurrency guard.
+Hobby cron remains daily (`0 15 * * *` UTC) on the Hobby plan. This project’s `vercel.json` schedules independent Pro crons (Meta/Shopify ~5 minutes, GA4 ~15 minutes, Stape health hourly, daily recon). `POST /api/meta/refresh` returns HTTP 202 and continues via `after()`. `POST /api/meta/sync` `maxDuration` is **300s**. Verify the deployed Production runtime accepts maxDuration=300. Skip BigQuery DELETE while the streaming buffer is hot. Vercel cookie `durable-json` is not a global lock; warehouse `sync_runs` is the concurrency guard. See `docs/BACKGROUND_INGESTION.md`.
 
 ## Meta setup
 
@@ -64,14 +64,12 @@ Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. `PO
    (also `META_REDIRECT_URI` / `META_OAUTH_REDIRECT_URI`).
 3. Permissions: `ads_read` (and `ads_management` if the app already requested it).
 4. Set `META_APP_ID`, `META_APP_SECRET` on Vercel.
-5. Set `CRON_SECRET`. Vercel Cron calls `/api/cron/sync` daily at 15:00 UTC
-   (Hobby cannot run hourly crons). Pro can change `vercel.json` to `0 * * * *`.
-   Vercel sends `Authorization: Bearer CRON_SECRET`.
+5. Set `CRON_SECRET`. Vercel Cron calls independent source routes in `vercel.json`.
+   Vercel sends `Authorization: Bearer CRON_SECRET`. `/api/cron/sync` remains an admin sequential sync-all.
 6. Integrations → Log in with Facebook → pick ad account → **Refresh Meta**.
 7. First backfill: Integrations date pickers, max 93 Pacific days.
 
-Hourly Meta refresh is **not** an 8-day lookback. Incremental ingest is Pacific **today + yesterday**. Vercel **Hobby** cron is **once per day**
-(`0 15 * * *` UTC). Use Refresh Meta anytime.
+Hourly Meta refresh is **not** an 8-day lookback. Incremental ingest is Pacific **today + yesterday**. Production freshness is source-specific Vercel crons (see `docs/BACKGROUND_INGESTION.md`). Use Refresh Meta to enqueue a background job (HTTP 202); do not wait on the page.
 
 Overview / First-touch / Warehouse **Meta spend** reads `meta_campaign_insights_daily` (same as `/meta`) when warehouse rows or a successful sync exist. Google paste is labeled separately. Paste does **not** override warehouse Meta.
 
@@ -91,12 +89,15 @@ Refresh GA4 uses the **header date range** (max 93 Pacific days) and writes
 
 ## Shopify
 
-Live Admin API is unchanged. Optional webhook URL:
+Prepared warehouse: `analytics.fct_shopify_orders`. Reads use it when coverage spans the header range; otherwise Admin API fallback.
+
+Live Admin API remains the fallback. Webhook URL:
 
 `https://YOUR_DOMAIN/api/shopify/webhooks`
 
 HMAC: `SHOPIFY_WEBHOOK_SECRET` or `SHOPIFY_CLIENT_SECRET`.
 Topics: `orders/create`, `orders/updated`, `orders/cancelled`, `refunds/create`.
+Webhooks upsert one order via GraphQL (financial truth) then invalidate Shopify cache.
 
 ## GPT
 

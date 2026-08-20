@@ -1,0 +1,129 @@
+# Background ingestion and dashboard reads
+
+GoodsNova Analytics is a **read-optimized product**. Provider work is background-only.
+
+```
+PROVIDERS (Meta / Shopify / GA4 / Stape events)
+        ↓
+BACKGROUND INGESTION (Vercel Cron + POST /api/meta/refresh after())
+        ↓
+BIGQUERY prepared facts
+        ↓
+NEXT.JS DATA CACHE (tagged ~45s, last-known-good fallback)
+        ↓
+DASHBOARD RENDER
+```
+
+Dashboard pages never sit above Flyweel, Shopify Admin synchronization, or GA4 Data API pulls.
+
+## Source schedules
+
+Production freshness uses **independent** jobs. `source=all` is admin-only (`GET /api/cron/sync?source=all`).
+
+| Job | Path | Cron (UTC) | maxDuration | What it does |
+|---|---|---|---|---|
+| Meta | `/api/cron/meta` | `*/5 * * * *` | 300s | Incremental Flyweel campaign insights (today + yesterday) |
+| Shopify | `/api/cron/shopify` | `1-59/5 * * * *` | 120s | Incremental MERGE into `analytics.fct_shopify_orders` (3-day overlap) |
+| GA4 | `/api/cron/ga4` | `3,18,33,48 * * * *` | 60s | Data API pull when `GA4_PROPERTY_ID` is set |
+| Stape | `/api/cron/stape` | `7 * * * *` | 60s | Health/freshness only — events already stream into BigQuery |
+| Daily recon | `/api/cron/daily` | `0 15 * * *` | 300s | Parallel Meta + Shopify 30-day overlap + GA4/Stape if configured |
+
+Stape is **not** an event backfill. Do not "sync" `raw_events_full` on a timer.
+
+If Vercel Hobby rejects `*/5`, the daily job still runs independent sources in parallel. This project already uses `maxDuration=300`, which is a Pro runtime.
+
+Google Ads has no cron: the API is not wired.
+
+## Read architecture
+
+Normal page loads:
+
+1. Period from cookies (outside `unstable_cache`)
+2. Tagged loaders: Shopify overview, Stape funnel, Meta campaign facts, canonical orders
+3. Assemble KPIs in `getCoreDashboardForPeriod` (not Data-Cache wrapped — paste/COGS use cookie `durable-json`)
+4. If a live read fails, `cachedLoad` returns in-memory last-known-good
+
+`getCanonicalAttributedOrders()` remains the only attribution definition. Overview cards use that result plus Shopify/Meta facts. Do not add a second warehouse attribution math layer.
+
+## Shopify pipeline
+
+Canonical mirror: **`analytics.fct_shopify_orders`** (migration 004 + additive 008). Do not create a competing order fact table.
+
+1. Webhook `POST /api/shopify/webhooks` HMAC-verifies, GraphQL-fetches that order, MERGE, invalidates Shopify cache
+2. Incremental cron: created_at window + updated_at overlap (refunds on older orders)
+3. Coverage checkpoint (`shopify-warehouse-coverage` durable JSON) advances only after a non-truncated created_at window
+4. Reads use the warehouse when coverage spans the header range
+5. Otherwise Admin GraphQL pagination remains the fallback — Production must not crash if the table is missing
+
+Financial truth: `currentTotalPriceSet` net of refunds. New-customer truth: Shopify `numberOfOrders <= 1`. Guest: no customer.
+
+## Meta pipeline
+
+1. Manual: `POST /api/meta/refresh` → validate → `after(runScheduledSync("meta"))` → **HTTP 202** `{ ok, message: "Meta refresh started" }`
+2. Worker: `POST /api/meta/sync` still awaits the job (backfill / ops)
+3. Cron: `/api/cron/meta` awaits the worker (the cron **is** the worker)
+4. Overlap: `findActiveSyncRun("meta")` + cookie lock (not a distributed lock) → HTTP 409 `Meta sync already running`
+5. Persist campaign facts only. Flyweel adset/ad grains are unsupported. Campaign-shaped rows cannot populate child tables.
+
+## Cache behavior
+
+| Source success | Tags expired |
+|---|---|
+| Meta | `meta`, `dashboard-core`, `health`, `attribution` |
+| Shopify | `shopify`, `dashboard-core`, `health`, `attribution` |
+| Stape | `stape`, `warehouse`, `dashboard-core`, `health` |
+| GA4 | `ga4`, `health` |
+
+Hard expire (`{ expire: 0 }`) on manual refresh. SWR (`"max"`) on cron.
+
+## Manual refresh
+
+Target enqueue time: **< 1 second**. The browser must not wait 90s for Flyweel.
+
+Keep inFlight UI, pending, HTTP 409, recent-running guard, stale-running detection.
+
+Header poller (`/api/freshness` every 45s) calls `router.refresh()` when `version` changes. It does not poll Flyweel or heavy BigQuery.
+
+## Failure behavior
+
+- Failed current refresh must not erase last-known-good dashboard data
+- Do not advance Shopify coverage or Meta checkpoints on failed jobs
+- MERGE by `order_id` is idempotent
+- Stale `sync_runs.status=running` older than the source window is not "syncing"
+
+## Freshness states
+
+`fresh` | `syncing` | `delayed` | `stale` | `unavailable`
+
+Provider health (Flyweel connected, campaign facts present) is **not** the same as data freshness. Campaign reporting can be healthy/partial when adset/ad native IDs are unavailable.
+
+## Vercel configuration
+
+- `vercel.json` lists the five crons above
+- `CRON_SECRET` bearer auth on cron routes
+- Refresh + Meta cron `maxDuration = 300`
+- Next.js 16.3 `after()` from `next/server` for post-response work
+- Cookie `durable-json` is not a distributed lock
+
+## BigQuery objects
+
+| Object | Role |
+|---|---|
+| `goodsnova_platform.meta_campaign_insights_daily` | Meta campaign spend / platform purchases |
+| `goodsnova_platform.sync_runs` | Sync state |
+| `analytics.fct_shopify_orders` | Prepared Shopify orders |
+| `stape_data.raw_events_full` | Tracking evidence (continuous) |
+| Canonical attribution | Computed in app from events + Shopify money |
+
+## Performance targets (warm)
+
+| Surface | Preferred |
+|---|---|
+| Overview | ≤ 1.5s |
+| Sales | ≤ 1.5s |
+| Meta | ≤ 2s |
+| Attribution Overview | ≤ 2.5s |
+| Journeys | ≤ 3s |
+| Manual refresh enqueue | < 1s |
+
+Do not raise HTTP timeouts to hide page latency. A slow provider job is acceptable; a slow dashboard page is not.

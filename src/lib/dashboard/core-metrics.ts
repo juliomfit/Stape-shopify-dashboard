@@ -51,6 +51,8 @@ export async function getCoreDashboardForPeriod(period: Awaited<ReturnType<typeo
   return computeCoreDashboard(period);
 }
 
+export const getOverviewReadModel = getCoreDashboardForPeriod;
+
 async function computeCoreDashboard(period: Awaited<ReturnType<typeof getAlignedPeriod>>) {
   const previous = previousDashboardPeriod(period);
   const [shopify, previousShopify, funnel, previousFunnel, ads, metaPaste, googlePaste, cogsRows] =

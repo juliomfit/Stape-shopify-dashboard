@@ -1,4 +1,7 @@
+import { cache } from "react";
 import { getAlignedPeriod } from "@/lib/dashboard/aligned-period";
+import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
+import { CACHE_TAGS } from "@/lib/cache/tags";
 import { getBigQueryClient } from "@/lib/stape/client";
 import {
   ATTRIBUTION_CHANNELS,
@@ -52,8 +55,20 @@ function withAllChannels(rows: SourceRow[]): TrafficSource[] {
   }));
 }
 
-export async function getStapeTrafficMetrics(): Promise<StapeTrafficMetrics> {
+export const getStapeTrafficMetrics = cache(async (): Promise<StapeTrafficMetrics> => {
   const period = await getAlignedPeriod();
+  return cachedLoad({
+    key: ["stape-traffic", ...periodCacheKey(period)],
+    tags: [CACHE_TAGS.stape],
+    loader: "stape_traffic",
+    period: `${period.startDate}..${period.endDate}`,
+    fn: () => loadStapeTrafficMetrics(period),
+  });
+});
+
+async function loadStapeTrafficMetrics(
+  period: Awaited<ReturnType<typeof getAlignedPeriod>>,
+): Promise<StapeTrafficMetrics> {
 
   try {
     if (!getBigQueryConfig()) {

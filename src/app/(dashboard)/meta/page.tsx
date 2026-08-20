@@ -5,7 +5,6 @@ import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { FlyweelKeyForm } from "@/components/dashboard/FlyweelKeyForm";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { MetaPerformanceWorkspace } from "@/components/dashboard/MetaPerformanceWorkspace";
-import { RefreshControls } from "@/components/dashboard/RefreshControls";
 import { Header } from "@/components/layout/Header";
 import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
 import { resolveMetaClaim } from "@/lib/ads/resolve-meta-claim";
@@ -18,7 +17,6 @@ import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { platformWarehouseStatus } from "@/lib/platform/bq";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { getDashboardPeriod, pacificDaysInRange } from "@/lib/period";
-import { loadMetaCache } from "@/lib/ads/meta-query";
 import { latestSuccessfulSync, latestSync } from "@/lib/platform/sync-runs";
 import { shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
@@ -26,7 +24,6 @@ import { newCustomerCac, newCustomerRoas } from "@/lib/metrics/formulas";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { MetaIdCoveragePanel } from "@/components/dashboard/MetaIdCoveragePanel";
 import { UnmappedMetaBucket } from "@/components/dashboard/UnmappedMetaBucket";
-import { MetaIngestHealthPanel } from "@/components/dashboard/MetaIngestHealthPanel";
 import { joinMetaAndOurCampaigns } from "@/lib/attribution/campaign-map";
 import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import {
@@ -36,9 +33,7 @@ import {
   toMetaCreditOrders,
 } from "@/lib/warehouse/canonical-orders";
 import { getAdsetFacts, getAdFacts, getAdCreativeMap } from "@/lib/ads/meta-query";
-import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
-import { FLYWEEL_CAMPAIGN_ONLY_WARNING, FLYWEEL_PARTIAL_HEALTHY_MESSAGE, flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
-import { warehouseFinishErrorFromMetadata } from "@/lib/platform/sync-run-state";
+import { FLYWEEL_PARTIAL_HEALTHY_MESSAGE, flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
 import {
   buildMetaFactIndexes,
   metaCreditForOrders,
@@ -69,7 +64,9 @@ export default async function MetaPage() {
         />
         <section className="dash-page gap-6">
           <EmptyPanel title="Meta page hit a server error" description={message} />
-          <RefreshControls />
+          <p className="text-sm text-muted">
+            Provider jobs continue in the background. Open Health to retry a refresh.
+          </p>
         </section>
       </>
     );
@@ -78,7 +75,7 @@ export default async function MetaPage() {
 
 async function renderMetaPage() {
   const period = await getSelectedPeriod();
-  const [connection, facts, cache, lastSync, lastAttempt, warehouse, shopify, adsetFacts, adFacts, creativeByAdId, ingestCounts] = await Promise.all([
+  const [connection, facts, lastSync, lastAttempt, warehouse, shopify, adsetFacts, adFacts, creativeByAdId, attrWarehouseResult, canonicalResult] = await Promise.all([
     getMetaConnectionPublic().catch(() => ({
       configured: false,
       source: "none" as const,
@@ -90,7 +87,6 @@ async function renderMetaPage() {
       provider: "none" as const,
     })),
     getCampaignFacts(period),
-    loadMetaCache().catch(loggedFallback("meta_cache_file", { syncedAt: undefined })),
     latestSuccessfulSync("meta").catch(loggedFallback("meta_last_sync", null)),
     latestSync("meta").catch(loggedFallback("meta_last_attempt", null)),
     platformWarehouseStatus().catch(
@@ -106,25 +102,18 @@ async function renderMetaPage() {
     getAdsetFacts(period).catch(loggedFallback("meta_adset_facts", [])),
     getAdFacts(period).catch(loggedFallback("meta_ad_facts", [])),
     getAdCreativeMap().catch(loggedFallback("meta_creative_map", new Map<string, string>())),
-    getMetaFactTableCounts(),
-  ]);
-  let attrWarehouse: Awaited<ReturnType<typeof getWarehouseMetrics>> | null = null;
-  let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
-  let ourAttributionError: string | null = null;
-  try {
-    attrWarehouse = await getWarehouseMetrics({
+    getWarehouseMetrics({
       lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
-    });
-    if (attrWarehouse.status.state === "error") {
-      ourAttributionError = attrWarehouse.status.message;
-    } else {
-      canonical = await getCanonicalAttributedOrders({
-        lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
-      });
-    }
-  } catch (error) {
-    ourAttributionError =
-      error instanceof Error ? error.message : "Canonical attribution is unavailable.";
+    }).catch(loggedFallback("meta_attr_warehouse", null)),
+    getCanonicalAttributedOrders({
+      lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    }).catch(loggedFallback("meta_canonical", [] as Awaited<ReturnType<typeof getCanonicalAttributedOrders>>)),
+  ]);
+  const attrWarehouse: Awaited<ReturnType<typeof getWarehouseMetrics>> | null = attrWarehouseResult;
+  const canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = canonicalResult ?? [];
+  let ourAttributionError: string | null = null;
+  if (attrWarehouse?.status.state === "error") {
+    ourAttributionError = attrWarehouse.status.message;
   }
   const totals = totalsFromFacts(facts);
   const claimed = resolveMetaClaim({
@@ -253,91 +242,33 @@ async function renderMetaPage() {
         description="Platform campaign reporting from Flyweel with GoodsNova first-party attribution down to ad set and ad when captured."
       />
       <section className="dash-page gap-6">
-        <p className="text-xs text-muted">
-          Provider: {connection.provider === "flyweel" ? "Flyweel" : connection.provider === "meta_graph" ? "Meta Graph" : "none"}
-          {" · "}
-          {connection.adAccountId ? `Account ${connection.adAccountId}` : "No account id yet"}
-          {" · "}
-          {lastSync?.completed_at
-            ? `Last successful sync ${lastSync.completed_at}`
-            : cache.syncedAt
-              ? `Local cache ${cache.syncedAt}`
-              : "No Meta platform sync yet"}
-        </p>
-        {lastAttempt?.status === "failed" && lastAttempt.error_message ? (
-          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">
-            Last sync error: {lastAttempt.error_message}
-          </p>
-        ) : null}
-        {warehouseFinishErrorFromMetadata(lastAttempt?.metadata) ||
-        warehouseFinishErrorFromMetadata(lastSync?.metadata) ? (
-          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            Warehouse sync history write failed:{" "}
-            {warehouseFinishErrorFromMetadata(lastAttempt?.metadata) ||
-              warehouseFinishErrorFromMetadata(lastSync?.metadata)}
-          </p>
-        ) : null}
         {flyweelCampaignOnlyWarning(connection.provider) ? (
-          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            {FLYWEEL_PARTIAL_HEALTHY_MESSAGE} {FLYWEEL_CAMPAIGN_ONLY_WARNING}
-          </p>
+          <p className="text-xs text-muted">{FLYWEEL_PARTIAL_HEALTHY_MESSAGE}</p>
         ) : null}
         {lastSync && totals.spend === 0 && weekTotals.spend > 0 ? (
-          <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
-            <h2 className="font-semibold text-foreground">Spend is in BigQuery — this date is $0</h2>
-            <p className="mt-2">
-              You do not need to update BigQuery. The last sync wrote campaign rows. This header range (
-              {period.startDate} to {period.endDate}) has no spend yet. Last 7 days has{" "}
-              {formatMoney({ amount: weekTotals.spend, currencyCode: currency })}.
-              Click <strong>Yesterday</strong> or <strong>7d</strong> in the header. Charts still read BigQuery, not Flyweel live.
-            </p>
-          </article>
+          <p className="text-sm text-muted">
+            This date range has $0 platform spend. Last 7 days has{" "}
+            {formatMoney({ amount: weekTotals.spend, currencyCode: currency })}.
+          </p>
         ) : null}
         {facts.length === 0 && !lastSync ? (
-          <article className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
-            <h2 className="font-semibold text-foreground">Close the Flyweel “Connect your AI” tab</h2>
-            <p className="mt-2">
-              That page is for Cursor and ChatGPT. GoodsNova does not use it. The API key is already working.
-              Refresh Meta now selects account 209273195421975 in Flyweel, then pulls campaigns. That does not pause or edit ads.
-            </p>
-            <ol className="mt-3 list-decimal space-y-1 pl-5">
-              <li>Wait until Vercel finishes deploying if a deploy is in progress.</li>
-              <li>Stay on this /meta page.</li>
-              <li>Press <strong>Refresh Meta</strong> once and wait up to 5 minutes.</li>
-            </ol>
-          </article>
+          <EmptyPanel
+            title="Meta campaign data is not loaded yet"
+            description="Background Meta ingest fills this page. Open Health if you need to start a refresh."
+          />
         ) : null}
         {/invalid api key|rejected the API key/i.test(lastAttempt?.error_message || "") ? (
           <FlyweelKeyForm accountId={connection.adAccountId} keyHint={connection.tokenHint} />
         ) : null}
-        <p className="text-xs text-muted">
-          Meta-attributed purchases are Ads Manager matching, not Shopify orders and not sGTM event delivery. Use 7d in the header, then press Refresh Meta.
-        </p>
         {!warehouse.ready ? (
-          <article className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-950">
-            <h2 className="font-semibold">This is why Meta is empty</h2>
-            <p className="mt-2">{warehouse.message}</p>
-            <p className="mt-3">
-              Open Google Cloud → BigQuery (project {warehouse.projectId || "stape-analytics-487802"}). Create dataset{" "}
-              <code className="rounded bg-white px-1">{warehouse.dataset}</code> in location US. Share it with{" "}
-              <code className="rounded bg-white px-1">
-                {warehouse.serviceAccount || "stape-shopify-dashboard-cursor@stape-analytics-487802.iam.gserviceaccount.com"}
-              </code>{" "}
-              as <strong>BigQuery Data Editor</strong>. Then press Refresh Meta.
-            </p>
-          </article>
+          <p className="text-sm text-muted">{warehouse.message}</p>
         ) : null}
         {!connection.configured && facts.length === 0 ? (
           <EmptyPanel
-            title="Flyweel is not on this deploy yet"
-            description="Set FLYWEEL_API_KEY and FLYWEEL_META_ACCOUNT_ID on Vercel Production, wait for the latest deploy, then Refresh Meta. Ignore Cursor mcp.json."
+            title="Meta is not connected"
+            description="Add the Flyweel API key in Integrations. Dashboard pages never call Flyweel while you browse."
           />
         ) : null}
-        <RefreshControls />
-        <MetaIngestHealthPanel
-          providerId={connection.provider}
-          counts={ingestCounts}
-        />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
             label="Spend"

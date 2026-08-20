@@ -1,87 +1,10 @@
-import { shopifyOrdersQuery, type DashboardPeriod } from "@/lib/period";
+import { cache } from "react";
+import type { DashboardPeriod } from "@/lib/period";
 import { getSelectedPeriod } from "@/lib/period-server";
-import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
-import { CACHE_TAGS } from "@/lib/cache/tags";
-import { shopifyGraphql } from "@/lib/shopify/client";
 import { isShopifyConfigured } from "@/lib/shopify/config";
-import type {
-  CustomerPerformance,
-  ShopifyCustomerMetrics,
-} from "@/lib/shopify/types";
-
-const ORDERS_PER_PAGE = 100;
-const MAX_PAGES = 100;
-
-type CustomerOrdersPage = {
-  shop: {
-    name: string;
-    currencyCode: string;
-  };
-  orders: {
-    pageInfo: {
-      hasNextPage: boolean;
-      endCursor: string | null;
-    };
-    edges: {
-      node: {
-        createdAt: string;
-        currentTotalPriceSet: {
-          shopMoney: {
-            amount: string;
-            currencyCode: string;
-          };
-        };
-        customer: {
-          id: string;
-          displayName: string | null;
-          createdAt: string;
-          numberOfOrders: string | number | null;
-        } | null;
-      };
-    }[];
-  };
-};
-
-const CUSTOMER_ORDERS_QUERY = `
-  query CustomerOrders($query: String!, $cursor: String) {
-    shop {
-      name
-      currencyCode
-    }
-    orders(first: ${ORDERS_PER_PAGE}, query: $query, sortKey: CREATED_AT, reverse: true, after: $cursor) {
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      edges {
-        node {
-          createdAt
-          currentTotalPriceSet {
-            shopMoney {
-              amount
-              currencyCode
-            }
-          }
-          customer {
-            id
-            displayName
-            createdAt
-            numberOfOrders
-          }
-        }
-      }
-    }
-  }
-`;
-
-function customerLabel(id: string, displayName: string | null) {
-  if (displayName?.trim()) {
-    return displayName.trim();
-  }
-
-  const shortId = id.split("/").pop() || id;
-  return `Customer ${shortId.slice(-6)}`;
-}
+import { getShopifyOverviewForPeriod } from "@/lib/shopify/get-overview-metrics";
+import { customersFromRecords } from "@/lib/shopify/order-record";
+import type { ShopifyCustomerMetrics } from "@/lib/shopify/types";
 
 function emptyMetrics(periodLabel: string): ShopifyCustomerMetrics {
   return {
@@ -98,25 +21,64 @@ function friendlyCustomerError(message: string) {
   if (message.toLowerCase().includes("read_customers")) {
     return "Shopify needs the read_customers permission. Add that scope in your Shopify app, release it, then open the app again to approve it.";
   }
-
   return message;
+}
+
+function customersFromOverview(
+  overview: Awaited<ReturnType<typeof getShopifyOverviewForPeriod>>,
+): ShopifyCustomerMetrics | null {
+  if (overview.status.state !== "connected") return null;
+  const records = overview.orderPoints.map((point) => ({
+    orderGid: point.legacyId || "",
+    orderId: point.legacyId || "",
+    orderName: "",
+    createdAt: point.createdAt,
+    orderDate: point.createdAt.slice(0, 10),
+    financialStatus: "UNKNOWN",
+    currency: overview.revenue?.currencyCode || "USD",
+    netRevenue: point.amount,
+    gross: point.gross,
+    subtotal: point.subtotal,
+    discounts: point.discounts,
+    shipping: point.shipping,
+    tax: point.tax,
+    refunded: point.refunded,
+    processingFees: point.processingFees,
+    refundFees: point.refundFees,
+    customerId: point.customerId,
+    customerDisplayName: point.customerDisplayName ?? null,
+    customerCreatedAt: null,
+    customerOrderNumber: point.lifetimeOrders ?? (point.isNew ? 1 : 2),
+    isNew: point.isNew,
+    isGuest: point.isGuest,
+    firstTouch: point.firstTouch,
+    firstTouchChannel: point.firstTouchChannel,
+    firstProductTitle: point.firstProductTitle,
+    gnUid: point.firstTouch.uid || "",
+    customAttributes: [],
+    lineItems: [],
+    itemCount: 0,
+    shopName: overview.status.shopName,
+  }));
+  return customersFromRecords({
+    records,
+    periodLabel: overview.periodLabel,
+    startMs: 0,
+    endMs: Number.MAX_SAFE_INTEGER,
+    shopName: overview.status.shopName,
+    truncated: overview.truncated,
+  });
 }
 
 export async function getShopifyCustomerMetrics(): Promise<ShopifyCustomerMetrics> {
   return getShopifyCustomerMetricsForPeriod(await getSelectedPeriod());
 }
 
-export async function getShopifyCustomerMetricsForPeriod(
-  period: DashboardPeriod,
-): Promise<ShopifyCustomerMetrics> {
-  return cachedLoad({
-    key: ["shopify-customers", ...periodCacheKey(period)],
-    tags: [CACHE_TAGS.shopify],
-    loader: "shopify_customers",
-    period: `${period.startDate}..${period.endDate}`,
-    fn: () => loadShopifyCustomerMetrics(period),
-  });
-}
+export const getShopifyCustomerMetricsForPeriod = cache(
+  async (period: DashboardPeriod): Promise<ShopifyCustomerMetrics> => {
+    return loadShopifyCustomerMetrics(period);
+  },
+);
 
 async function loadShopifyCustomerMetrics(
   period: DashboardPeriod,
@@ -125,108 +87,23 @@ async function loadShopifyCustomerMetrics(
     return emptyMetrics(period.label);
   }
 
-  const query = shopifyOrdersQuery(period);
-
   try {
-    let cursor: string | null = null;
-    let hasNextPage = true;
-    let pages = 0;
-    let shopName = "";
-    let currencyCode = "USD";
-    let guestOrders = 0;
-    let fetchedOrders = 0;
-    const customerTotals = new Map<
-      string,
-      {
-        name: string;
-        orderCount: number;
-        spend: number;
-        numberOfOrders: number;
-        lastOrderAt: string | null;
-        createdAt: string | null;
-      }
-    >();
-
-    while (hasNextPage && pages < MAX_PAGES) {
-      const data: CustomerOrdersPage = await shopifyGraphql<CustomerOrdersPage>(
-        CUSTOMER_ORDERS_QUERY,
-        { query, cursor },
-      );
-
-      shopName = data.shop.name;
-      currencyCode = data.shop.currencyCode;
-
-      for (const edge of data.orders.edges) {
-        const order = edge.node;
-        const created = new Date(order.createdAt).getTime();
-        if (created < period.startMs || created >= period.endMs) {
-          continue;
-        }
-
-        fetchedOrders += 1;
-
-        if (!order.customer) {
-          guestOrders += 1;
-          continue;
-        }
-
-        const current = customerTotals.get(order.customer.id) ?? {
-          name: customerLabel(order.customer.id, order.customer.displayName),
-          orderCount: 0,
-          spend: 0,
-          numberOfOrders: Number(order.customer.numberOfOrders ?? 0),
-          lastOrderAt: order.createdAt,
-          createdAt: order.customer.createdAt ?? null,
-        };
-        current.orderCount += 1;
-        current.spend += Number(order.currentTotalPriceSet.shopMoney.amount);
-        current.name = customerLabel(
-          order.customer.id,
-          order.customer.displayName,
-        );
-        current.numberOfOrders = Number(order.customer.numberOfOrders ?? 0);
-        if (
-          !current.lastOrderAt ||
-          new Date(order.createdAt).getTime() >
-            new Date(current.lastOrderAt).getTime()
-        ) {
-          current.lastOrderAt = order.createdAt;
-        }
-        customerTotals.set(order.customer.id, current);
-      }
-
-      hasNextPage = data.orders.pageInfo.hasNextPage;
-      cursor = data.orders.pageInfo.endCursor;
-      pages += 1;
+    const overview = await getShopifyOverviewForPeriod(period);
+    if (overview.status.state === "error") {
+      return {
+        ...emptyMetrics(period.label),
+        status: {
+          state: "error",
+          message: friendlyCustomerError(overview.status.message),
+        },
+      };
     }
-
-    const customers: CustomerPerformance[] = [...customerTotals.entries()]
-      .map(([id, item]) => ({
-        id,
-        name: item.name,
-        orderCount: item.orderCount,
-        spend: { amount: item.spend, currencyCode },
-        isNew: item.numberOfOrders <= 1,
-        lastOrderAt: item.lastOrderAt,
-        lifetimeOrders: item.numberOfOrders,
-        createdAt: item.createdAt,
-      }))
-      .sort((a, b) => b.spend.amount - a.spend.amount);
-
-    return {
-      status: { state: "connected", shopName },
-      periodLabel: period.label,
-      customers,
-      guestOrders,
-      truncated: hasNextPage,
-      fetchedOrders,
-    };
+    const fromOverview = customersFromOverview(overview);
+    if (fromOverview) return fromOverview;
+    return emptyMetrics(period.label);
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Could not load Shopify customer data.";
-
+      error instanceof Error ? error.message : "Could not load Shopify customer data.";
     return {
       ...emptyMetrics(period.label),
       status: { state: "error", message: friendlyCustomerError(message) },

@@ -118,7 +118,7 @@ export const getCanonicalAttributedOrdersForPeriod = cache(
         : DEFAULT_LOOKBACK;
     return cachedLoad({
       key: ["canonical-orders", ...periodCacheKey(period), String(lookbackDays)],
-      tags: [CACHE_TAGS.warehouse, CACHE_TAGS.shopify],
+      tags: [CACHE_TAGS.warehouse, CACHE_TAGS.shopify, CACHE_TAGS.attribution],
       loader: "canonical_orders",
       period: `${period.startDate}..${period.endDate}`,
       fn: () => computeCanonicalAttributedOrders(period, lookbackDays),

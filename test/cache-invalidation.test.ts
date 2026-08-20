@@ -72,6 +72,8 @@ test("explicit Refresh defaults to hard; cron uses SWR", () => {
   assert.match(orchestrator, /invalidate\("meta", invalidation\)/);
   const cron = readFileSync("src/app/api/cron/sync/route.ts", "utf8");
   assert.match(cron, /invalidation:\s*"swr"/);
+  const metaCron = readFileSync("src/app/api/cron/meta/route.ts", "utf8");
+  assert.match(metaCron, /handleSourceCron\(request, "meta"\)/);
   const actions = readFileSync("src/lib/platform/actions.ts", "utf8");
   assert.match(actions, /runScheduledSync\(source, \{ invalidation: "hard" \}\)/);
   assert.match(actions, /updateCachedMutation\("cogs"\)/);
@@ -83,6 +85,15 @@ test("Meta refresh still does not invalidate Shopify", () => {
   const tags = tagsForSource("meta");
   assert.ok(tags.includes(CACHE_TAGS.meta));
   assert.ok(tags.includes(CACHE_TAGS.dashboardCore));
+  assert.ok(tags.includes(CACHE_TAGS.attribution));
   assert.equal(tags.includes(CACHE_TAGS.shopify), false);
   assert.equal(tags.includes(CACHE_TAGS.warehouse), false);
+});
+
+test("Shopify refresh invalidates overview and attribution, not Meta facts", () => {
+  const tags = tagsForSource("shopify");
+  assert.ok(tags.includes(CACHE_TAGS.shopify));
+  assert.ok(tags.includes(CACHE_TAGS.dashboardCore));
+  assert.ok(tags.includes(CACHE_TAGS.attribution));
+  assert.equal(tags.includes(CACHE_TAGS.meta), false);
 });

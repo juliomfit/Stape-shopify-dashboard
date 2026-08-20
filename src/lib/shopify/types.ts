@@ -1,4 +1,4 @@
-import type { FirstTouch } from "@/lib/shopify/first-touch";
+import type { FirstTouch } from "./first-touch.ts";
 
 export type Money = {
   amount: number;
@@ -68,6 +68,8 @@ export type OrderPoint = {
   firstTouch: FirstTouch;
   firstTouchChannel: string;
   firstProductTitle: string | null;
+  customerDisplayName?: string | null;
+  lifetimeOrders?: number | null;
 };
 
 export type ShopifyOverviewMetrics = {

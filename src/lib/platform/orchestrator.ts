@@ -3,8 +3,9 @@ import { getGa4Config } from "@/lib/ads/ga4-config";
 import { getGoogleClaimed } from "@/lib/ads/google";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { syncGa4Hourly, syncGoogleAdsPlaceholder, syncStapeHealth } from "@/lib/platform/sync-other";
-import { finishSyncRun, startSyncRun, type SyncRun } from "@/lib/platform/sync-runs";
+import { finishSyncRun, findActiveSyncRun, startSyncRun, type SyncRun } from "@/lib/platform/sync-runs";
 import { isShopifyConfigured } from "@/lib/shopify/config";
+import { ingestShopifyIncremental } from "@/lib/shopify/ingest";
 import { isStapeConfigured } from "@/lib/stape/config";
 import { invalidateCachedSources } from "@/lib/cache/invalidate";
 import type { CachedSource, InvalidationMode } from "@/lib/cache/tags";
@@ -13,11 +14,21 @@ import {
   googleAdsEnvTotalsConfigured,
   googleAdsIsConfigured,
 } from "@/lib/platform/google-health";
+import { acquireSyncLock, releaseSyncLock } from "@/lib/platform/lock";
+import {
+  SHOPIFY_DAILY_LOOKBACK_DAYS,
+  SHOPIFY_INCREMENTAL_LOOKBACK_DAYS,
+} from "@/lib/freshness/schedules";
 
 export type ScheduledSyncResult = {
   ok: boolean;
   message: string;
   run: SyncRun | MetaSyncResult["run"];
+};
+
+export type ScheduledSyncOptions = {
+  invalidation?: InvalidationMode;
+  shopifyLookbackDays?: number;
 };
 
 async function invalidate(source: CachedSource, mode: InvalidationMode) {
@@ -36,7 +47,7 @@ async function googleAdsRefreshConfigured() {
 
 export async function runScheduledSync(
   source: string,
-  options: { invalidation?: InvalidationMode } = {},
+  options: ScheduledSyncOptions = {},
 ): Promise<ScheduledSyncResult> {
   const invalidation = options.invalidation ?? "hard";
   if (source === "meta") {
@@ -93,40 +104,63 @@ export async function runScheduledSync(
     return { ok: run.status !== "failed", message: run.error_message || "Stape health recorded.", run };
   }
   if (source === "shopify") {
-    const run = await startSyncRun({ source: "shopify", syncType: "cache_refresh" });
-    if (!isShopifyConfigured()) {
+    const already = await findActiveSyncRun("shopify");
+    if (already) {
+      return { ok: false, message: "Shopify sync already running", run: already };
+    }
+    const lookbackDays = options.shopifyLookbackDays ?? SHOPIFY_INCREMENTAL_LOOKBACK_DAYS;
+    const run = await startSyncRun({
+      source: "shopify",
+      syncType: "incremental_warehouse",
+    });
+    const locked = await acquireSyncLock("shopify", run.id);
+    if (!locked) {
       const finished = await finishSyncRun(run, {
         status: "failed",
-        error_message: "Shopify is not configured.",
+        error_message: "Shopify sync already running",
       });
-      return { ok: false, message: finished.error_message || "Shopify missing.", run: finished };
+      return { ok: false, message: finished.error_message || "Shopify sync already running", run: finished };
     }
-    await invalidate("shopify", invalidation);
-    const { getShopifyOverviewForPeriod } = await import("@/lib/shopify/get-overview-metrics");
-    const period = await getSelectedPeriod();
-    const warmed = await getShopifyOverviewForPeriod(period);
-    const connected = warmed.status.state === "connected";
-    const finished = await finishSyncRun(run, {
-      status: connected ? "completed" : "partial",
-      records_inserted: warmed.orders ?? 0,
-      error_message: connected
-        ? undefined
-        : warmed.status.state === "error"
-          ? warmed.status.message
-          : undefined,
-      metadata: JSON.stringify({
-        note: "Invalidated Shopify cache and reloaded the current period from the Admin API.",
-      }),
-    });
-    return {
-      ok: connected,
-      message: connected
-        ? "Shopify cache cleared and the current period was reloaded from the Admin API."
-        : warmed.status.state === "error"
-          ? `Shopify cache cleared, but Admin API reload failed: ${warmed.status.message}`
-          : "Shopify cache cleared. Admin API is not connected.",
-      run: finished,
-    };
+    try {
+      if (!isShopifyConfigured()) {
+        const finished = await finishSyncRun(run, {
+          status: "failed",
+          error_message: "Shopify is not configured.",
+        });
+        return { ok: false, message: finished.error_message || "Shopify missing.", run: finished };
+      }
+      let ingested: Awaited<ReturnType<typeof ingestShopifyIncremental>>;
+      try {
+        ingested = await ingestShopifyIncremental(lookbackDays);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Shopify ingest failed.";
+        const finished = await finishSyncRun(run, {
+          status: "failed",
+          error_message: message,
+        });
+        return { ok: false, message, run: finished };
+      }
+      if (ingested.ok) {
+        await invalidate("shopify", invalidation);
+      }
+      const finished = await finishSyncRun(run, {
+        status: ingested.ok ? (ingested.truncated ? "partial" : "completed") : "failed",
+        records_inserted: ingested.records,
+        error_message: ingested.ok ? undefined : ingested.message,
+        metadata: JSON.stringify({
+          lookbackDays,
+          truncated: ingested.truncated,
+          note: ingested.message,
+        }),
+      });
+      return {
+        ok: ingested.ok,
+        message: ingested.message,
+        run: finished,
+      };
+    } finally {
+      await releaseSyncLock("shopify");
+    }
   }
   if (source === "all") {
     const parts: string[] = [];
@@ -156,6 +190,40 @@ export async function runScheduledSync(
     };
   }
   return { ok: false, message: `Unknown source ${source}`, run: null };
+}
+
+/**
+ * Daily deeper reconciliation. Independent sources run in parallel.
+ * source=all remains an admin-only sequential operation.
+ */
+export async function runDailyReconciliation() {
+  const nested: ScheduledSyncOptions = { invalidation: "swr" };
+  const jobs: Promise<ScheduledSyncResult>[] = [
+    runScheduledSync("meta", nested),
+    runScheduledSync("shopify", {
+      ...nested,
+      shopifyLookbackDays: SHOPIFY_DAILY_LOOKBACK_DAYS,
+    }),
+  ];
+  if (getGa4Config()) {
+    jobs.push(runScheduledSync("ga4", nested));
+  }
+  if (isStapeConfigured()) {
+    jobs.push(runScheduledSync("stape", nested));
+  }
+  const settled = await Promise.allSettled(jobs);
+  const parts = settled.map((item, index) => {
+    if (item.status === "fulfilled") {
+      return item.value.ok ? `ok:${index}` : `failed:${index}`;
+    }
+    return `rejected:${index}`;
+  });
+  const ok = settled.every((item) => item.status === "fulfilled" && item.value.ok);
+  return {
+    ok,
+    message: `Daily reconciliation (parallel sources): ${parts.join(" · ")}`,
+    source: "daily",
+  };
 }
 
 export { syncMetaBackfill, syncMetaHourly };

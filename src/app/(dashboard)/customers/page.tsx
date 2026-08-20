@@ -19,8 +19,10 @@ export const metadata: Metadata = {
 };
 
 export default async function CustomersPage() {
-  const shopify = await getShopifyCustomerMetrics();
-  const overview = await getShopifyOverviewMetrics();
+  const [shopify, overview] = await Promise.all([
+    getShopifyCustomerMetrics(),
+    getShopifyOverviewMetrics(),
+  ]);
   const shopifySource =
     shopify.status.state === "connected"
       ? `Shopify · ${shopify.periodLabel}`

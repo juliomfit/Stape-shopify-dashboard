@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { cronAuthorized } from "@/lib/cron/auth";
-import { runScheduledSync } from "@/lib/platform/orchestrator";
+import { runDailyReconciliation, runScheduledSync } from "@/lib/platform/orchestrator";
 
-/** Admin/engineering sequential sync-all. Production freshness uses source-specific crons. */
-export const maxDuration = 300;
-export const dynamic = "force-dynamic";
-
-export async function GET(request: Request) {
+export async function handleSourceCron(
+  request: Request,
+  source: "meta" | "shopify" | "ga4" | "stape" | "daily",
+) {
   if (!cronAuthorized(request)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  const source = new URL(request.url).searchParams.get("source") || "all";
+  if (source === "daily") {
+    const result = await runDailyReconciliation();
+    return NextResponse.json(result);
+  }
   const result = await runScheduledSync(source, { invalidation: "swr" });
   return NextResponse.json({
     ok: result.ok,
@@ -19,8 +21,4 @@ export async function GET(request: Request) {
     status: result.run?.status ?? null,
     source,
   });
-}
-
-export async function POST(request: Request) {
-  return GET(request);
 }

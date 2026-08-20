@@ -6,6 +6,7 @@ test("Meta refresh does not invalidate Shopify", () => {
   const tags = tagsForSource("meta");
   assert.ok(tags.includes(CACHE_TAGS.meta));
   assert.ok(tags.includes(CACHE_TAGS.dashboardCore));
+  assert.ok(tags.includes(CACHE_TAGS.attribution));
   assert.equal(tags.includes(CACHE_TAGS.shopify), false);
   assert.equal(tags.includes(CACHE_TAGS.warehouse), false);
 });
@@ -14,6 +15,7 @@ test("Shopify refresh invalidates Shopify and core, not Meta warehouse facts", (
   const tags = tagsForSource("shopify");
   assert.ok(tags.includes(CACHE_TAGS.shopify));
   assert.ok(tags.includes(CACHE_TAGS.dashboardCore));
+  assert.ok(tags.includes(CACHE_TAGS.attribution));
   assert.equal(tags.includes(CACHE_TAGS.meta), false);
 });
 

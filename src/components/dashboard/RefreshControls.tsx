@@ -16,9 +16,11 @@ export function RefreshControls() {
     if (inFlight.current) return;
     inFlight.current = true;
     setPending(true);
-    setMessage(payload.source === "meta" || payload.startDate ? "Syncing Meta..." : "Refreshing…");
+    setMessage(
+      payload.source === "meta" || payload.startDate ? "Updating…" : "Refreshing…",
+    );
     try {
-      const response = await fetch("/api/meta/sync", {
+      const response = await fetch("/api/meta/refresh", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -52,15 +54,14 @@ export function RefreshControls() {
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm" aria-busy={pending}>
       <h2 className="text-sm font-semibold text-foreground">Refresh data</h2>
       <p className="mt-1 text-xs text-muted">
-        Pulls Meta from Flyweel on the server (up to 300s), then reads BigQuery. Charts never call Flyweel live. Press Refresh Meta once and wait.
+        Starts a background provider job and returns immediately. Keep using the dashboard while Meta/Shopify catch up.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {[
           ["meta", "Refresh Meta"],
-          ["all", "Refresh all"],
           ["shopify", "Refresh Shopify"],
-          ["google_ads", "Refresh Google Ads"],
           ["ga4", "Refresh GA4"],
+          ["google_ads", "Refresh Google Ads"],
         ].map(([source, label]) => (
           <button
             key={source}
@@ -69,7 +70,7 @@ export function RefreshControls() {
             onClick={() => post({ source })}
             className="rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50 disabled:pointer-events-none"
           >
-            {pending && source === "meta" ? "Syncing…" : label}
+            {pending && source === "meta" ? "Updating…" : label}
           </button>
         ))}
       </div>

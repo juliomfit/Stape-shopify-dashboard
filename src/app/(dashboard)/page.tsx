@@ -10,20 +10,13 @@ import { MismatchBanner } from "@/components/dashboard/MismatchBanner";
 import { TopProductsPanel } from "@/components/dashboard/TopProductsPanel";
 import { TruncationNotice } from "@/components/dashboard/TruncationNotice";
 import { RevenueBreakdown } from "@/components/dashboard/RevenueBreakdown";
-import { DataHealthStrip } from "@/components/dashboard/DataHealthStrip";
-import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { DailyCogsForm } from "@/components/dashboard/DailyCogsForm";
 import { Header } from "@/components/layout/Header";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
 import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
-import { getDataHealth } from "@/lib/platform/health";
-import { computeAnomalies } from "@/lib/platform/anomalies";
-import { getCampaignFacts, totalsFromFacts } from "@/lib/ads/meta-query";
 import { blendedAdSpendSource } from "@/lib/metrics/source-lines";
-import { pacificYesterdayYmd, previousDashboardPeriod } from "@/lib/period";
-import { getSelectedPeriod } from "@/lib/period-server";
-import { loggedFallback } from "@/lib/observability/loader-log";
+import { pacificYesterdayYmd } from "@/lib/period";
 
 export const metadata: Metadata = {
   title: "Overview",
@@ -34,14 +27,7 @@ function roasLabel(value: number | null) {
 }
 
 export default async function OverviewPage() {
-  const periodHint = await getSelectedPeriod();
-  const previousHint = previousDashboardPeriod(periodHint);
-  const [data, health, metaNowFacts, metaPrevFacts] = await Promise.all([
-    getCoreDashboard(),
-    getDataHealth().catch(loggedFallback("overview_health", [])),
-    getCampaignFacts(periodHint).catch(loggedFallback("overview_meta_facts", [])),
-    getCampaignFacts(previousHint).catch(loggedFallback("overview_meta_facts_prev", [])),
-  ]);
+  const data = await getCoreDashboard();
   const {
     period,
     deltaLabel,
@@ -90,30 +76,6 @@ export default async function OverviewPage() {
     secondary: formatMoney({ amount: row.revenue, currencyCode: currency }),
   }));
 
-  const metaNow = totalsFromFacts(metaNowFacts);
-  const metaPrev = totalsFromFacts(metaPrevFacts);
-  const anomalies = computeAnomalies({
-    revenue: shopifyConnected ? alignedShopify.revenue : null,
-    previousRevenue:
-      data.previousShopify.status.state === "connected"
-        ? data.previousAligned.revenue
-        : null,
-    orders: shopifyConnected ? alignedShopify.orders : null,
-    previousOrders:
-      data.previousShopify.status.state === "connected"
-        ? data.previousAligned.orders
-        : null,
-    spend: totalSpend,
-    previousSpend: null,
-    mer,
-    previousMer: null,
-    cpa,
-    previousCpa: null,
-    conversion: conversion.rate,
-    previousConversion: data.previousConversion.rate,
-    metaCpa: metaNow.cpa,
-    previousMetaCpa: metaPrev.cpa,
-  });
   const shopifySource = shopifyConnected
     ? `Shopify · ${period.label}`
     : "Shopify · no data yet";
@@ -134,8 +96,6 @@ export default async function OverviewPage() {
       />
       <section className="dash-page gap-6">
         <ConnectionStatus shopify={shopify.status} stape={funnel.status} />
-        <DataHealthStrip sources={health} />
-        <NeedsAttention anomalies={anomalies} />
         <TruncationNotice
           truncated={shopify.truncated}
           fetched={alignedShopify.orders}

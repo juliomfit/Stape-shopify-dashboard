@@ -35,6 +35,12 @@ export async function POST(request: Request) {
     syncType: `webhook:${topic}`,
   });
   await finishSyncRun(run, { status: "completed", records_inserted: 1 });
+  try {
+    const { upsertShopifyOrderFromWebhook } = await import("@/lib/shopify/ingest");
+    await upsertShopifyOrderFromWebhook(raw);
+  } catch (error) {
+    console.warn("[shopify-webhook] warehouse upsert skipped", error);
+  }
   await invalidateCachedSources("shopify", { mode: "hard" });
   revalidatePath("/", "layout");
   return NextResponse.json({ ok: true });

@@ -4,20 +4,53 @@ import { DataHealthStrip } from "@/components/dashboard/DataHealthStrip";
 import { Header } from "@/components/layout/Header";
 import { RefreshControls } from "@/components/dashboard/RefreshControls";
 import { MetaIngestHealthPanel } from "@/components/dashboard/MetaIngestHealthPanel";
+import { NeedsAttention } from "@/components/dashboard/NeedsAttention";
 import { getDataHealth } from "@/lib/platform/health";
 import { listSyncRuns } from "@/lib/platform/sync-runs";
 import { syncRunDisplayStatus } from "@/lib/platform/sync-run-state";
 import { EmptyTable } from "@/components/dashboard/EmptyTable";
 import { loggedFallback } from "@/lib/observability/loader-log";
 import { HealthReconciliation } from "./HealthReconciliation";
+import { computeAnomalies } from "@/lib/platform/anomalies";
+import { getCoreDashboard } from "@/lib/dashboard/core-metrics";
 
 export const metadata: Metadata = { title: "Data health" };
 
 export default async function HealthPage() {
-  const [sources, runs] = await Promise.all([
+  const [sources, runs, core] = await Promise.all([
     getDataHealth().catch(loggedFallback("health", [])),
     listSyncRuns().catch(loggedFallback("sync_runs", [])),
+    getCoreDashboard().catch(
+      loggedFallback<Awaited<ReturnType<typeof getCoreDashboard>> | null>(
+        "health_core",
+        null,
+      ),
+    ),
   ]);
+  const anomalies = core
+    ? computeAnomalies({
+        revenue: core.shopifyConnected ? core.alignedShopify.revenue : null,
+        previousRevenue:
+          core.previousShopify.status.state === "connected"
+            ? core.previousAligned.revenue
+            : null,
+        orders: core.shopifyConnected ? core.alignedShopify.orders : null,
+        previousOrders:
+          core.previousShopify.status.state === "connected"
+            ? core.previousAligned.orders
+            : null,
+        spend: core.totalSpend,
+        previousSpend: null,
+        mer: core.mer,
+        previousMer: null,
+        cpa: core.cpa,
+        previousCpa: null,
+        conversion: core.conversion.rate,
+        previousConversion: core.previousConversion.rate,
+        metaCpa: null,
+        previousMetaCpa: null,
+      })
+    : [];
 
   return (
     <>
@@ -27,6 +60,7 @@ export default async function HealthPage() {
       />
       <section className="dash-page gap-6">
         <DataHealthStrip sources={sources} />
+        <NeedsAttention anomalies={anomalies} />
         <MetaIngestHealthPanel
           providerId={sources.find((source) => source.source === "meta")?.providerId || "none"}
           counts={
