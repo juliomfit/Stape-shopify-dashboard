@@ -121,6 +121,8 @@ function adsQuery(input: {
  * Build query_metrics shapes that actually use the caller-supplied metrics
  * and dimensions. Empty verified dimensions → no query (do not fall back to
  * a campaign-grain query while claiming another level).
+ *
+ * Multiple metric batches become multiple queries in one request (max 5).
  */
 export function buildFlyweelQueryShapes(input: {
   startDate: string;
@@ -129,41 +131,35 @@ export function buildFlyweelQueryShapes(input: {
   dimensions: string[];
   todayStartDate?: string;
   rowLimit?: number;
+  metricBatches?: string[][];
 }): Record<string, unknown>[] {
-  const metrics = input.metrics.filter(Boolean);
+  const batches = (input.metricBatches?.length ? input.metricBatches : [input.metrics])
+    .map((batch) => batch.filter(Boolean))
+    .filter((batch) => batch.length > 0);
   const dimensions = verifiedFlyweelDimensions(input.dimensions);
-  if (!metrics.length || !dimensions.length) {
+  if (!batches.length || !dimensions.length) {
     return [];
   }
   const limit = input.rowLimit ?? 500;
   const dayRange = { start: input.startDate, end: input.endDate };
-  const withRequested = {
-    queries: [adsQuery({ metrics, dimensions, dateRange: dayRange, limit })],
-  };
+  const packed = (range: Record<string, unknown>, dims: string[]) => ({
+    queries: batches.slice(0, 5).map((metrics) =>
+      adsQuery({ metrics, dimensions: dims, dateRange: range, limit }),
+    ),
+  });
   if (input.startDate !== input.endDate) {
-    return [withRequested];
+    return [packed(dayRange, dimensions)];
   }
 
   const withoutDate = dimensions.filter((name) => name !== "date");
   const shapes: Record<string, unknown>[] = [];
   if (withoutDate.length) {
-    shapes.push({
-      queries: [adsQuery({ metrics, dimensions: withoutDate, dateRange: dayRange, limit })],
-    });
+    shapes.push(packed(dayRange, withoutDate));
     if (input.todayStartDate && input.startDate === input.todayStartDate) {
-      shapes.push({
-        queries: [
-          adsQuery({
-            metrics,
-            dimensions: withoutDate,
-            dateRange: { preset: "today" },
-            limit,
-          }),
-        ],
-      });
+      shapes.push(packed({ preset: "today" }, withoutDate));
     }
   }
-  shapes.push(withRequested);
+  shapes.push(packed(dayRange, dimensions));
   return shapes;
 }
 

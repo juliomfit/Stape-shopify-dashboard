@@ -12,6 +12,7 @@ Do not mark `VALIDATED` without production query evidence.
 | 004 | `bigquery/migrations/2026_08_18_004_shopify_history.sql` | Optional Shopify order fact table for future LTV/refund recon | analytics dataset | No. App uses Admin API. | YES | PREPARED |
 | 005 | `bigquery/migrations/2026_08_18_005_canonical_attribution_credit_fix.sql` | Forward CREATE OR REPLACE VIEW: session-touch grain, Real Direct, internal noise excluded, credit-only (`event_purchase_value`, not `net_revenue`) | 002 already applied | No. App on-the-fly SQL matches. View is for validation. | YES | USER MUST RUN |
 | 006 | `bigquery/migrations/2026_08_19_006_meta_touch_ids.sql` | Additive `meta_campaign_id` / `meta_adset_id` / `meta_ad_id` STRING columns on `raw_events_full` (**CURRENT SESSION / CLICK** identity, never first-touch cookies) | `raw_events_full` | App warehouse SQL extracts IDs from `page_location` until this is applied. Typed columns needed for sGTM session-cookie persist. | YES | USER MUST RUN |
+| 007 | `bigquery/migrations/2026_08_20_007_meta_extended_metrics.sql` | Additive `conversions`, `unique_ctr`, `outbound_clicks`, `extended_metrics` on `meta_campaign_insights_daily` | platform dataset / campaign insights table | App `ensurePlatformTables()` also ADD COLUMN IF NOT EXISTS on Refresh Meta. Existing SELECTs keep working; new columns are nullable. | YES | PREPARED |
 
 ## Execution order (this correctness pass)
 

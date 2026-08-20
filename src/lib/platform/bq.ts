@@ -127,8 +127,12 @@ export async function ensurePlatformTables() {
         add_to_cart FLOAT64,
         initiate_checkout FLOAT64,
         landing_page_views FLOAT64,
+        conversions FLOAT64,
+        unique_ctr FLOAT64,
+        outbound_clicks FLOAT64,
         actions_json STRING,
         action_values_json STRING,
+        extended_metrics STRING,
         provider STRING,
         synced_at TIMESTAMP,
         sync_run_id STRING
@@ -136,6 +140,18 @@ export async function ensurePlatformTables() {
       PARTITION BY date
       CLUSTER BY account_id, campaign_id
     `);
+    await runPlatformQuery(
+      `ALTER TABLE ${campaigns} ADD COLUMN IF NOT EXISTS conversions FLOAT64`,
+    );
+    await runPlatformQuery(
+      `ALTER TABLE ${campaigns} ADD COLUMN IF NOT EXISTS unique_ctr FLOAT64`,
+    );
+    await runPlatformQuery(
+      `ALTER TABLE ${campaigns} ADD COLUMN IF NOT EXISTS outbound_clicks FLOAT64`,
+    );
+    await runPlatformQuery(
+      `ALTER TABLE ${campaigns} ADD COLUMN IF NOT EXISTS extended_metrics STRING`,
+    );
   }
   const cogs = platformTable("raw_cogs_daily");
   if (cogs) {

@@ -31,10 +31,19 @@ export type CampaignMapMetaFact = {
   spend: number;
   impressions: number;
   clicks: number;
-  purchases: number;
-  purchase_value: number;
+  purchases: number | null;
+  purchase_value: number | null;
   reach?: number;
-  inline_link_clicks?: number;
+  inline_link_clicks?: number | null;
+  unique_clicks?: number | null;
+  unique_ctr?: number | null;
+  outbound_clicks?: number | null;
+  conversions?: number | null;
+  add_to_cart?: number | null;
+  initiate_checkout?: number | null;
+  landing_page_views?: number | null;
+  frequency?: number | null;
+  extended_metrics?: Record<string, number | string | null> | string | null;
 };
 
 export type CampaignMapOurRow = {
@@ -54,13 +63,38 @@ export type OurCampaignRow = {
   frequency: number;
   clicks: number;
   linkClicks: number;
+  uniqueClicks?: number | null;
+  uniqueCtr?: number | null;
+  outboundClicks?: number | null;
+  landingPageViews?: number | null;
+  addToCart?: number | null;
+  initiateCheckout?: number | null;
+  conversions?: number | null;
+  costLpv?: number | null;
+  costAtc?: number | null;
+  costCheckout?: number | null;
   ctr: number | null;
   cpc: number | null;
   cpm: number | null;
-  metaPurchases: number;
-  metaRevenue: number;
+  metaPurchases: number | null;
+  metaRevenue: number | null;
   metaCpa: number | null;
   metaRoas: number | null;
+  videoP25?: number | null;
+  videoP50?: number | null;
+  videoP75?: number | null;
+  videoP95?: number | null;
+  videoP100?: number | null;
+  video30s?: number | null;
+  videoAvgTime?: number | null;
+  postEngagement?: number | null;
+  pageEngagement?: number | null;
+  postReactions?: number | null;
+  messagingConversations?: number | null;
+  qualityRanking?: string | null;
+  engagementRateRanking?: string | null;
+  conversionRateRanking?: string | null;
+  extendedMetrics?: Record<string, number | string | null>;
   ourOrders: number;
   ourRevenue: number;
   ourRoas: number | null;
@@ -122,6 +156,44 @@ function norm(value: string) {
   return canonicalCampaignName(value);
 }
 
+function addNullable(acc: number | null, value: number | null | undefined): number | null {
+  if (value == null) return acc;
+  return (acc ?? 0) + value;
+}
+
+function parseExtended(
+  value: CampaignMapMetaFact["extended_metrics"],
+): Record<string, number | string | null> {
+  if (!value) return {};
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, number | string | null>;
+      }
+    } catch {
+      return {};
+    }
+    return {};
+  }
+  return value;
+}
+
+function mergeExtended(
+  acc: Record<string, number | string | null>,
+  next: Record<string, number | string | null>,
+) {
+  for (const [key, value] of Object.entries(next)) {
+    if (typeof value === "number") {
+      const prev = acc[key];
+      acc[key] = typeof prev === "number" ? prev + value : value;
+    } else if (acc[key] == null && value != null) {
+      acc[key] = value;
+    }
+  }
+  return acc;
+}
+
 type MetaAgg = {
   campaignId: string;
   campaignName: string;
@@ -130,29 +202,101 @@ type MetaAgg = {
   reach: number;
   clicks: number;
   linkClicks: number;
-  purchases: number;
-  revenue: number;
+  uniqueClicks: number | null;
+  uniqueCtr: number | null;
+  outboundClicks: number | null;
+  landingPageViews: number | null;
+  addToCart: number | null;
+  initiateCheckout: number | null;
+  conversions: number | null;
+  purchases: number | null;
+  revenue: number | null;
+  videoP25: number | null;
+  videoP50: number | null;
+  videoP75: number | null;
+  videoP95: number | null;
+  videoP100: number | null;
+  video30s: number | null;
+  videoAvgTime: number | null;
+  postEngagement: number | null;
+  pageEngagement: number | null;
+  postReactions: number | null;
+  messagingConversations: number | null;
+  qualityRanking: string | null;
+  engagementRateRanking: string | null;
+  conversionRateRanking: string | null;
+  extendedMetrics: Record<string, number | string | null>;
 };
+
+function emptyPlatform() {
+  return {
+    platformPresent: false,
+    spend: 0,
+    impressions: 0,
+    reach: 0,
+    frequency: 0,
+    clicks: 0,
+    linkClicks: 0,
+    uniqueClicks: null as number | null,
+    uniqueCtr: null as number | null,
+    outboundClicks: null as number | null,
+    landingPageViews: null as number | null,
+    addToCart: null as number | null,
+    initiateCheckout: null as number | null,
+    conversions: null as number | null,
+    costLpv: null as number | null,
+    costAtc: null as number | null,
+    costCheckout: null as number | null,
+    ctr: null as number | null,
+    cpc: null as number | null,
+    cpm: null as number | null,
+    metaPurchases: null as number | null,
+    metaRevenue: null as number | null,
+    metaCpa: null as number | null,
+    metaRoas: null as number | null,
+    videoP25: null as number | null,
+    videoP50: null as number | null,
+    videoP75: null as number | null,
+    videoP95: null as number | null,
+    videoP100: null as number | null,
+    video30s: null as number | null,
+    videoAvgTime: null as number | null,
+    postEngagement: null as number | null,
+    pageEngagement: null as number | null,
+    postReactions: null as number | null,
+    messagingConversations: null as number | null,
+    qualityRanking: null as string | null,
+    engagementRateRanking: null as string | null,
+    conversionRateRanking: null as string | null,
+    extendedMetrics: {} as Record<string, number | string | null>,
+  };
+}
+
+function extNum(ext: Record<string, number | string | null>, names: string[]): number | null {
+  for (const name of names) {
+    const value = ext[name];
+    if (typeof value === "number") return value;
+  }
+  return null;
+}
+
+function extStr(ext: Record<string, number | string | null>, names: string[]): string | null {
+  for (const name of names) {
+    const value = ext[name];
+    if (typeof value === "string" && value) return value;
+  }
+  return null;
+}
 
 function platformFromAgg(agg: MetaAgg | null) {
   if (!agg) {
-    return {
-      platformPresent: false,
-      spend: 0,
-      impressions: 0,
-      reach: 0,
-      frequency: 0,
-      clicks: 0,
-      linkClicks: 0,
-      ctr: null as number | null,
-      cpc: null as number | null,
-      cpm: null as number | null,
-      metaPurchases: 0,
-      metaRevenue: 0,
-      metaCpa: null as number | null,
-      metaRoas: null as number | null,
-    };
+    return emptyPlatform();
   }
+  const ext = agg.extendedMetrics;
+  const landingPageViews = agg.landingPageViews;
+  const addToCart = agg.addToCart;
+  const initiateCheckout = agg.initiateCheckout;
+  const purchases = agg.purchases;
   return {
     platformPresent: true,
     spend: agg.spend,
@@ -161,13 +305,76 @@ function platformFromAgg(agg: MetaAgg | null) {
     frequency: metaFrequency(agg.impressions, agg.reach),
     clicks: agg.clicks,
     linkClicks: agg.linkClicks,
+    uniqueClicks: agg.uniqueClicks,
+    uniqueCtr: agg.uniqueCtr,
+    outboundClicks: agg.outboundClicks,
+    landingPageViews,
+    addToCart,
+    initiateCheckout,
+    conversions: agg.conversions,
+    costLpv: platformCpa(agg.spend, landingPageViews),
+    costAtc: platformCpa(agg.spend, addToCart),
+    costCheckout: platformCpa(agg.spend, initiateCheckout),
     ctr: ctr(agg.clicks, agg.impressions),
     cpc: cpc(agg.spend, agg.clicks),
     cpm: cpm(agg.spend, agg.impressions),
-    metaPurchases: agg.purchases,
+    metaPurchases: purchases,
     metaRevenue: agg.revenue,
-    metaCpa: platformCpa(agg.spend, agg.purchases),
-    metaRoas: platformRoas(agg.revenue, agg.spend),
+    metaCpa: platformCpa(agg.spend, purchases),
+    metaRoas: agg.revenue == null ? null : platformRoas(agg.revenue, agg.spend),
+    videoP25: agg.videoP25 ?? extNum(ext, ["video_p25_watched_actions"]),
+    videoP50: agg.videoP50 ?? extNum(ext, ["video_p50_watched_actions"]),
+    videoP75: agg.videoP75 ?? extNum(ext, ["video_p75_watched_actions"]),
+    videoP95: agg.videoP95 ?? extNum(ext, ["video_p95_watched_actions"]),
+    videoP100: agg.videoP100 ?? extNum(ext, ["video_p100_watched_actions"]),
+    video30s: agg.video30s ?? extNum(ext, ["video_30_sec_watched", "video_30_sec_watched_actions"]),
+    videoAvgTime:
+      agg.videoAvgTime ?? extNum(ext, ["video_avg_time_watched", "video_avg_time_watched_actions"]),
+    postEngagement: agg.postEngagement ?? extNum(ext, ["post_engagement"]),
+    pageEngagement: agg.pageEngagement ?? extNum(ext, ["page_engagement"]),
+    postReactions: agg.postReactions ?? extNum(ext, ["post_reactions"]),
+    messagingConversations:
+      agg.messagingConversations ?? extNum(ext, ["messaging_conversations_started"]),
+    qualityRanking: agg.qualityRanking ?? extStr(ext, ["quality_ranking"]),
+    engagementRateRanking: agg.engagementRateRanking ?? extStr(ext, ["engagement_rate_ranking"]),
+    conversionRateRanking: agg.conversionRateRanking ?? extStr(ext, ["conversion_rate_ranking"]),
+    extendedMetrics: ext,
+  };
+}
+
+function emptyAgg(id: string, name: string): MetaAgg {
+  return {
+    campaignId: id,
+    campaignName: name || id,
+    spend: 0,
+    impressions: 0,
+    reach: 0,
+    clicks: 0,
+    linkClicks: 0,
+    uniqueClicks: null,
+    uniqueCtr: null,
+    outboundClicks: null,
+    landingPageViews: null,
+    addToCart: null,
+    initiateCheckout: null,
+    conversions: null,
+    purchases: null,
+    revenue: null,
+    videoP25: null,
+    videoP50: null,
+    videoP75: null,
+    videoP95: null,
+    videoP100: null,
+    video30s: null,
+    videoAvgTime: null,
+    postEngagement: null,
+    pageEngagement: null,
+    postReactions: null,
+    messagingConversations: null,
+    qualityRanking: null,
+    engagementRateRanking: null,
+    conversionRateRanking: null,
+    extendedMetrics: {},
   };
 }
 
@@ -179,24 +386,25 @@ function aggregateMeta(facts: CampaignMapMetaFact[]) {
     const id = fact.campaign_id?.trim();
     const name = fact.campaign_name?.trim() || id;
     if (id) {
-      const current = byId.get(id) ?? {
-        campaignId: id,
-        campaignName: name || id,
-        spend: 0,
-        impressions: 0,
-        reach: 0,
-        clicks: 0,
-        linkClicks: 0,
-        purchases: 0,
-        revenue: 0,
-      };
+      const current = byId.get(id) ?? emptyAgg(id, name || id);
       current.spend += fact.spend;
       current.impressions += fact.impressions;
       current.reach += fact.reach ?? 0;
       current.clicks += fact.clicks;
       current.linkClicks += fact.inline_link_clicks ?? 0;
-      current.purchases += fact.purchases;
-      current.revenue += fact.purchase_value;
+      current.uniqueClicks = addNullable(current.uniqueClicks, fact.unique_clicks);
+      current.uniqueCtr = fact.unique_ctr ?? current.uniqueCtr;
+      current.outboundClicks = addNullable(current.outboundClicks, fact.outbound_clicks);
+      current.landingPageViews = addNullable(current.landingPageViews, fact.landing_page_views);
+      current.addToCart = addNullable(current.addToCart, fact.add_to_cart);
+      current.initiateCheckout = addNullable(current.initiateCheckout, fact.initiate_checkout);
+      current.conversions = addNullable(current.conversions, fact.conversions);
+      current.purchases = addNullable(current.purchases, fact.purchases);
+      current.revenue = addNullable(current.revenue, fact.purchase_value);
+      current.extendedMetrics = mergeExtended(
+        current.extendedMetrics,
+        parseExtended(fact.extended_metrics),
+      );
       if (name) {
         current.campaignName = name;
       }
@@ -330,7 +538,7 @@ export function joinMetaAndOurCampaigns(
         existing,
         ours,
         existing.spend,
-        existing.metaRevenue,
+        existing.metaRevenue ?? 0,
         nc,
         ncRevenue,
       );
@@ -355,7 +563,7 @@ export function joinMetaAndOurCampaigns(
       mappingConfidence: resolved.confidence,
       mappingStatus: resolved.method,
     };
-    applyOurCredit(row, ours, resolved.meta.spend, resolved.meta.revenue, nc, ncRevenue);
+    applyOurCredit(row, ours, resolved.meta.spend, resolved.meta.revenue ?? 0, nc, ncRevenue);
     if (!mappingReliable) {
       row.attributedNcac = null;
     }
@@ -377,7 +585,7 @@ export function joinMetaAndOurCampaigns(
       newCustomerCredit: 0,
       newCustomerRevenue: 0,
       attributedNcac: null,
-      differencePct: fact.revenue > 0 ? -1 : null,
+      differencePct: (fact.revenue ?? 0) > 0 ? -1 : null,
       mapped: false,
       mappingMethod: "unmapped",
       mappingConfidence: "NONE",

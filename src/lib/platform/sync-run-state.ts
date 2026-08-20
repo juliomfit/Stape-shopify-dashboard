@@ -191,6 +191,13 @@ export type MetaSyncObservability = {
   ad_valid_ad_id_rows?: number;
   warehouse_finish_error?: string;
   child_grain_verified?: boolean;
+  flyweel_metric_catalog_count?: number;
+  flyweel_metrics_requested?: string[];
+  flyweel_metric_batches?: number;
+  flyweel_metrics_returned?: string[];
+  flyweel_unknown_metrics?: string[];
+  campaign_rows?: number;
+  flyweel_metric_coverage?: string;
 };
 
 export function buildMetaSyncMetadata(
@@ -239,6 +246,25 @@ export function buildMetaSyncMetadata(
       : {}),
     ...(input.child_grain_verified != null
       ? { child_grain_verified: input.child_grain_verified }
+      : {}),
+    ...(input.flyweel_metric_catalog_count != null
+      ? { flyweel_metric_catalog_count: input.flyweel_metric_catalog_count }
+      : {}),
+    ...(input.flyweel_metrics_requested
+      ? { flyweel_metrics_requested: input.flyweel_metrics_requested }
+      : {}),
+    ...(input.flyweel_metric_batches != null
+      ? { flyweel_metric_batches: input.flyweel_metric_batches }
+      : {}),
+    ...(input.flyweel_metrics_returned
+      ? { flyweel_metrics_returned: input.flyweel_metrics_returned }
+      : {}),
+    ...(input.flyweel_unknown_metrics
+      ? { flyweel_unknown_metrics: input.flyweel_unknown_metrics }
+      : {}),
+    ...(input.campaign_rows != null ? { campaign_rows: input.campaign_rows } : {}),
+    ...(input.flyweel_metric_coverage
+      ? { flyweel_metric_coverage: input.flyweel_metric_coverage }
       : {}),
   };
 }

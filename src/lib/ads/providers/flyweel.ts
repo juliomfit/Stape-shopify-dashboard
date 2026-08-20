@@ -1,6 +1,7 @@
 import {
   FLYWEEL_DIMENSION_LIMIT,
   FLYWEEL_METRIC_LIMIT,
+  FLYWEEL_QUERY_BATCH_LIMIT,
   FLYWEEL_ROW_LIMIT,
   flyweelMetaAccountId,
 } from "@/lib/ads/providers/config";
@@ -12,6 +13,18 @@ import {
   flyweelDimensionsForLevel,
   summarizeFlyweelSetup,
 } from "@/lib/ads/providers/flyweel-query";
+import {
+  FLYWEEL_BASELINE_METRICS,
+  groupedFlyweelMetaMetricBatches,
+  splitMetricBatch,
+  unknownMetricsFromError,
+} from "@/lib/ads/providers/flyweel-catalog";
+import {
+  coverageFromHealth,
+  getFlyweelMetricCatalog,
+  summarizeMetricKeysFromRows,
+  type FlyweelMetricHealth,
+} from "@/lib/ads/providers/flyweel-metrics";
 import {
   describeFlyweelPayload,
   mergeInsightBatches,
@@ -35,18 +48,7 @@ import type {
   ProviderSyncResult,
 } from "@/lib/ads/providers/types";
 
-const BASELINE_METRICS = [
-  "spend",
-  "impressions",
-  "clicks",
-  "conversions",
-  "cpc",
-  "cpm",
-  "ctr",
-  "reach",
-  "cost_per_conversion",
-  "conversion_rate",
-];
+const BASELINE_METRICS = [...FLYWEEL_BASELINE_METRICS];
 
 
 function daysInRange(startDate: string, endDate: string) {
@@ -88,6 +90,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   private client: FlyweelMcpClient;
   private tools: Set<string> | null = null;
   private lastMetrics: string[] | null = null;
+  lastMetricHealth: FlyweelMetricHealth | null = null;
 
   constructor(client = new FlyweelMcpClient()) {
     this.client = client;
@@ -286,19 +289,21 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
   }
 
   private metricsList() {
-    return BASELINE_METRICS.slice(0, FLYWEEL_METRIC_LIMIT);
+    return (this.lastMetrics || BASELINE_METRICS).slice(0, FLYWEEL_METRIC_LIMIT);
   }
 
   private queryShapes(
     params: InsightQuery,
     metrics: string[],
     dimensions: string[],
+    metricBatches?: string[][],
   ): Record<string, unknown>[] {
     return buildFlyweelQueryShapes({
       startDate: params.startDate,
       endDate: params.endDate,
       metrics,
       dimensions,
+      metricBatches,
       todayStartDate: getDashboardPeriod("today").startDate,
       rowLimit: FLYWEEL_ROW_LIMIT,
     });
@@ -308,12 +313,13 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     params: InsightQuery,
     metrics: string[],
     dimensions: string[],
+    metricBatches?: string[][],
   ): Promise<Record<string, unknown>[]> {
     if (!metrics.length || !dimensions.length) {
       return [];
     }
     await this.ensureTools();
-    const shapes = this.queryShapes(params, metrics, dimensions);
+    const shapes = this.queryShapes(params, metrics, dimensions, metricBatches);
     let lastError: unknown;
     let best: Record<string, unknown>[] = [];
     for (const shape of shapes) {
@@ -349,35 +355,109 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     return best;
   }
 
-  private async queryWithMetricFallback(
+  private async queryMetricsIsolated(
+    params: InsightQuery,
+    metrics: string[],
+    dimensions: string[],
+  ): Promise<{ rows: Record<string, unknown>[]; accepted: string[]; unknown: string[] }> {
+    if (!metrics.length) {
+      return { rows: [], accepted: [], unknown: [] };
+    }
+    try {
+      const rows = await this.queryOnce(params, metrics, dimensions);
+      return { rows, accepted: metrics, unknown: [] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/metric|unknown|invalid/i.test(message)) {
+        throw error;
+      }
+      if (metrics.length === 1) {
+        return { rows: [], accepted: [], unknown: metrics };
+      }
+      const named = unknownMetricsFromError(message, metrics);
+      if (named.length && named.length < metrics.length) {
+        const remaining = metrics.filter((name) => !named.includes(name));
+        const nested = await this.queryMetricsIsolated(params, remaining, dimensions);
+        return {
+          rows: nested.rows,
+          accepted: nested.accepted,
+          unknown: [...new Set([...named, ...nested.unknown])],
+        };
+      }
+      const [left, right] = splitMetricBatch(metrics);
+      if (!right.length) {
+        return { rows: [], accepted: [], unknown: metrics };
+      }
+      const first = await this.queryMetricsIsolated(params, left, dimensions);
+      const second = await this.queryMetricsIsolated(params, right, dimensions);
+      return {
+        rows: [...first.rows, ...second.rows],
+        accepted: [...first.accepted, ...second.accepted],
+        unknown: [...new Set([...first.unknown, ...second.unknown])],
+      };
+    }
+  }
+
+  private async queryMetricBatches(
     params: InsightQuery,
     dimensions: string[],
-  ): Promise<Record<string, unknown>[]> {
-    const preferred = this.lastMetrics || this.metricsList();
+    batches: string[][],
+  ): Promise<{ rows: Record<string, unknown>[]; accepted: string[]; unknown: string[] }> {
+    const requested = batches.flat();
+    if (!requested.length) {
+      return { rows: [], accepted: [], unknown: [] };
+    }
     try {
-      const rows = await this.queryOnce(params, preferred, dimensions);
-      this.lastMetrics = preferred;
-      return rows;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      if (/metric|unknown|invalid/i.test(message) && preferred !== BASELINE_METRICS) {
-        const rows = await this.queryOnce(params, BASELINE_METRICS, dimensions);
-        this.lastMetrics = BASELINE_METRICS;
-        return rows;
+      const allRows: Record<string, unknown>[][] = [];
+      for (let i = 0; i < batches.length; i += FLYWEEL_QUERY_BATCH_LIMIT) {
+        const slice = batches.slice(i, i + FLYWEEL_QUERY_BATCH_LIMIT);
+        const rows = await this.queryOnce(params, slice.flat(), dimensions, slice);
+        allRows.push(rows);
       }
-      throw error;
+      return { rows: allRows.flat(), accepted: requested, unknown: [] };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/metric|unknown|invalid/i.test(message)) {
+        throw error;
+      }
+      const accepted: string[] = [];
+      const unknown: string[] = [];
+      const rowBatches: Record<string, unknown>[][] = [];
+      for (const batch of batches) {
+        const isolated = await this.queryMetricsIsolated(params, batch, dimensions);
+        accepted.push(...isolated.accepted);
+        unknown.push(...isolated.unknown);
+        if (isolated.rows.length) {
+          rowBatches.push(isolated.rows);
+        }
+      }
+      if (!accepted.length) {
+        const baseline = await this.queryOnce(params, BASELINE_METRICS, dimensions);
+        this.lastMetrics = BASELINE_METRICS;
+        return {
+          rows: baseline,
+          accepted: BASELINE_METRICS,
+          unknown: [...new Set([...unknown, ...requested.filter((name) => !(BASELINE_METRICS as readonly string[]).includes(name))])],
+        };
+      }
+      return {
+        rows: rowBatches.flat(),
+        accepted: [...new Set(accepted)],
+        unknown: [...new Set(unknown)],
+      };
     }
   }
 
   private async queryWithDimensionFallback(
     params: InsightQuery,
-  ): Promise<Record<string, unknown>[]> {
+    batches: string[][],
+  ): Promise<{ rows: Record<string, unknown>[]; accepted: string[]; unknown: string[] }> {
     const wanted = this.dimensionsFor(params.level);
     if (!wanted.length) {
-      return [];
+      return { rows: [], accepted: [], unknown: [] };
     }
     try {
-      return await this.queryWithMetricFallback(params, wanted);
+      return await this.queryMetricBatches(params, wanted, batches);
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (!/dimension|unknown|invalid|not supported/i.test(message)) {
@@ -387,7 +467,7 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
         params.level === "campaign"
           ? ["date", "campaign_id", "campaign"]
           : wanted.slice(0, 3);
-      return this.queryWithMetricFallback(params, fallback);
+      return this.queryMetricBatches(params, fallback, batches);
     }
   }
 
@@ -403,17 +483,36 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
         splits: 0,
       };
     }
+    const { catalog } = await getFlyweelMetricCatalog(this.client);
+    const catalogNames = catalog.map((item) => item.name);
+    const originalRequested = this.lastMetrics?.length ? this.lastMetrics : catalogNames;
+    let requested = originalRequested;
+    let batches = groupedFlyweelMetaMetricBatches(requested, FLYWEEL_METRIC_LIMIT);
     const days = daysInRange(params.startDate, params.endDate);
-    const batches = [];
+    const normalizedBatches = [];
+    const unknown = new Set<string>();
+    const accepted = new Set<string>();
+    const returned = new Set<string>();
     for (const day of days) {
-      const raw = await this.queryWithDimensionFallback({
-        ...params,
-        accountId,
-        startDate: day,
-        endDate: day,
-      });
-      batches.push(
-        raw.map((row) =>
+      const raw = await this.queryWithDimensionFallback(
+        {
+          ...params,
+          accountId,
+          startDate: day,
+          endDate: day,
+        },
+        batches,
+      );
+      raw.unknown.forEach((name) => unknown.add(name));
+      raw.accepted.forEach((name) => accepted.add(name));
+      summarizeMetricKeysFromRows(raw.rows).forEach((name) => returned.add(name));
+      if (raw.accepted.length) {
+        this.lastMetrics = raw.accepted;
+        requested = raw.accepted;
+        batches = groupedFlyweelMetaMetricBatches(raw.accepted, FLYWEEL_METRIC_LIMIT);
+      }
+      normalizedBatches.push(
+        raw.rows.map((row) =>
           normalizeInsightRow(row, {
             accountId,
             provider: this.id,
@@ -422,13 +521,43 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
         ),
       );
     }
-    const rows = mergeInsightBatches(batches).filter((row) => row.date);
+    const rows = mergeInsightBatches(normalizedBatches).filter((row) => row.date);
+    const health: FlyweelMetricHealth = {
+      flyweel_metric_catalog_count: catalogNames.length,
+      flyweel_metrics_requested: originalRequested,
+      flyweel_metric_batches: batches.length,
+      flyweel_metrics_returned: [...returned],
+      flyweel_unknown_metrics: [...unknown],
+      campaign_rows: rows.length,
+      coverage: coverageFromHealth({
+        requested: originalRequested,
+        accepted: [...accepted],
+        unknown: [...unknown],
+        baseline: BASELINE_METRICS,
+      }),
+    };
+    this.lastMetricHealth = health;
+    if (health.coverage !== "full") {
+      console.info(
+        "[flyweel-metrics]",
+        JSON.stringify({
+          coverage: health.coverage,
+          flyweel_metric_catalog_count: health.flyweel_metric_catalog_count,
+          flyweel_metric_batches: health.flyweel_metric_batches,
+          flyweel_metrics_requested: health.flyweel_metrics_requested.length,
+          flyweel_metrics_returned: health.flyweel_metrics_returned.length,
+          flyweel_unknown_metrics: health.flyweel_unknown_metrics,
+          campaign_rows: health.campaign_rows,
+        }),
+      );
+    }
     return {
       rows,
       actions: this.actionsFromRows(rows, params.level),
       truncated: false,
       requests: this.client.requestCount - requestsBefore,
       splits: Math.max(0, days.length - 1),
+      metricHealth: health,
     };
   }
 
@@ -477,7 +606,8 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
     const extra = params.dimensions.filter(Boolean).slice(0, 2);
     const dimensions = ["date", "campaign_id", ...extra].slice(0, FLYWEEL_DIMENSION_LIMIT);
     try {
-      const rows = await this.queryWithMetricFallback(params, dimensions);
+      const isolated = await this.queryMetricsIsolated(params, BASELINE_METRICS, dimensions);
+      const rows = isolated.rows;
       return rows.map((row) => {
         const insight = normalizeInsightRow(row, {
           accountId: params.accountId,
@@ -494,12 +624,12 @@ export class FlyweelMetaAdsProvider implements MetaAdsProvider {
           reportingLevel: params.level,
           breakdownType,
           breakdownValue,
-          spend: insight.spend,
-          impressions: insight.impressions,
-          reach: insight.reach,
-          clicks: insight.clicks,
-          purchases: insight.purchases,
-          purchaseValue: insight.purchaseValue,
+          spend: insight.spend ?? 0,
+          impressions: insight.impressions ?? 0,
+          reach: insight.reach ?? 0,
+          clicks: insight.clicks ?? 0,
+          purchases: insight.purchases ?? 0,
+          purchaseValue: insight.purchaseValue ?? 0,
           provider: this.id,
           raw: row,
         };

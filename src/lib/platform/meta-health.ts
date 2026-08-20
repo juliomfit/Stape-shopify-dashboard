@@ -4,6 +4,7 @@ import {
 } from "../ads/providers/config.ts";
 import {
   isSyncActivelyRunning,
+  parseSyncRunMetadata,
   warehouseFinishErrorFromMetadata,
   type SyncRunLike,
 } from "./sync-run-state.ts";
@@ -86,6 +87,17 @@ export function presentMetaAdsHealth(input: {
     message = flyweelOn
       ? "FLYWEEL_API_KEY is set but no successful warehouse sync yet. Press Refresh Meta."
       : "Token saved but no successful platform sync yet. Press Refresh Meta.";
+  }
+
+  const coverage = parseSyncRunMetadata(input.lastSuccess?.metadata).flyweel_metric_coverage;
+  const unknown = parseSyncRunMetadata(input.lastSuccess?.metadata).flyweel_unknown_metrics;
+  if (
+    flyweelOn &&
+    (coverage === "partial" ||
+      coverage === "baseline" ||
+      (Array.isArray(unknown) && unknown.length > 0))
+  ) {
+    message = `${message} Extended Meta metrics partial.`;
   }
 
   if (persistError && status !== "error" && status !== "disconnected" && status !== "syncing") {

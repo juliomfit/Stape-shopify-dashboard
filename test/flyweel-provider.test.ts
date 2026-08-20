@@ -39,7 +39,7 @@ test("normalizeInsightRow maps aliases and does not invent purchases", () => {
   );
   assert.equal(row.spend, 40);
   assert.equal(row.campaignName, "ASC Scaling");
-  assert.equal(row.purchases, 0);
+  assert.equal(row.purchases, null);
   assert.equal(row.date, "2026-08-01");
   assert.equal(parseYmdLoose("2026-08-01T12:00:00Z"), "2026-08-01");
   assert.equal(parseYmdLoose("08/14/2026"), "2026-08-14");

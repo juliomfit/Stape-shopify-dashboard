@@ -202,6 +202,7 @@ export async function ingestMetaRange(input: {
   let adsetSkip: string | undefined;
   let adSkip: string | undefined;
   let accountId = "";
+  let metricHealth: MetaInsightResult["metricHealth"];
   const steps: string[] = [];
   const now = new Date().toISOString();
   const deepIngest = shouldFetchDeepMetaInsights(provider.id);
@@ -234,6 +235,17 @@ export async function ingestMetaRange(input: {
         ad_valid_adset_id_rows: adGrain.valid_adset_id_rows,
         ad_valid_ad_id_rows: adGrain.valid_ad_id_rows,
         child_grain_verified: flyweelVerifiedChildGrain(),
+        ...(metricHealth
+          ? {
+              flyweel_metric_catalog_count: metricHealth.flyweel_metric_catalog_count,
+              flyweel_metrics_requested: metricHealth.flyweel_metrics_requested,
+              flyweel_metric_batches: metricHealth.flyweel_metric_batches,
+              flyweel_metrics_returned: metricHealth.flyweel_metrics_returned,
+              flyweel_unknown_metrics: metricHealth.flyweel_unknown_metrics,
+              campaign_rows: metricHealth.campaign_rows,
+              flyweel_metric_coverage: metricHealth.coverage,
+            }
+          : {}),
       }),
       ...extra,
     };
@@ -314,6 +326,12 @@ export async function ingestMetaRange(input: {
       };
       campaign.rows = campaignAccepted.rows;
       campaignRowCount += campaignAccepted.count;
+      if (campaign.metricHealth) {
+        metricHealth = campaign.metricHealth;
+        if (campaign.metricHealth.coverage !== "full") {
+          steps.push(`extended-meta-metrics-${campaign.metricHealth.coverage}`);
+        }
+      }
       let adset: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
       let ad: MetaInsightResult = { rows: [], actions: [], requests: 0, splits: 0, truncated: false };
       const deep = shouldFetchDeepMetaInsights(provider.id);
