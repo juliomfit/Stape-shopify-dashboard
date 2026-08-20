@@ -7,12 +7,12 @@ import { finishSyncRun, startSyncRun, type SyncRun } from "@/lib/platform/sync-r
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { isStapeConfigured } from "@/lib/stape/config";
 import { invalidateCachedSources } from "@/lib/cache/invalidate";
+import type { CachedSource, InvalidationMode } from "@/lib/cache/tags";
 import {
   googleAdsApiConfigured,
   googleAdsEnvTotalsConfigured,
   googleAdsIsConfigured,
 } from "@/lib/platform/google-health";
-import type { InvalidationSource } from "@/lib/cache/tags";
 
 export type ScheduledSyncResult = {
   ok: boolean;
@@ -20,8 +20,8 @@ export type ScheduledSyncResult = {
   run: SyncRun | MetaSyncResult["run"];
 };
 
-async function invalidate(source: InvalidationSource) {
-  await invalidateCachedSources(source);
+async function invalidate(source: CachedSource, mode: InvalidationMode) {
+  await invalidateCachedSources(source, { mode });
 }
 
 async function googleAdsRefreshConfigured() {
@@ -34,11 +34,15 @@ async function googleAdsRefreshConfigured() {
   });
 }
 
-export async function runScheduledSync(source: string): Promise<ScheduledSyncResult> {
+export async function runScheduledSync(
+  source: string,
+  options: { invalidation?: InvalidationMode } = {},
+): Promise<ScheduledSyncResult> {
+  const invalidation = options.invalidation ?? "hard";
   if (source === "meta") {
     const result = await syncMetaHourly();
     if (result.ok) {
-      await invalidate("meta");
+      await invalidate("meta", invalidation);
     }
     return result;
   }
@@ -52,7 +56,7 @@ export async function runScheduledSync(source: string): Promise<ScheduledSyncRes
     }
     const run = await syncGa4Hourly();
     if (run.status !== "failed") {
-      await invalidate("ga4");
+      await invalidate("ga4", invalidation);
     }
     return { ok: run.status !== "failed", message: run.error_message || "GA4 sync finished.", run };
   }
@@ -66,7 +70,7 @@ export async function runScheduledSync(source: string): Promise<ScheduledSyncRes
     }
     const run = await syncGoogleAdsPlaceholder();
     if (run.status !== "failed") {
-      await invalidate("google_ads");
+      await invalidate("google_ads", invalidation);
     }
     return {
       ok: run.status !== "failed",
@@ -84,7 +88,7 @@ export async function runScheduledSync(source: string): Promise<ScheduledSyncRes
     }
     const run = await syncStapeHealth();
     if (run.status !== "failed") {
-      await invalidate("stape");
+      await invalidate("stape", invalidation);
     }
     return { ok: run.status !== "failed", message: run.error_message || "Stape health recorded.", run };
   }
@@ -97,7 +101,7 @@ export async function runScheduledSync(source: string): Promise<ScheduledSyncRes
       });
       return { ok: false, message: finished.error_message || "Shopify missing.", run: finished };
     }
-    await invalidate("shopify");
+    await invalidate("shopify", invalidation);
     const { getShopifyOverviewForPeriod } = await import("@/lib/shopify/get-overview-metrics");
     const period = await getSelectedPeriod();
     const warmed = await getShopifyOverviewForPeriod(period);
@@ -126,22 +130,23 @@ export async function runScheduledSync(source: string): Promise<ScheduledSyncRes
   }
   if (source === "all") {
     const parts: string[] = [];
-    const meta = await runScheduledSync("meta");
+    const nested = { invalidation };
+    const meta = await runScheduledSync("meta", nested);
     parts.push(`Meta ${meta.ok ? "ok" : "failed"}`);
     if (getGa4Config()) {
-      const ga4 = await runScheduledSync("ga4");
+      const ga4 = await runScheduledSync("ga4", nested);
       parts.push(`GA4 ${ga4.ok ? "ok" : "failed"}`);
     }
     if (await googleAdsRefreshConfigured()) {
-      const google = await runScheduledSync("google_ads");
+      const google = await runScheduledSync("google_ads", nested);
       parts.push(`Google Ads ${google.ok ? "ok" : "skipped/failed"}`);
     }
     if (isStapeConfigured()) {
-      const stape = await runScheduledSync("stape");
+      const stape = await runScheduledSync("stape", nested);
       parts.push(`Stape ${stape.ok ? "ok" : "failed"}`);
     }
     if (isShopifyConfigured()) {
-      const shopify = await runScheduledSync("shopify");
+      const shopify = await runScheduledSync("shopify", nested);
       parts.push(`Shopify ${shopify.ok ? "ok" : "failed"}`);
     }
     return {

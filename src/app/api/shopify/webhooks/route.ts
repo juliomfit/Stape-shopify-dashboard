@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { getShopifyConfig } from "@/lib/shopify/config";
 import { finishSyncRun, startSyncRun } from "@/lib/platform/sync-runs";
 import { revalidatePath } from "next/cache";
+import { invalidateCachedSources } from "@/lib/cache/invalidate";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     syncType: `webhook:${topic}`,
   });
   await finishSyncRun(run, { status: "completed", records_inserted: 1 });
+  await invalidateCachedSources("shopify", { mode: "hard" });
   revalidatePath("/", "layout");
   return NextResponse.json({ ok: true });
 }

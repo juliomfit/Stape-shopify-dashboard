@@ -41,11 +41,11 @@ export async function POST(request: Request) {
     if (body.startDate && body.endDate) {
       const result = await syncMetaBackfill(body.startDate, body.endDate);
       if (result.ok) {
-        await invalidateCachedSources("meta");
+        await invalidateCachedSources("meta", { mode: "hard" });
       }
       return jsonResult(result);
     }
-    return jsonResult(await runScheduledSync(body.source || "meta"));
+    return jsonResult(await runScheduledSync(body.source || "meta", { invalidation: "hard" }));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Meta sync failed.";
     return jsonError(message);

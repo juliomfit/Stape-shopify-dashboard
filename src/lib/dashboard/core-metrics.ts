@@ -57,6 +57,8 @@ export async function getCoreDashboardForPeriod(period: Awaited<ReturnType<typeo
       CACHE_TAGS.shopify,
       CACHE_TAGS.stape,
       CACHE_TAGS.meta,
+      CACHE_TAGS.cogs,
+      CACHE_TAGS.paste,
     ],
     loader: "core_dashboard",
     period: `${period.startDate}..${period.endDate}`,

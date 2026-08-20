@@ -75,7 +75,7 @@ export async function getDataHealth(): Promise<SourceHealth[]> {
     const period = await getSelectedPeriod();
     return cachedLoad({
       key: ["data-health", ...periodCacheKey(period)],
-      tags: [CACHE_TAGS.health, CACHE_TAGS.dashboardCore, CACHE_TAGS.meta],
+      tags: [CACHE_TAGS.health, CACHE_TAGS.dashboardCore, CACHE_TAGS.meta, CACHE_TAGS.paste],
       loader: "health",
       period: `${period.startDate}..${period.endDate}`,
       fn: () => loadDataHealth(period),

@@ -50,7 +50,7 @@ export const getPlatformReported = cache(
   async (period: DashboardPeriod): Promise<PlatformReported> => {
     return cachedLoad({
       key: ["platform-reported", ...periodCacheKey(period)],
-      tags: [CACHE_TAGS.meta, CACHE_TAGS.dashboardCore],
+      tags: [CACHE_TAGS.meta, CACHE_TAGS.dashboardCore, CACHE_TAGS.paste],
       loader: "platform_reported",
       period: `${period.startDate}..${period.endDate}`,
       fn: () => loadPlatformReported(period),
