@@ -53,8 +53,52 @@ export type OurCampaignRow = {
   mappingStatus: typeof CAMPAIGN_MAPPING_STATUS | CampaignMappingMethod;
 };
 
+/**
+ * Conservative form-decode for campaign/ad names. Does not throw on
+ * malformed percent-encoding. Does not mutate warehouse source values.
+ */
+export function decodeFormEncodedName(value: string | null | undefined): string {
+  const plusAsSpace = String(value ?? "").replace(/\+/g, " ");
+  try {
+    return decodeURIComponent(plusAsSpace);
+  } catch {
+    return plusAsSpace.replace(/%([0-9A-Fa-f]{2})/g, (match) => {
+      try {
+        return decodeURIComponent(match);
+      } catch {
+        return match;
+      }
+    });
+  }
+}
+
+/** Name-fallback join key only. Unique canonical name → PARTIAL, never HIGH. */
+export function canonicalCampaignName(value: string | null | undefined): string {
+  return decodeFormEncodedName(value).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export function displayCampaignName(value: string | null | undefined): string {
+  const decoded = decodeFormEncodedName(value).trim().replace(/\s+/g, " ");
+  return decoded || String(value ?? "");
+}
+
+export function displayAdsetName(value: string | null | undefined): string {
+  return displayCampaignName(value);
+}
+
+export function displayAdName(value: string | null | undefined): string {
+  return displayCampaignName(value);
+}
+
+export function shortenId(id: string | null | undefined): string {
+  const raw = String(id ?? "").trim();
+  if (!raw) return "";
+  if (raw.length <= 12) return raw;
+  return `${raw.slice(0, 8)}…${raw.slice(-4)}`;
+}
+
 function norm(value: string) {
-  return value.trim().toLowerCase();
+  return canonicalCampaignName(value);
 }
 
 type MetaAgg = {
@@ -175,6 +219,25 @@ function emptyOurRow(
  * Attributed nCAC is only computed when mapping confidence is HIGH or PARTIAL.
  * Name fallback is legacy — prefer gn_meta_campaign_id once it exists.
  */
+function applyOurCredit(
+  row: OurCampaignRow,
+  ours: CampaignMapOurRow,
+  spend: number,
+  metaRevenue: number,
+  newCustomerCredit: number,
+) {
+  row.ourOrders += ours.orders;
+  row.ourRevenue += ours.revenue;
+  row.ourRoas = ratio(row.ourRevenue, spend);
+  const mappingReliable =
+    row.mappingConfidence === "HIGH" || row.mappingConfidence === "PARTIAL";
+  row.attributedNcac = mappingReliable
+    ? attributedNcac(spend, newCustomerCredit)
+    : null;
+  row.differencePct =
+    metaRevenue > 0 ? (row.ourRevenue - metaRevenue) / metaRevenue : null;
+}
+
 export function joinMetaAndOurCampaigns(
   metaFacts: CampaignMapMetaFact[],
   ourRows: CampaignMapOurRow[],
@@ -183,17 +246,27 @@ export function joinMetaAndOurCampaigns(
   const meta = aggregateMeta(metaFacts);
   const usedIds = new Set<string>();
   const rows: OurCampaignRow[] = [];
+  const rowByMetaId = new Map<string, OurCampaignRow>();
+  const ncByMetaId = new Map<string, number>();
 
   for (const ours of ourRows) {
     const resolved = resolveCampaignMapping(ours.campaign, meta);
+    const nc = newCustomerCreditByCampaign[ours.campaign] ?? 0;
     if (!resolved.meta) {
       rows.push(emptyOurRow(ours.campaign || "(unmapped)", ours, resolved.method));
+      continue;
+    }
+    const existing = rowByMetaId.get(resolved.meta.campaignId);
+    if (existing) {
+      const nextNc = (ncByMetaId.get(resolved.meta.campaignId) ?? 0) + nc;
+      ncByMetaId.set(resolved.meta.campaignId, nextNc);
+      applyOurCredit(existing, ours, existing.spend, existing.metaRevenue, nextNc);
       continue;
     }
     usedIds.add(resolved.meta.campaignId);
     const mappingReliable =
       resolved.confidence === "HIGH" || resolved.confidence === "PARTIAL";
-    rows.push({
+    const row: OurCampaignRow = {
       campaignId: resolved.meta.campaignId,
       campaignName: resolved.meta.campaignName,
       spend: resolved.meta.spend,
@@ -202,24 +275,23 @@ export function joinMetaAndOurCampaigns(
       metaPurchases: resolved.meta.purchases,
       metaRevenue: resolved.meta.revenue,
       metaRoas: platformRoas(resolved.meta.revenue, resolved.meta.spend),
-      ourOrders: ours.orders,
-      ourRevenue: ours.revenue,
-      ourRoas: ratio(ours.revenue, resolved.meta.spend),
-      attributedNcac: mappingReliable
-        ? attributedNcac(
-            resolved.meta.spend,
-            newCustomerCreditByCampaign[ours.campaign] ?? null,
-          )
-        : null,
-      differencePct:
-        resolved.meta.revenue > 0
-          ? (ours.revenue - resolved.meta.revenue) / resolved.meta.revenue
-          : null,
+      ourOrders: 0,
+      ourRevenue: 0,
+      ourRoas: null,
+      attributedNcac: null,
+      differencePct: null,
       mapped: true,
       mappingMethod: resolved.method,
       mappingConfidence: resolved.confidence,
       mappingStatus: resolved.method,
-    });
+    };
+    ncByMetaId.set(resolved.meta.campaignId, nc);
+    applyOurCredit(row, ours, resolved.meta.spend, resolved.meta.revenue, nc);
+    if (!mappingReliable) {
+      row.attributedNcac = null;
+    }
+    rowByMetaId.set(resolved.meta.campaignId, row);
+    rows.push(row);
   }
 
   for (const [id, fact] of meta.byId) {
@@ -284,4 +356,37 @@ export function campaignMappingUiLabel(
   summary: ReturnType<typeof campaignMappingSummary>,
 ): string {
   return formatMappingCoverageLabel(campaignMappingUiStatus(summary));
+}
+
+export type CampaignMappingBadge = {
+  label: string;
+  confidence: CampaignMappingConfidence;
+};
+
+export function campaignMappingBadge(row: OurCampaignRow): CampaignMappingBadge {
+  if (row.mappingMethod === "campaign_id_exact") {
+    return { label: "Exact ID", confidence: "HIGH" };
+  }
+  if (row.mappingMethod === "campaign_name_exact_unique") {
+    return { label: "Name match", confidence: "PARTIAL" };
+  }
+  if (row.mappingMethod === "ambiguous_name") {
+    return { label: "Ambiguous", confidence: "NONE" };
+  }
+  return { label: "Needs mapping", confidence: "NONE" };
+}
+
+export function partitionCampaignRows(rows: OurCampaignRow[]) {
+  const matched = rows.filter((row) => row.mapped);
+  const needsMapping = rows.filter((row) => !row.mapped);
+  const platformOnly = needsMapping.filter(
+    (row) => row.spend > 0 && row.ourRevenue <= 0 && row.ourOrders <= 0,
+  );
+  const ourOnly = needsMapping.filter(
+    (row) =>
+      row.mappingMethod === "unmapped" &&
+      (row.ourRevenue > 0 || row.ourOrders > 0),
+  );
+  const ambiguous = needsMapping.filter((row) => row.mappingMethod === "ambiguous_name");
+  return { matched, needsMapping, platformOnly, ourOnly, ambiguous };
 }

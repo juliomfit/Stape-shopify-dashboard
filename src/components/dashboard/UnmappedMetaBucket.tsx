@@ -26,9 +26,9 @@ export function UnmappedMetaBucket({
     <article className="rounded-2xl border border-border bg-surface p-4 shadow-sm lg:p-6">
       <h2 className="text-sm font-semibold text-foreground">{UNMAPPED_META_LABEL}</h2>
       <p className="mt-1 text-xs leading-5 text-muted">
-        Unmapped Meta credit is not missing money. Child tables only show the
-        mapped slice. Equality to the parent holds only when mapping coverage is
-        100%.
+        Unmapped Meta credit is not missing money. First-party child tables show
+        observed IDs. Equality to the parent holds when unidentified and ID-conflict
+        buckets are included.
       </p>
       <ul className="mt-4 space-y-2 text-sm">
         <li className="flex justify-between gap-4">
@@ -46,7 +46,7 @@ export function UnmappedMetaBucket({
           <span>{money(campaignUnmapped)}</span>
         </li>
         <li className="flex justify-between gap-4">
-          <span>Ad-set-mapped</span>
+          <span>Ad-set observed (first-party)</span>
           <span>{money(adsetMappedRevenue)}</span>
         </li>
         <li className="flex justify-between gap-4">
@@ -54,7 +54,7 @@ export function UnmappedMetaBucket({
           <span>{money(adsetUnmapped)}</span>
         </li>
         <li className="flex justify-between gap-4">
-          <span>Ad-mapped</span>
+          <span>Ad observed (first-party)</span>
           <span>{money(adMappedRevenue)}</span>
         </li>
         <li className="flex justify-between gap-4">

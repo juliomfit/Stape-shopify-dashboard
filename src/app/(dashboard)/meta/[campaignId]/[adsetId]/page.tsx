@@ -2,21 +2,21 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
-import { MetaEntityTable } from "@/components/dashboard/MetaEntityTable";
-import { OurGrainTable } from "@/components/dashboard/OurGrainTable";
+import { MetricCard } from "@/components/dashboard/MetricCard";
+import { ObservedAdTable } from "@/components/dashboard/ObservedChildTable";
+import { ObservedBarChart } from "@/components/dashboard/MetaAnalyticsChart";
 import { OurAttributedOrders } from "@/components/dashboard/OurAttributedOrders";
+import { CopyIdButton } from "@/components/dashboard/CopyIdButton";
+import { FirstPartyIdBadge } from "@/components/dashboard/MetaSourceBadges";
 import { Header } from "@/components/layout/Header";
 import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
-import {
-  FLYWEEL_PARTIAL_HEALTHY_MESSAGE,
-  flyweelCampaignOnlyWarning,
-} from "@/lib/ads/providers/config";
+import { flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
 import {
   getAdFacts,
   getAdsetFacts,
   getCampaignFacts,
   getAdCreativeMap,
-  rollupAds,
+  rollupCampaigns,
 } from "@/lib/ads/meta-query";
 import { getSelectedPeriod } from "@/lib/period-server";
 import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
@@ -28,7 +28,9 @@ import {
   buildMetaFactIndexes,
   metaCreditForOrders,
 } from "@/lib/attribution/meta-credit";
-
+import { adsetLabel, rollupObservedMetaChildren } from "@/lib/attribution/observed-meta-grain";
+import { displayCampaignName, shortenId } from "@/lib/attribution/campaign-map";
+import { formatMoney, formatNumber } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Meta ads" };
 
@@ -39,16 +41,15 @@ export default async function MetaAdsetPage({
 }) {
   const { campaignId, adsetId } = await params;
   const period = await getSelectedPeriod();
-  const [ads, campaignFacts, adsetFacts, allAdFacts, creativeByAdId, connection] = await Promise.all([
-    getAdFacts(period, { campaignId, adsetId }).catch(() => []),
+  const [campaignFacts, adsetFacts, allAdFacts, creativeByAdId, connection] = await Promise.all([
     getCampaignFacts(period).catch(() => []),
     getAdsetFacts(period, campaignId).catch(() => []),
     getAdFacts(period, { campaignId }).catch(() => []),
     getAdCreativeMap().catch(() => new Map<string, string>()),
     getMetaConnectionPublic().catch(() => ({ provider: "none" as const })),
   ]);
-  const childGrainUnavailable = Boolean(flyweelCampaignOnlyWarning(connection.provider));
-  const rolled = rollupAds(ads);
+  const platformChildUnavailable = Boolean(flyweelCampaignOnlyWarning(connection.provider));
+  const campaign = rollupCampaigns(campaignFacts).find((row) => row.id === campaignId);
   const currency = "USD";
 
   let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
@@ -82,66 +83,92 @@ export default async function MetaAdsetPage({
     windowDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
     indexes,
   });
-  const ourByAd = new Map(metaOur.byAd.map((row) => [row.key, row]));
-  const showOurAds = ourByAd.size > 0;
-  const adsetCredits = metaOur.credits.filter((credit) => credit.metaAdsetId === adsetId);
+  const adsetCredits = metaOur.credits.filter(
+    (credit) => credit.observedAdsetId === adsetId || credit.metaAdsetId === adsetId,
+  );
+  const observed = rollupObservedMetaChildren(adsetCredits);
   const ordersById = new Map(canonical.map((order) => [order.transactionId, order]));
+  const title = adsetLabel(adsetId);
 
   return (
     <>
       <Header
-        title="Ads"
-        description={`Ads in ad set ${adsetId}. PLATFORM = Ads Manager. OUR ad credit requires exact ad_id. ${period.label}.`}
+        title={title}
+        description={`GoodsNova first-party ads under this ad set. ${period.label}.`}
       />
       <section className="dash-page gap-6">
         <p className="text-sm text-muted">
           <Link prefetch={false} href={`/meta/${campaignId}`} className="text-accent hover:underline">
-            ← Ad sets
+            ← {displayCampaignName(campaign?.name || "Campaign")}
           </Link>
           {" · "}
           <Link prefetch={false} href="/meta/creatives" className="text-accent hover:underline">
             Creatives
           </Link>
         </p>
-        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-foreground">Ads · platform</h2>
-          <div className="mt-4">
-            <MetaEntityTable
-              rows={rolled}
-              emptyTitle="No ads in the warehouse"
-              emptyWhy="Flyweel campaign ingest does not write ad-level rows. Thumbnails need Meta Graph later. Use Creatives for campaign CPA in this period."
-              emptyNext={[
-                { kind: "href", href: "/meta/creatives", label: "Creatives" },
-                { kind: "href", href: `/meta/${campaignId}`, label: "Campaign" },
-              ]}
-            />
-          </div>
-        </article>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+          {shortenId(adsetId)}
+          <CopyIdButton value={adsetId} />
+          <FirstPartyIdBadge />
+        </div>
         {ourError ? (
           <EmptyPanel title="OUR ad attribution unavailable" description={ourError} />
-        ) : childGrainUnavailable ? (
-          <EmptyPanel
-            title="Ad facts unavailable"
-            description={FLYWEEL_PARTIAL_HEALTHY_MESSAGE}
-          />
         ) : (
-          <OurGrainTable
-            title="Ads · OUR (exact ad_id only)"
-            grain="ad"
-            platformRows={rolled}
-            ourById={ourByAd}
-            currencyCode={currency}
-            showOur={showOurAds}
-          />
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                label="OUR revenue"
+                source="GoodsNova attribution"
+                value={formatMoney({ amount: observed.parentRevenue, currencyCode: currency })}
+              />
+              <MetricCard
+                label="OUR orders"
+                source="Existing model credit"
+                value={formatNumber(Math.round(observed.parentAttributedOrders * 10) / 10)}
+              />
+              <MetricCard
+                label="New customer credit"
+                source="Fractional new-customer credit"
+                value={formatNumber(
+                  Math.round(
+                    adsetCredits.reduce((sum, credit) => sum + credit.newCustomerCredit, 0) * 100,
+                  ) / 100,
+                )}
+              />
+              <MetricCard
+                label="Ads observed"
+                source="First-party ad IDs"
+                value={formatNumber(observed.ads.length)}
+              />
+            </div>
+            <ObservedBarChart
+              title="OUR attributed revenue by ad"
+              rows={observed.ads.map((row) => ({
+                label: row.adLabel,
+                revenue: row.attributedRevenue,
+                orders: row.attributedOrders,
+              }))}
+              currencyCode={currency}
+              emptyLabel="No observed ad IDs in this ad set."
+            />
+            <ObservedAdTable
+              ads={observed.ads}
+              unidentified={observed.unidentifiedAd}
+              conflict={observed.conflict}
+              currencyCode={currency}
+              parentRevenue={observed.parentRevenue}
+            />
+            {platformChildUnavailable ? (
+              <p className="text-[11px] text-muted">Platform ad metrics unavailable from Flyweel.</p>
+            ) : null}
+            <OurAttributedOrders
+              title="Orders behind OUR ad-set revenue"
+              credits={adsetCredits}
+              ordersById={ordersById}
+              currencyCode={currency}
+            />
+          </>
         )}
-        {!ourError ? (
-          <OurAttributedOrders
-            title="Orders behind OUR ad-set revenue"
-            credits={adsetCredits}
-            ordersById={ordersById}
-            currencyCode={currency}
-          />
-        ) : null}
         <AskAiPanel
           viewContext={`Meta ads · campaign ${campaignId} · adset ${adsetId} · ${period.label}`}
         />

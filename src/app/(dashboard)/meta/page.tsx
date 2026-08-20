@@ -3,9 +3,8 @@ import Link from "next/link";
 import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { FlyweelKeyForm } from "@/components/dashboard/FlyweelKeyForm";
-import { MetaEntityTable } from "@/components/dashboard/MetaEntityTable";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { MetaPerformanceChart } from "@/components/dashboard/MetaPerformanceChart";
+import { MetaAnalyticsChart } from "@/components/dashboard/MetaAnalyticsChart";
 import { RefreshControls } from "@/components/dashboard/RefreshControls";
 import { Header } from "@/components/layout/Header";
 import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
@@ -13,7 +12,6 @@ import { resolveMetaClaim } from "@/lib/ads/resolve-meta-claim";
 import {
   dailyMetricSeries,
   getCampaignFacts,
-  rollupCampaigns,
   totalsFromFacts,
 } from "@/lib/ads/meta-query";
 import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
@@ -27,7 +25,8 @@ import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
 import { newCustomerCac, newCustomerRoas } from "@/lib/metrics/formulas";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
 import { OurCampaignTable } from "@/components/dashboard/OurCampaignTable";
-import { MetaMappingCoverage } from "@/components/dashboard/MetaMappingCoverage";
+import { MetaIdCoveragePanel } from "@/components/dashboard/MetaIdCoveragePanel";
+import { TopGrainCards } from "@/components/dashboard/TopGrainCards";
 import { UnmappedMetaBucket } from "@/components/dashboard/UnmappedMetaBucket";
 import { MetaIngestHealthPanel } from "@/components/dashboard/MetaIngestHealthPanel";
 import { joinMetaAndOurCampaigns } from "@/lib/attribution/campaign-map";
@@ -44,9 +43,13 @@ import { warehouseFinishErrorFromMetadata } from "@/lib/platform/sync-run-state"
 import {
   buildMetaFactIndexes,
   metaCreditForOrders,
-  summarizeMetaMapping,
 } from "@/lib/attribution/meta-credit";
-import { mappingCoverageStatus } from "@/lib/attribution/meta-ids";
+import {
+  dailyObservedMetaRevenue,
+  measureMetaIdCoverage,
+  rollupObservedMetaChildren,
+} from "@/lib/attribution/observed-meta-grain";
+import { ratio } from "@/lib/metrics/formulas";
 import { loggedFallback } from "@/lib/observability/loader-log";
 
 
@@ -141,7 +144,6 @@ async function renderMetaPage() {
   const weekFacts =
     totals.spend > 0 ? [] : await getCampaignFacts(getDashboardPeriod("7d"));
   const weekTotals = totalsFromFacts(weekFacts);
-  const campaigns = rollupCampaigns(facts);
   const days = pacificDaysInRange(period.startDate, period.endDate);
   const currency = "USD";
   const viewContext = `Meta Ads · ${period.label} · ${period.startDate} to ${period.endDate}`;
@@ -180,21 +182,30 @@ async function renderMetaPage() {
     windowDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
     indexes,
   });
-  const mappingSummary = summarizeMetaMapping(
-    metaOur.credits,
-    canonical.flatMap((order) => order.touches),
-  );
-  const mappingStatus = mappingCoverageStatus({
-    highIdMappedTouches: mappingSummary.highIdCampaign,
-    nameFallbackTouches: mappingSummary.legacyName,
-    unmappedTouches: mappingSummary.unmappedCampaign + mappingSummary.ambiguous,
+  const observed = rollupObservedMetaChildren(metaOur.credits);
+  const idCoverage = measureMetaIdCoverage({
+    touches: canonical.flatMap((order) => order.touches),
+    credits: metaOur.credits,
   });
+  const ourDaily = dailyObservedMetaRevenue(metaOur.credits, days, "campaign");
+  const ourRoas = ratio(observed.parentRevenue, claimed.spend);
+  const campaignRows = joinMetaAndOurCampaigns(
+    facts,
+    attrWarehouse?.campaigns.filter(
+      (row: { channel: string }) => row.channel === "Facebook / Meta Ads",
+    ) ?? [],
+    newCustomerCreditByCampaign(
+      canonical,
+      "last_non_direct",
+      DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    ),
+  );
 
   return (
     <>
       <Header
         title="Meta Ads"
-        description="Platform-attributed Meta reporting (Ads Manager matching) plus OUR first-party campaign/ad-set/ad enrichment when deterministic IDs exist. Timezone America/Los_Angeles."
+        description="Platform campaign reporting from Flyweel with GoodsNova first-party attribution down to ad set and ad when captured."
       />
       <section className="dash-page gap-6">
         <p className="text-xs text-muted">
@@ -282,10 +293,10 @@ async function renderMetaPage() {
           providerId={connection.provider}
           counts={ingestCounts}
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
             label="Spend"
-            source={claimed.message || "Meta insights · platform warehouse"}
+            source="Meta platform · Flyweel · campaign level"
             value={
               claimed.spend === null
                 ? null
@@ -293,8 +304,8 @@ async function renderMetaPage() {
             }
           />
           <MetricCard
-            label="Purchase value"
-            source="Meta actions purchase value · platform"
+            label="Meta revenue"
+            source="Meta platform purchase value"
             value={
               claimed.revenue === null
                 ? null
@@ -302,106 +313,61 @@ async function renderMetaPage() {
             }
           />
           <MetricCard
-            label="Purchases"
-            source="Meta attributed purchases · not Shopify gn_*"
+            label="OUR attributed revenue"
+            source="GoodsNova first-party attribution"
             value={
-              claimed.purchases === null ? null : formatNumber(claimed.purchases)
+              ourAttributionError
+                ? null
+                : formatMoney({ amount: observed.parentRevenue, currencyCode: currency })
             }
           />
           <MetricCard
-            label="ROAS"
-            source="Purchase value ÷ spend"
+            label="Meta ROAS"
+            source="Meta purchase value ÷ spend"
             value={totals.roas === null ? null : `${totals.roas.toFixed(2)}x`}
           />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="CPA"
-            source="Spend ÷ purchases"
-            value={
-              totals.cpa === null
-                ? null
-                : formatMoney({ amount: totals.cpa, currencyCode: currency })
-            }
+            label="OUR ROAS"
+            source="OUR Meta revenue ÷ Flyweel campaign spend"
+            value={ourAttributionError || ourRoas == null ? null : `${ourRoas.toFixed(2)}x`}
           />
           <MetricCard
-            label="CPM"
-            source="Spend / impressions × 1000"
+            label="OUR attributed orders"
+            source="Existing model credit"
             value={
-              totals.cpm === null
+              ourAttributionError
                 ? null
-                : formatMoney({ amount: totals.cpm, currencyCode: currency })
-            }
-          />
-          <MetricCard
-            label="CTR"
-            source="Clicks ÷ impressions"
-            value={totals.ctr === null ? null : formatPercent(totals.ctr)}
-          />
-          <MetricCard
-            label="CPC"
-            source="Spend ÷ clicks"
-            value={
-              totals.cpc === null
-                ? null
-                : formatMoney({ amount: totals.cpc, currencyCode: currency })
+                : formatNumber(Math.round(observed.parentAttributedOrders * 10) / 10)
             }
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Blended nCAC (Meta is current paid spend source)"
-            source="Meta spend ÷ Shopify new-customer orders (store-wide, not Meta-attributed new customers)"
-            value={
-              metaNcCac === null
-                ? null
-                : formatMoney({ amount: metaNcCac, currencyCode: currency })
+        {ourAttributionError ? null : (
+          <TopGrainCards
+            currencyCode={currency}
+            topAdset={
+              observed.adsets[0]
+                ? {
+                    label: observed.adsets[0].adsetLabel,
+                    revenue: observed.adsets[0].attributedRevenue,
+                    orders: observed.adsets[0].attributedOrders,
+                  }
+                : null
             }
-          />
-          <MetricCard
-            label="New-customer ROAS (store-wide)"
-            source="Shopify new-customer revenue ÷ Meta spend. Not Meta-attributed new-customer ROAS."
-            value={metaNcRoas === null ? null : `${metaNcRoas.toFixed(2)}x`}
-          />
-          <MetricCard
-            label="New-customer orders"
-            source="Shopify numberOfOrders ≤ 1 · not Meta new-customer conversions"
-            value={
-              shopifyConnected && alignedShopify
-                ? formatNumber(alignedShopify.newCustomerOrders)
+            topAd={
+              observed.ads[0]
+                ? {
+                    label: observed.ads[0].adLabel,
+                    revenue: observed.ads[0].attributedRevenue,
+                    orders: observed.ads[0].attributedOrders,
+                  }
                 : null
             }
           />
-          <MetricCard
-            label="Returning-customer orders"
-            source="Shopify numberOfOrders > 1 · store-wide"
-            value={
-              shopifyConnected && alignedShopify
-                ? formatNumber(alignedShopify.returningCustomerOrders)
-                : null
-            }
-          />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <MetricCard
-            label="Reach"
-            source="Do not sum reach across ads"
-            value={facts.length || claimed.spend === 0 ? formatNumber(totals.reach) : null}
-          />
-          <MetricCard
-            label="Impressions"
-            source="Campaign-level insights"
-            value={facts.length || claimed.spend === 0 ? formatNumber(totals.impressions) : null}
-          />
-          <MetricCard
-            label="Frequency"
-            source="Reach / impressions at campaign grain"
-            value={facts.length || claimed.spend === 0 ? totals.frequency.toFixed(2) : null}
-          />
-        </div>
-        <MetaPerformanceChart
+        )}
+        {ourAttributionError ? null : <MetaIdCoveragePanel coverage={idCoverage} />}
+        <MetaAnalyticsChart
           days={days}
-          series={{
+          platformSeries={{
             spend: dailyMetricSeries(facts, days, "spend"),
             purchase_value: dailyMetricSeries(facts, days, "purchase_value"),
             purchases: dailyMetricSeries(facts, days, "purchases"),
@@ -412,27 +378,91 @@ async function renderMetaPage() {
             cpc: dailyMetricSeries(facts, days, "cpc"),
             frequency: dailyMetricSeries(facts, days, "frequency"),
           }}
+          ourDailyRevenue={ourDaily.map((point) => point.revenue)}
+          ourDailyOrders={ourDaily.map((point) => point.orders)}
+          campaignBars={observed.campaigns.map((row) => ({
+            label: row.campaignLabel,
+            revenue: row.attributedRevenue,
+            orders: row.attributedOrders,
+          }))}
+          adsetBars={observed.adsets.map((row) => ({
+            label: row.adsetLabel,
+            revenue: row.attributedRevenue,
+            orders: row.attributedOrders,
+          }))}
+          adBars={observed.ads.map((row) => ({
+            label: row.adLabel,
+            revenue: row.attributedRevenue,
+            orders: row.attributedOrders,
+          }))}
         />
-        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-foreground">Campaigns</h2>
-        <p className="mt-1 text-xs text-muted">
-          Click a campaign for ad sets. Sorted by spend.{" "}
+        <p className="text-xs text-muted">
           <Link prefetch={false} className="underline" href="/meta/creatives">
-            Creatives
+            Creatives / content
           </Link>
-          . The table below is <strong>Meta platform ad performance</strong>{" "}
-          (Ads Manager matching). OUR tables underneath use the same model
-          credit, enriched with gn_meta_* IDs when present. Unmapped Meta credit
-          is kept visible.
+          {" · labeled from utm_content / ad name when captured, not a Meta creative ID unless Flyweel supplies one."}
         </p>
-          <div className="mt-4">
-            <MetaEntityTable
-              rows={campaigns}
-              currency={currency}
-              hrefPrefix="/meta"
+        <details>
+          <summary className="cursor-pointer text-xs text-muted">More platform metrics</summary>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              label="CPA"
+              source="Spend ÷ purchases"
+              value={
+                totals.cpa === null
+                  ? null
+                  : formatMoney({ amount: totals.cpa, currencyCode: currency })
+              }
+            />
+            <MetricCard
+              label="CPM"
+              source="Spend / impressions × 1000"
+              value={
+                totals.cpm === null
+                  ? null
+                  : formatMoney({ amount: totals.cpm, currencyCode: currency })
+              }
+            />
+            <MetricCard
+              label="CTR"
+              source="Clicks ÷ impressions"
+              value={totals.ctr === null ? null : formatPercent(totals.ctr)}
+            />
+            <MetricCard
+              label="CPC"
+              source="Spend ÷ clicks"
+              value={
+                totals.cpc === null
+                  ? null
+                  : formatMoney({ amount: totals.cpc, currencyCode: currency })
+              }
+            />
+            <MetricCard
+              label="Blended nCAC (Meta is current paid spend source)"
+              source="Meta spend ÷ Shopify new-customer orders (store-wide, not Meta-attributed new customers)"
+              value={
+                metaNcCac === null
+                  ? null
+                  : formatMoney({ amount: metaNcCac, currencyCode: currency })
+              }
+            />
+            <MetricCard
+              label="New-customer ROAS (store-wide)"
+              source="Shopify new-customer revenue ÷ Meta spend. Not Meta-attributed new-customer ROAS."
+              value={metaNcRoas === null ? null : `${metaNcRoas.toFixed(2)}x`}
+            />
+            <MetricCard
+              label="Reach"
+              source="Do not sum reach across ads"
+              value={facts.length || claimed.spend === 0 ? formatNumber(totals.reach) : null}
+            />
+            <MetricCard
+              label="Impressions"
+              source="Campaign-level insights"
+              value={facts.length || claimed.spend === 0 ? formatNumber(totals.impressions) : null}
             />
           </div>
-        </article>
+        </details>
         {ourAttributionError ? (
           <EmptyPanel
             title="OUR campaign attribution unavailable"
@@ -440,37 +470,14 @@ async function renderMetaPage() {
           />
         ) : (
           <>
-            <MetaMappingCoverage
-              status={mappingStatus}
-              channelHealthy={metaOur.channelCredit > 0}
-              campaignHighId={mappingSummary.highIdCampaign}
-              campaignLegacyName={mappingSummary.legacyName}
-              campaignUnmapped={mappingSummary.unmappedCampaign + mappingSummary.ambiguous}
-              adsetMapped={mappingSummary.adsetMapped}
-              adMapped={mappingSummary.adMapped}
-              metaTouches={mappingSummary.metaTouches}
-            />
             <UnmappedMetaBucket
               currencyCode={currency}
               channelRevenue={metaOur.channelCredit}
               campaignMappedRevenue={metaOur.campaignMappedCredit}
-              adsetMappedRevenue={metaOur.adsetMappedCredit}
-              adMappedRevenue={metaOur.adMappedCredit}
+              adsetMappedRevenue={observed.adsets.reduce((sum, row) => sum + row.attributedRevenue, 0)}
+              adMappedRevenue={observed.ads.reduce((sum, row) => sum + row.attributedRevenue, 0)}
             />
-            <OurCampaignTable
-              rows={joinMetaAndOurCampaigns(
-                facts,
-                attrWarehouse?.campaigns.filter(
-                  (row: { channel: string }) => row.channel === "Facebook / Meta Ads",
-                ) ?? [],
-                newCustomerCreditByCampaign(
-                  canonical,
-                  "last_non_direct",
-                  DEFAULT_ATTRIBUTION_WINDOW_DAYS,
-                ),
-              )}
-              currencyCode={currency}
-            />
+            <OurCampaignTable rows={campaignRows} currencyCode={currency} />
           </>
         )}
         <AskAiPanel viewContext={viewContext} />
