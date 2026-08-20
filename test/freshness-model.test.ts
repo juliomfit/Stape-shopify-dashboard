@@ -182,13 +182,15 @@ test("campaign-shaped rows cannot masquerade as adset or ad data", () => {
 });
 
 test("production freshness crons are independent and not sequential sync-all", () => {
-  assert.equal(SOURCE_SCHEDULES.meta.cron, "*/5 * * * *");
+  assert.equal(SOURCE_SCHEDULES.meta.cron, "0 14 * * *");
+  assert.equal(SOURCE_SCHEDULES.shopify.cron, "0 15 * * *");
   const vercel = readFileSync("vercel.json", "utf8");
   assert.match(vercel, /\/api\/cron\/meta/);
   assert.match(vercel, /\/api\/cron\/shopify/);
   assert.match(vercel, /\/api\/cron\/ga4/);
   assert.match(vercel, /\/api\/cron\/stape/);
   assert.match(vercel, /\/api\/cron\/daily/);
+  assert.doesNotMatch(vercel, /"\*\/5 \* \* \* \*"/);
   assert.equal(vercel.includes("/api/cron/sync"), false);
   const daily = readFileSync("src/lib/platform/orchestrator.ts", "utf8");
   assert.match(daily, /runDailyReconciliation/);

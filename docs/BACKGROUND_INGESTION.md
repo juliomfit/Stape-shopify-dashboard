@@ -22,15 +22,15 @@ Production freshness uses **independent** jobs. `source=all` is admin-only (`GET
 
 | Job | Path | Cron (UTC) | maxDuration | What it does |
 |---|---|---|---|---|
-| Meta | `/api/cron/meta` | `*/5 * * * *` | 300s | Incremental Flyweel campaign insights (today + yesterday) |
-| Shopify | `/api/cron/shopify` | `1-59/5 * * * *` | 120s | Incremental MERGE into `analytics.fct_shopify_orders` (3-day overlap) |
-| GA4 | `/api/cron/ga4` | `3,18,33,48 * * * *` | 60s | Data API pull when `GA4_PROPERTY_ID` is set |
-| Stape | `/api/cron/stape` | `7 * * * *` | 60s | Health/freshness only — events already stream into BigQuery |
-| Daily recon | `/api/cron/daily` | `0 15 * * *` | 300s | Parallel Meta + Shopify 30-day overlap + GA4/Stape if configured |
+| Meta | `/api/cron/meta` | `0 14 * * *` | 300s | Incremental Flyweel campaign insights (today + yesterday) |
+| Shopify | `/api/cron/shopify` | `0 15 * * *` | 120s | Incremental MERGE into `analytics.fct_shopify_orders` (3-day overlap) |
+| GA4 | `/api/cron/ga4` | `0 16 * * *` | 60s | Data API pull when `GA4_PROPERTY_ID` is set |
+| Stape | `/api/cron/stape` | `0 17 * * *` | 60s | Health/freshness only — events already stream into BigQuery |
+| Daily recon | `/api/cron/daily` | `0 18 * * *` | 300s | Parallel Meta + Shopify 30-day overlap + GA4/Stape if configured |
 
 Stape is **not** an event backfill. Do not "sync" `raw_events_full` on a timer.
 
-If Vercel Hobby rejects `*/5`, the daily job still runs independent sources in parallel. This project already uses `maxDuration=300`, which is a Pro runtime.
+**Verified deploy limitation:** the connected Vercel Git integration rejected sub-daily expressions (`*/5`, hourly) at deploy time and linked the Hobby cron docs. Production freshness is therefore independent **daily** jobs, staggered by hour (Hobby may invoke anywhere inside the hour). Manual `POST /api/meta/refresh` still returns HTTP 202 immediately. Do not put `*/5` back in `vercel.json` until a Pro (or otherwise sub-daily) Vercel project actually accepts that deploy.
 
 Google Ads has no cron: the API is not wired.
 

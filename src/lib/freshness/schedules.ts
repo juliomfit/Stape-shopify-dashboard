@@ -13,35 +13,44 @@ export type SourceSchedule = {
 
 /**
  * Production freshness cadences. Independent jobs — never a sequential sync-all.
- * Vercel Pro supports every-5-minute crons. Hobby is daily-only; keep the daily recon job either way.
+ *
+ * Connected Vercel Git integration rejected sub-daily expressions at deploy
+ * time (Hobby: once per day). Keep each source on its own daily slot, staggered
+ * by hour because Hobby invocation can land anywhere in that hour.
+ *
+ * Pro unlock (do not ship until the Vercel project actually accepts it):
+ * Meta every 5 minutes, Shopify every 5 minutes staggered, GA4 every 15 minutes,
+ * Stape health hourly.
  */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export const SOURCE_SCHEDULES: Record<FreshnessSourceId, SourceSchedule> = {
   meta: {
     source: "meta",
     label: "Meta",
-    cron: "*/5 * * * *",
-    intervalMs: 5 * 60 * 1000,
+    cron: "0 14 * * *",
+    intervalMs: DAY_MS,
     maxDurationMs: 300 * 1000,
   },
   shopify: {
     source: "shopify",
     label: "Shopify",
-    cron: "1-59/5 * * * *",
-    intervalMs: 5 * 60 * 1000,
+    cron: "0 15 * * *",
+    intervalMs: DAY_MS,
     maxDurationMs: 120 * 1000,
   },
   ga4: {
     source: "ga4",
     label: "GA4",
-    cron: "3,18,33,48 * * * *",
-    intervalMs: 15 * 60 * 1000,
+    cron: "0 16 * * *",
+    intervalMs: DAY_MS,
     maxDurationMs: 60 * 1000,
   },
   stape: {
     source: "stape",
     label: "Stape / BigQuery",
-    cron: "7 * * * *",
-    intervalMs: 60 * 60 * 1000,
+    cron: "0 17 * * *",
+    intervalMs: DAY_MS,
     maxDurationMs: 60 * 1000,
     healthOnly: true,
   },
@@ -49,12 +58,12 @@ export const SOURCE_SCHEDULES: Record<FreshnessSourceId, SourceSchedule> = {
     source: "google_ads",
     label: "Google Ads",
     cron: "",
-    intervalMs: 24 * 60 * 60 * 1000,
+    intervalMs: DAY_MS,
     maxDurationMs: 60 * 1000,
   },
 };
 
-export const DAILY_RECON_CRON = "0 15 * * *";
+export const DAILY_RECON_CRON = "0 18 * * *";
 
 export const FRESHNESS_POLL_MS = 45_000;
 
@@ -85,4 +94,3 @@ export function nextExpectedSyncIso(
   const next = base + intervalMs;
   return new Date(Math.max(next, nowMs)).toISOString();
 }
-

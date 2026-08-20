@@ -53,7 +53,7 @@ Read-only: GoodsNova never calls `connect_ad_platform`. `select_ad_accounts` run
 
 Query limits: Flyweel `query_metrics` caps at 500 rows. Incremental Refresh Meta queries **today and yesterday as separate Flyweel days**, campaign grain, and keeps rows with spend. A 7-day date×campaign query hits the 500-row cap and fills with $0 campaigns — do not use that shape. `src/lib/ads/providers/chunk.ts` still splits long Graph ranges.
 
-Hobby cron remains daily (`0 15 * * *` UTC) on the Hobby plan. This project’s `vercel.json` schedules independent Pro crons (Meta/Shopify ~5 minutes, GA4 ~15 minutes, Stape health hourly, daily recon). `POST /api/meta/refresh` returns HTTP 202 and continues via `after()`. `POST /api/meta/sync` `maxDuration` is **300s**. Verify the deployed Production runtime accepts maxDuration=300. Skip BigQuery DELETE while the streaming buffer is hot. Vercel cookie `durable-json` is not a global lock; warehouse `sync_runs` is the concurrency guard. See `docs/BACKGROUND_INGESTION.md`.
+Hobby cron is daily-only: `vercel.json` uses independent daily jobs (Meta 14:00, Shopify 15:00, GA4 16:00, Stape 17:00, daily recon 18:00 UTC). A Preview deploy of `*/5` was rejected with Vercel’s Hobby cron limit. `POST /api/meta/refresh` returns HTTP 202 and continues via `after()`. `POST /api/meta/sync` `maxDuration` is **300s**. Verify the deployed Production runtime accepts maxDuration=300. Skip BigQuery DELETE while the streaming buffer is hot. Vercel cookie `durable-json` is not a global lock; warehouse `sync_runs` is the concurrency guard. See `docs/BACKGROUND_INGESTION.md`.
 
 ## Meta setup
 
