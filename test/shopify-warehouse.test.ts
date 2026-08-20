@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { overviewFromRecords, recordToOrderPoint } from "../src/lib/shopify/order-record.ts";
 import { mergeCoverageRange, warehouseCoversPeriod, warehouseReadDecision } from "../src/lib/shopify/coverage.ts";
 import { shopifyHealthMessage, shopifyHealthStatus } from "../src/lib/platform/shopify-health.ts";
+import { preparedFlags } from "../src/lib/platform/prepared-serving.ts";
 import { EMPTY_FIRST_TOUCH } from "../src/lib/shopify/first-touch.ts";
 import type { ShopifyOrderRecord } from "../src/lib/shopify/order-record.ts";
 
@@ -163,5 +164,29 @@ test("Shopify coverage checkpoint is BigQuery, not cookie durable-json", () => {
   assert.doesNotMatch(
     warehouse.slice(warehouse.indexOf("export async function loadShopifyRecordsFromWarehouse")),
     /if \(!warehouseCoversPeriod/,
+  );
+});
+
+test("public prepared flags never require order counts", () => {
+  assert.deepEqual(
+    preparedFlags({
+      shopify: { available: true, tableExists: true, rowCount: 12 },
+      meta: { available: true, campaigns: 3 },
+    }),
+    { shopify: true, meta: true },
+  );
+  assert.deepEqual(
+    preparedFlags({
+      shopify: { available: true, tableExists: true, rowCount: 0 },
+      meta: { available: true, campaigns: 0 },
+    }),
+    { shopify: false, meta: false },
+  );
+  assert.deepEqual(
+    preparedFlags({
+      shopify: { available: false, tableExists: false, rowCount: null },
+      meta: { available: false, campaigns: null },
+    }),
+    { shopify: false, meta: null },
   );
 });

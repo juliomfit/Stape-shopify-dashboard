@@ -87,11 +87,16 @@ test("public build SHA is ungated and cron status stays behind CRON_SECRET", () 
   assert.match(proxy, /pathname === "\/api\/build"/);
   const build = readFileSync("src/app/api/build/route.ts", "utf8");
   assert.match(build, /publicBuildInfo/);
+  assert.match(build, /getPreparedServing/);
   assert.doesNotMatch(build, /dashboardPassword/);
+  assert.doesNotMatch(build, /rowCount/);
+  const prepared = readFileSync("src/lib/platform/prepared-serving.ts", "utf8");
+  assert.match(prepared, /Booleans only/);
   const status = readFileSync("src/app/api/cron/status/route.ts", "utf8");
   assert.match(status, /cronAuthorized/);
   assert.match(status, /getIngestStatus/);
   const vercel = readFileSync("vercel.json", "utf8");
   assert.doesNotMatch(vercel, /\/api\/cron\/status/);
   assert.doesNotMatch(vercel, /\/api\/build/);
+  assert.match(vercel, /\/api\/cron\/evening/);
 });

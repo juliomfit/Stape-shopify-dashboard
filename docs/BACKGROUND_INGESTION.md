@@ -27,6 +27,7 @@ Production freshness uses **independent** jobs. `source=all` is admin-only (`GET
 | GA4 | `/api/cron/ga4` | `0 16 * * *` | 60s | Data API pull when `GA4_PROPERTY_ID` is set |
 | Stape | `/api/cron/stape` | `0 17 * * *` | 60s | Health/freshness only — events already stream into BigQuery |
 | Daily recon | `/api/cron/daily` | `0 18 * * *` | 300s | Parallel Meta + Shopify 30-day overlap + GA4/Stape if configured |
+| Evening ingest | `/api/cron/evening` | `0 23 * * *` | 300s | Parallel incremental Meta + Shopify (second Hobby daily slot) |
 
 Stape is **not** an event backfill. Do not "sync" `raw_events_full` on a timer.
 
@@ -84,7 +85,7 @@ Keep inFlight UI, pending, HTTP 409, recent-running guard, stale-running detecti
 
 Header poller (`/api/freshness` every 45s) calls `router.refresh()` when `version` changes. The JSON path does not query Flyweel or heavy analytics. If Meta or Shopify has never succeeded and BigQuery is ready, the handler may enqueue a first fill with `after()` so Hobby daily crons are not the only way to populate an empty warehouse after deploy.
 
-Public `GET /api/build` returns the deployed git SHA without login. Operator `GET /api/cron/status` (bearer `CRON_SECRET`) returns Shopify warehouse census + sync timestamps.
+Public `GET /api/build` returns the deployed git SHA without login, plus boolean `prepared.shopify` / `prepared.meta` (warehouse populated or not — no row counts). Operator `GET /api/cron/status` (bearer `CRON_SECRET`) returns Shopify warehouse census + sync timestamps.
 
 ## Failure behavior
 
@@ -101,7 +102,7 @@ Provider health (Flyweel connected, campaign facts present) is **not** the same 
 
 ## Vercel configuration
 
-- `vercel.json` lists the five crons above
+- `vercel.json` lists the six crons above
 - `CRON_SECRET` bearer auth on cron routes
 - Refresh + Meta cron `maxDuration = 300`
 - Next.js 16.3 `after()` from `next/server` for post-response work

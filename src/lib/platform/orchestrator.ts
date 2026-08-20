@@ -226,4 +226,30 @@ export async function runDailyReconciliation() {
   };
 }
 
+/**
+ * Second Hobby-safe daily slot. Incremental Meta + Shopify in parallel so
+ * an empty warehouse can fill the same calendar day after a late deploy.
+ */
+export async function runEveningIngest() {
+  const nested: ScheduledSyncOptions = { invalidation: "swr" };
+  const settled = await Promise.allSettled([
+    runScheduledSync("meta", nested),
+    runScheduledSync("shopify", nested),
+  ]);
+  const labels = ["meta", "shopify"];
+  const parts = settled.map((item, index) => {
+    const name = labels[index] || String(index);
+    if (item.status === "fulfilled") {
+      return `${name}:${item.value.ok ? "ok" : "failed"}`;
+    }
+    return `${name}:rejected`;
+  });
+  const ok = settled.every((item) => item.status === "fulfilled" && item.value.ok);
+  return {
+    ok,
+    message: `Evening ingest (parallel incremental): ${parts.join(" · ")}`,
+    source: "evening",
+  };
+}
+
 export { syncMetaBackfill, syncMetaHourly };

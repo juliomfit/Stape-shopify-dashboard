@@ -4,7 +4,7 @@ import { isPlatformBqReady } from "@/lib/platform/bq";
 import { latestSuccessfulSync, latestSync } from "@/lib/platform/sync-runs";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { summarizeShopifyWarehouse } from "@/lib/shopify/warehouse";
-import { SOURCE_SCHEDULES } from "@/lib/freshness/schedules";
+import { SOURCE_SCHEDULES, DAILY_RECON_CRON, EVENING_INGEST_CRON } from "@/lib/freshness/schedules";
 
 function syncSummary(
   latest: Awaited<ReturnType<typeof latestSync>>,
@@ -66,6 +66,8 @@ export async function getIngestStatus() {
       shopify: SOURCE_SCHEDULES.shopify.cron,
       ga4: SOURCE_SCHEDULES.ga4.cron,
       stape: SOURCE_SCHEDULES.stape.cron,
+      daily: DAILY_RECON_CRON,
+      evening: EVENING_INGEST_CRON,
     },
   };
 }

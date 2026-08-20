@@ -64,6 +64,7 @@ export const SOURCE_SCHEDULES: Record<FreshnessSourceId, SourceSchedule> = {
 };
 
 export const DAILY_RECON_CRON = "0 18 * * *";
+export const EVENING_INGEST_CRON = "0 23 * * *";
 
 export const FRESHNESS_POLL_MS = 45_000;
 
