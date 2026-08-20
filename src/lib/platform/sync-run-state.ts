@@ -2,6 +2,55 @@ export const META_SYNC_MAX_DURATION_SECONDS = 300;
 export const META_SYNC_MAX_DURATION_MS = META_SYNC_MAX_DURATION_SECONDS * 1000;
 export const META_SYNC_ALREADY_RUNNING = "Meta sync already running";
 
+export type RefreshSyncParsed = {
+  ok?: boolean;
+  message?: string;
+  error?: string;
+};
+
+/**
+ * Map /api/meta/sync HTTP results to RefreshControls copy.
+ * 409 / already-running must be classified before any generic !ok failure.
+ */
+export function refreshMetaSyncUiMessage(input: {
+  status: number;
+  ok: boolean;
+  parsed: RefreshSyncParsed | null;
+  raw: string;
+}): { message: string; alreadyRunning: boolean; shouldRefresh: boolean } {
+  const parsedText = (input.parsed?.message || input.parsed?.error || "").trim();
+  if (input.status === 409 || parsedText === META_SYNC_ALREADY_RUNNING) {
+    return {
+      message: META_SYNC_ALREADY_RUNNING,
+      alreadyRunning: true,
+      shouldRefresh: false,
+    };
+  }
+  if (!input.parsed) {
+    const clipped = input.raw.replace(/\s+/g, " ").trim().slice(0, 240);
+    const message =
+      input.status === 504 || /timeout|timed out/i.test(clipped)
+        ? "Meta sync timed out (Vercel 300s). Wait, then press Refresh Meta once."
+        : clipped
+          ? `Refresh failed (HTTP ${input.status}): ${clipped}`
+          : `Refresh failed (HTTP ${input.status}). Wait for deploy, then try again.`;
+    return { message, alreadyRunning: false, shouldRefresh: false };
+  }
+  if (!input.ok) {
+    const clipped = (parsedText || input.raw.replace(/\s+/g, " ").trim()).slice(0, 240);
+    const message = clipped
+      ? `Refresh failed (HTTP ${input.status}): ${clipped}`
+      : `Refresh failed (HTTP ${input.status}). Wait for deploy, then try again.`;
+    return { message, alreadyRunning: false, shouldRefresh: false };
+  }
+  const text = parsedText || `HTTP ${input.status}`;
+  return {
+    message: input.parsed.ok ? `Meta updated. ${text}` : text,
+    alreadyRunning: false,
+    shouldRefresh: Boolean(input.parsed.ok),
+  };
+}
+
 export type SyncRunLike = {
   id: string;
   status: string;

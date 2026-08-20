@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { META_SYNC_ALREADY_RUNNING } from "@/lib/platform/sync-run-state";
+import { refreshMetaSyncUiMessage } from "@/lib/platform/sync-run-state";
 
 export function RefreshControls() {
   const router = useRouter();
@@ -24,27 +24,20 @@ export function RefreshControls() {
         body: JSON.stringify(payload),
       });
       const raw = await response.text();
-      let result: { ok?: boolean; message?: string; error?: string } = {};
+      let parsed: { ok?: boolean; message?: string; error?: string } | null = null;
       try {
-        result = raw ? (JSON.parse(raw) as typeof result) : {};
+        parsed = raw ? (JSON.parse(raw) as NonNullable<typeof parsed>) : {};
       } catch {
-        const clipped = raw.replace(/\s+/g, " ").trim().slice(0, 240);
-        setMessage(
-          response.status === 504 || /timeout|timed out/i.test(clipped)
-            ? "Meta sync timed out (Vercel 300s). Wait, then press Refresh Meta once."
-            : clipped
-              ? `Refresh failed (HTTP ${response.status}): ${clipped}`
-              : `Refresh failed (HTTP ${response.status}). Wait for deploy, then try again.`,
-        );
-        return;
+        parsed = null;
       }
-      const text = result.message || result.error || `HTTP ${response.status}`;
-      if (response.status === 409 || text === META_SYNC_ALREADY_RUNNING) {
-        setMessage(META_SYNC_ALREADY_RUNNING);
-        return;
-      }
-      setMessage(result.ok ? `Meta updated. ${text}` : text);
-      if (result.ok) {
+      const feedback = refreshMetaSyncUiMessage({
+        status: response.status,
+        ok: response.ok,
+        parsed,
+        raw,
+      });
+      setMessage(feedback.message);
+      if (feedback.shouldRefresh) {
         router.refresh();
       }
     } catch (error) {

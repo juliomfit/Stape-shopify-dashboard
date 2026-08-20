@@ -9,6 +9,7 @@ import {
   isMetaSyncWinner,
   isSyncActivelyRunning,
   pickActiveSyncWinner,
+  refreshMetaSyncUiMessage,
   syncRunDisplayStatus,
 } from "../src/lib/platform/sync-run-state.ts";
 import {
@@ -26,6 +27,15 @@ test("/api/meta/sync maxDuration is 300", () => {
   assert.match(route, /export const maxDuration = 300/);
   assert.equal(route.includes("export const maxDuration = 60"), false);
   assert.equal(META_SYNC_MAX_DURATION_SECONDS, 300);
+  assert.equal(readFileSync("docs/PLATFORM.md", "utf8").includes("Hobby still caps at 60s"), false);
+  assert.equal(
+    readFileSync("docs/MANUAL_PRODUCTION_ACTIONS.md", "utf8").includes("Hobby still caps at 60s"),
+    false,
+  );
+  assert.match(
+    readFileSync("docs/PLATFORM.md", "utf8"),
+    /Verify the deployed Production runtime accepts maxDuration=300/,
+  );
 });
 
 test("campaign-only mode remains campaign only", () => {
@@ -83,6 +93,48 @@ test("repeat Meta refresh is rejected while an active sync exists", () => {
   assert.match(route, /status: alreadyRunning \? 409 : 200/);
   assert.match(refresh, /inFlight\.current/);
   assert.match(refresh, /disabled=\{pending\}/);
+  assert.match(refresh, /refreshMetaSyncUiMessage/);
+});
+
+test("HTTP 409 UI path is reachable before generic !ok failure", () => {
+  const helper = readFileSync("src/lib/platform/sync-run-state.ts", "utf8");
+  const alreadyIndex = helper.indexOf("input.status === 409");
+  const genericOkIndex = helper.indexOf("if (!input.ok)");
+  assert.ok(alreadyIndex >= 0);
+  assert.ok(genericOkIndex > alreadyIndex);
+
+  const json409 = refreshMetaSyncUiMessage({
+    status: 409,
+    ok: false,
+    parsed: { ok: false, message: META_SYNC_ALREADY_RUNNING, error: META_SYNC_ALREADY_RUNNING },
+    raw: JSON.stringify({
+      ok: false,
+      message: META_SYNC_ALREADY_RUNNING,
+      error: META_SYNC_ALREADY_RUNNING,
+    }),
+  });
+  assert.equal(json409.message, "Meta sync already running");
+  assert.equal(json409.alreadyRunning, true);
+  assert.equal(json409.shouldRefresh, false);
+  assert.equal(json409.message.includes("Refresh failed (HTTP 409)"), false);
+
+  const opaque409 = refreshMetaSyncUiMessage({
+    status: 409,
+    ok: false,
+    parsed: null,
+    raw: "Conflict",
+  });
+  assert.equal(opaque409.message, "Meta sync already running");
+  assert.equal(opaque409.message.includes("Refresh failed (HTTP 409)"), false);
+
+  const generic500 = refreshMetaSyncUiMessage({
+    status: 500,
+    ok: false,
+    parsed: { ok: false, message: "boom" },
+    raw: '{"ok":false,"message":"boom"}',
+  });
+  assert.equal(generic500.message, "Refresh failed (HTTP 500): boom");
+  assert.match(refresh, /finally \{[\s\S]*inFlight\.current = false[\s\S]*setPending\(false\)/);
 });
 
 test("completed sync no longer appears as a duplicate running + completed state", () => {
