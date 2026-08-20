@@ -18,7 +18,7 @@ import type {
   CampaignMappingConfidence,
   CampaignMappingMethod,
 } from "./campaign-map.ts";
-import { canonicalCampaignName } from "./campaign-map.ts";
+import { canonicalCampaignName, displayAdName } from "./campaign-map.ts";
 
 export const META_CHANNEL = "Facebook / Meta Ads";
 export const UNMAPPED_META_LABEL = "Unmapped Meta";
@@ -36,6 +36,7 @@ export type MetaCreditTouch = {
   ts: number;
   channel: string;
   campaign?: string | null;
+  content?: string | null;
   campaignId?: string | null;
   adsetId?: string | null;
   adId?: string | null;
@@ -78,6 +79,7 @@ export type EnrichedCredit = {
   observedCampaignId: string | null;
   observedAdsetId: string | null;
   observedAdId: string | null;
+  observedAdName: string | null;
   platformVerifiedAdset: boolean;
   platformVerifiedAd: boolean;
   purchaseTs: number;
@@ -395,6 +397,8 @@ export function attachMetaIdsToCredits(args: {
       observedCampaignId,
       observedAdsetId,
       observedAdId,
+      observedAdName:
+        isMeta && !childBlocked ? displayAdName(touch?.content) || null : null,
       platformVerifiedAdset: adsetMapped,
       platformVerifiedAd: adMapped,
       purchaseTs: order.purchaseTs,

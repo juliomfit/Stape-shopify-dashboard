@@ -94,6 +94,9 @@ export default async function MetaCampaignPage({
   const ordersById = new Map(canonical.map((order) => [order.transactionId, order]));
   const title = displayCampaignName(campaign?.name || campaignCredits[0]?.campaign || "Campaign");
   const ourRoas = ratio(observed.parentRevenue, campaign?.spend ?? null);
+  const newCustomerCredit = campaignCredits.reduce((sum, credit) => sum + credit.newCustomerCredit, 0);
+  const attributedNcac =
+    campaign && campaign.spend > 0 && newCustomerCredit > 0 ? campaign.spend / newCustomerCredit : null;
 
   return (
     <>
@@ -123,11 +126,56 @@ export default async function MetaCampaignPage({
         <div>
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Platform performance</h2>
           <p className="mt-1 text-[11px] text-muted">Meta platform · Flyweel · campaign level</p>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
             <MetricCard
               label="Spend"
               source="Flyweel · campaign level"
               value={campaign ? formatMoney({ amount: campaign.spend, currencyCode: currency }) : null}
+            />
+            <MetricCard
+              label="Impressions"
+              source="Campaign-level insights"
+              value={campaign ? formatNumber(campaign.impressions) : null}
+            />
+            <MetricCard
+              label="Reach"
+              source="Do not sum reach across ads"
+              value={campaign ? formatNumber(campaign.reach) : null}
+            />
+            <MetricCard
+              label="Clicks"
+              source="Campaign-level insights"
+              value={campaign ? formatNumber(campaign.clicks) : null}
+            />
+            <MetricCard
+              label="CTR"
+              source="Clicks ÷ impressions"
+              value={campaign?.ctr == null ? null : `${(campaign.ctr * 100).toFixed(2)}%`}
+            />
+            <MetricCard
+              label="CPC"
+              source="Spend ÷ clicks"
+              value={campaign?.cpc == null ? null : formatMoney({ amount: campaign.cpc, currencyCode: currency })}
+            />
+            <MetricCard
+              label="CPM"
+              source="Spend / impressions × 1000"
+              value={campaign?.cpm == null ? null : formatMoney({ amount: campaign.cpm, currencyCode: currency })}
+            />
+            <MetricCard
+              label="Frequency"
+              source="Impressions ÷ reach"
+              value={campaign ? campaign.frequency.toFixed(2) : null}
+            />
+            <MetricCard
+              label="Purchases"
+              source="Ads Manager matching"
+              value={campaign ? formatNumber(campaign.purchases) : null}
+            />
+            <MetricCard
+              label="CPA"
+              source="Spend ÷ purchases"
+              value={campaign?.cpa == null ? null : formatMoney({ amount: campaign.cpa, currencyCode: currency })}
             />
             <MetricCard
               label="Meta revenue"
@@ -139,31 +187,26 @@ export default async function MetaCampaignPage({
               source="Purchase value ÷ spend"
               value={campaign?.roas == null ? null : `${campaign.roas.toFixed(2)}x`}
             />
-            <MetricCard
-              label="Meta purchases"
-              source="Ads Manager matching"
-              value={campaign ? formatNumber(campaign.purchases) : null}
-            />
           </div>
         </div>
 
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">OUR attribution</h2>
-          <p className="mt-1 text-[11px] text-muted">GoodsNova first-party</p>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">GoodsNova attribution</h2>
+          <p className="mt-1 text-[11px] text-muted">First-party observed credit. Flyweel does not provide ad-set spend.</p>
           {ourError ? (
             <div className="mt-3">
               <EmptyPanel title="OUR attribution unavailable" description={ourError} />
             </div>
           ) : (
-            <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <MetricCard
                 label="OUR revenue"
                 source="GoodsNova attribution"
                 value={formatMoney({ amount: observed.parentRevenue, currencyCode: currency })}
               />
               <MetricCard
-                label="OUR attributed orders"
-                source="Existing model credit"
+                label="Attributed orders"
+                source="sum(credit.weight)"
                 value={formatNumber(Math.round(observed.parentAttributedOrders * 10) / 10)}
               />
               <MetricCard
@@ -174,11 +217,16 @@ export default async function MetaCampaignPage({
               <MetricCard
                 label="New customer credit"
                 source="Fractional new-customer credit"
-                value={formatNumber(
-                  Math.round(
-                    campaignCredits.reduce((sum, credit) => sum + credit.newCustomerCredit, 0) * 100,
-                  ) / 100,
-                )}
+                value={formatNumber(Math.round(newCustomerCredit * 100) / 100)}
+              />
+              <MetricCard
+                label="Attributed nCAC"
+                source="Campaign spend ÷ new-customer credit"
+                value={
+                  attributedNcac == null
+                    ? null
+                    : formatMoney({ amount: attributedNcac, currencyCode: currency })
+                }
               />
             </div>
           )}

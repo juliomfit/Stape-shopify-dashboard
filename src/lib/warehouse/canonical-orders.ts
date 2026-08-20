@@ -178,6 +178,7 @@ async function computeCanonicalAttributedOrders(
             ot.source AS source,
             ot.medium AS medium,
             ot.campaign AS campaign,
+            ot.content AS content,
             ot.meta_campaign_id AS campaignId,
             ot.meta_adset_id AS adsetId,
             ot.meta_ad_id AS adId,
@@ -227,6 +228,7 @@ async function computeCanonicalAttributedOrders(
         source: (touch.source as string | null) ?? null,
         medium: (touch.medium as string | null) ?? null,
         campaign: (touch.campaign as string | null) ?? null,
+        content: (touch.content as string | null) ?? null,
         campaignId: (touch.campaignId as string | null) ?? null,
         adsetId: (touch.adsetId as string | null) ?? null,
         adId: (touch.adId as string | null) ?? null,
@@ -409,6 +411,31 @@ export function newCustomerCreditByCampaign(
       const touch = touches.find((item) => item.touchpointId === credit.touchpointId);
       const campaign = campaignGrainKey(touch ?? {});
       byCampaign[campaign] = (byCampaign[campaign] ?? 0) + credit.weight;
+    }
+  }
+  return byCampaign;
+}
+
+export function newCustomerRevenueByCampaign(
+  orders: CanonicalAttributedOrder[],
+  model: AttributionModel,
+  lookbackDays: number,
+) {
+  const byCampaign: Record<string, number> = {};
+  for (const order of orders) {
+    if (order.isNewCustomer !== true || order.shopifyNetRevenue == null) {
+      continue;
+    }
+    const credits = attribute(
+      (order.touches as CanonicalTouchpoint[]).map(toEngineTouch),
+      { model, purchaseTs: order.purchaseTs, windowDays: lookbackDays },
+    );
+    const touches = order.touches as CanonicalTouchpoint[];
+    for (const credit of credits) {
+      const touch = touches.find((item) => item.touchpointId === credit.touchpointId);
+      const campaign = campaignGrainKey(touch ?? {});
+      byCampaign[campaign] =
+        (byCampaign[campaign] ?? 0) + credit.weight * order.shopifyNetRevenue;
     }
   }
   return byCampaign;

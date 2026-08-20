@@ -8,7 +8,7 @@
  */
 
 import { pacificYmd } from "../period.ts";
-import { canonicalCampaignName, displayCampaignName, shortenId } from "./campaign-map.ts";
+import { canonicalCampaignName, displayAdName, displayCampaignName, shortenId } from "./campaign-map.ts";
 import { META_CHANNEL, type EnrichedCredit } from "./meta-credit.ts";
 import { sanitizeMetaId, META_HIERARCHY_CONFLICT, SESSION_ID_CONFLICT } from "./meta-ids.ts";
 
@@ -147,7 +147,9 @@ export function adsetLabel(adsetId: string): string {
   return `Ad Set ${shortenId(adsetId)}`;
 }
 
-export function adLabel(adId: string): string {
+export function adLabel(adId: string, adName?: string | null): string {
+  const named = displayAdName(adName);
+  if (named) return named;
   return `Ad ${shortenId(adId)}`;
 }
 
@@ -271,7 +273,7 @@ export function rollupObservedMetaChildren(
           adId: credit.observedAdId,
           parentAdsetId: credit.observedAdsetId,
           parentCampaignId: credit.observedCampaignId || credit.metaCampaignId,
-          adLabel: adLabel(credit.observedAdId),
+          adLabel: adLabel(credit.observedAdId, credit.observedAdName),
           attributedOrders: 0,
           attributedRevenue: 0,
           newCustomerCredit: 0,
@@ -291,6 +293,9 @@ export function rollupObservedMetaChildren(
       ad.orderIds.add(credit.orderName);
       ad.numberOfOrders = ad.orderIds.size;
       ad.platformVerified = ad.platformVerified || credit.platformVerifiedAd;
+      if (credit.observedAdName && ad.adLabel.startsWith("Ad ")) {
+        ad.adLabel = adLabel(credit.observedAdId, credit.observedAdName);
+      }
     } else if (!blocked) {
       addToBucket(unidentifiedAd, credit, unidentifiedAdOrders);
     }
@@ -363,6 +368,8 @@ export type ObservedDailyPoint = {
   revenue: number;
   attributedOrders: number;
   uniqueOrders: number;
+  newCustomerCredit: number;
+  newCustomerRevenue: number;
 };
 
 export type ObservedDailyGrain = "campaign" | "adset" | "ad";
@@ -373,6 +380,8 @@ export type ObservedEntityDailySeries = {
   revenue: number;
   attributedOrders: number;
   uniqueOrders: number;
+  newCustomerCredit: number;
+  newCustomerRevenue: number;
   points: ObservedDailyPoint[];
 };
 
@@ -414,6 +423,8 @@ export function dailyObservedMetaRevenue(
       revenue: 0,
       attributedOrders: 0,
       uniqueOrders: 0,
+      newCustomerCredit: 0,
+      newCustomerRevenue: 0,
       orderIds: new Set(),
     });
   }
@@ -425,6 +436,8 @@ export function dailyObservedMetaRevenue(
     if (!point) continue;
     point.revenue += credit.creditDollars;
     point.attributedOrders += credit.weight;
+    point.newCustomerCredit += credit.newCustomerCredit;
+    point.newCustomerRevenue += credit.newCustomerRevenue;
     point.orderIds.add(credit.orderName);
     point.uniqueOrders = point.orderIds.size;
   }
@@ -435,6 +448,8 @@ export function dailyObservedMetaRevenue(
       revenue: point.revenue,
       attributedOrders: point.attributedOrders,
       uniqueOrders: point.uniqueOrders,
+      newCustomerCredit: point.newCustomerCredit,
+      newCustomerRevenue: point.newCustomerRevenue,
     };
   });
 }
@@ -444,6 +459,8 @@ function summarizePoints(points: ObservedDailyPoint[]) {
     revenue: points.reduce((sum, point) => sum + point.revenue, 0),
     attributedOrders: points.reduce((sum, point) => sum + point.attributedOrders, 0),
     uniqueOrders: points.reduce((sum, point) => sum + point.uniqueOrders, 0),
+    newCustomerCredit: points.reduce((sum, point) => sum + point.newCustomerCredit, 0),
+    newCustomerRevenue: points.reduce((sum, point) => sum + point.newCustomerRevenue, 0),
   };
 }
 
@@ -463,7 +480,11 @@ export function dailyObservedByEntity(
     } else if (grain === "ad") {
       if (!credit.observedAdId) continue;
       keys.add(credit.observedAdId);
-      labelByKey.set(credit.observedAdId, adLabel(credit.observedAdId));
+      const next = adLabel(credit.observedAdId, credit.observedAdName);
+      const prev = labelByKey.get(credit.observedAdId);
+      if (!prev || (credit.observedAdName && prev.startsWith("Ad "))) {
+        labelByKey.set(credit.observedAdId, next);
+      }
     } else {
       const key = campaignKey(credit);
       keys.add(key);

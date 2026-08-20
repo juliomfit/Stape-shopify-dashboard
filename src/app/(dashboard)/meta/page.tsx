@@ -4,7 +4,7 @@ import { AskAiPanel } from "@/components/dashboard/AskAiPanel";
 import { EmptyPanel } from "@/components/dashboard/EmptyPanel";
 import { FlyweelKeyForm } from "@/components/dashboard/FlyweelKeyForm";
 import { MetricCard } from "@/components/dashboard/MetricCard";
-import { MetaAnalyticsChart } from "@/components/dashboard/MetaAnalyticsChart";
+import { MetaPerformanceWorkspace } from "@/components/dashboard/MetaPerformanceWorkspace";
 import { RefreshControls } from "@/components/dashboard/RefreshControls";
 import { Header } from "@/components/layout/Header";
 import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
@@ -24,9 +24,7 @@ import { shopifyMetricsSince } from "@/lib/dashboard/aligned-period";
 import { DEFAULT_ATTRIBUTION_WINDOW_DAYS } from "@/lib/attribution/windows";
 import { newCustomerCac, newCustomerRoas } from "@/lib/metrics/formulas";
 import { getShopifyOverviewMetrics } from "@/lib/shopify/get-overview-metrics";
-import { OurCampaignTable } from "@/components/dashboard/OurCampaignTable";
 import { MetaIdCoveragePanel } from "@/components/dashboard/MetaIdCoveragePanel";
-import { TopGrainCards } from "@/components/dashboard/TopGrainCards";
 import { UnmappedMetaBucket } from "@/components/dashboard/UnmappedMetaBucket";
 import { MetaIngestHealthPanel } from "@/components/dashboard/MetaIngestHealthPanel";
 import { joinMetaAndOurCampaigns } from "@/lib/attribution/campaign-map";
@@ -34,6 +32,7 @@ import { getWarehouseMetrics } from "@/lib/warehouse/get-warehouse-metrics";
 import {
   getCanonicalAttributedOrders,
   newCustomerCreditByCampaign,
+  newCustomerRevenueByCampaign,
   toMetaCreditOrders,
 } from "@/lib/warehouse/canonical-orders";
 import { getAdsetFacts, getAdFacts, getAdCreativeMap } from "@/lib/ads/meta-query";
@@ -199,6 +198,8 @@ async function renderMetaPage() {
     revenue: allCampaignPoints.reduce((sum, point) => sum + point.revenue, 0),
     attributedOrders: allCampaignPoints.reduce((sum, point) => sum + point.attributedOrders, 0),
     uniqueOrders: allCampaignPoints.reduce((sum, point) => sum + point.uniqueOrders, 0),
+    newCustomerCredit: allCampaignPoints.reduce((sum, point) => sum + point.newCustomerCredit, 0),
+    newCustomerRevenue: allCampaignPoints.reduce((sum, point) => sum + point.newCustomerRevenue, 0),
     points: allCampaignPoints,
   };
   const ourRoas = ratio(observed.parentRevenue, claimed.spend);
@@ -212,7 +213,38 @@ async function renderMetaPage() {
       "last_non_direct",
       DEFAULT_ATTRIBUTION_WINDOW_DAYS,
     ),
+    newCustomerRevenueByCampaign(
+      canonical,
+      "last_non_direct",
+      DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+    ),
   );
+  const platformDaily = {
+    spend: dailyMetricSeries(facts, days, "spend"),
+    purchase_value: dailyMetricSeries(facts, days, "purchase_value"),
+    purchases: dailyMetricSeries(facts, days, "purchases"),
+    roas: dailyMetricSeries(facts, days, "roas"),
+    cpa: dailyMetricSeries(facts, days, "cpa"),
+    cpm: dailyMetricSeries(facts, days, "cpm"),
+    ctr: dailyMetricSeries(facts, days, "ctr"),
+    cpc: dailyMetricSeries(facts, days, "cpc"),
+    frequency: dailyMetricSeries(facts, days, "frequency"),
+  };
+  const platformDailyByCampaign: Record<string, typeof platformDaily> = {};
+  for (const id of [...new Set(facts.map((row) => row.campaign_id).filter(Boolean))]) {
+    const slice = facts.filter((row) => row.campaign_id === id);
+    platformDailyByCampaign[id] = {
+      spend: dailyMetricSeries(slice, days, "spend"),
+      purchase_value: dailyMetricSeries(slice, days, "purchase_value"),
+      purchases: dailyMetricSeries(slice, days, "purchases"),
+      roas: dailyMetricSeries(slice, days, "roas"),
+      cpa: dailyMetricSeries(slice, days, "cpa"),
+      cpm: dailyMetricSeries(slice, days, "cpm"),
+      ctr: dailyMetricSeries(slice, days, "ctr"),
+      cpc: dailyMetricSeries(slice, days, "cpc"),
+      frequency: dailyMetricSeries(slice, days, "frequency"),
+    };
+  }
 
   return (
     <>
@@ -354,62 +386,18 @@ async function renderMetaPage() {
             }
           />
         </div>
-        {ourAttributionError ? null : (
-          <TopGrainCards
-            currencyCode={currency}
-            topAdset={
-              observed.adsets[0]
-                ? {
-                    label: observed.adsets[0].adsetLabel,
-                    revenue: observed.adsets[0].attributedRevenue,
-                    orders: observed.adsets[0].attributedOrders,
-                  }
-                : null
-            }
-            topAd={
-              observed.ads[0]
-                ? {
-                    label: observed.ads[0].adLabel,
-                    revenue: observed.ads[0].attributedRevenue,
-                    orders: observed.ads[0].attributedOrders,
-                  }
-                : null
-            }
-          />
-        )}
-        {ourAttributionError ? null : <MetaIdCoveragePanel coverage={idCoverage} />}
-        <MetaAnalyticsChart
+        <MetaPerformanceWorkspace
+          currencyCode={currency}
           days={days}
-          platformSeries={{
-            spend: dailyMetricSeries(facts, days, "spend"),
-            purchase_value: dailyMetricSeries(facts, days, "purchase_value"),
-            purchases: dailyMetricSeries(facts, days, "purchases"),
-            roas: dailyMetricSeries(facts, days, "roas"),
-            cpa: dailyMetricSeries(facts, days, "cpa"),
-            cpm: dailyMetricSeries(facts, days, "cpm"),
-            ctr: dailyMetricSeries(facts, days, "ctr"),
-            cpc: dailyMetricSeries(facts, days, "cpc"),
-            frequency: dailyMetricSeries(facts, days, "frequency"),
-          }}
+          campaigns={campaignRows}
+          adsets={observed.adsets}
+          ads={observed.ads}
           campaignSeries={campaignSeries}
           adsetSeries={adsetSeries}
           adSeries={adSeries}
           allCampaigns={allCampaigns}
-          campaignBars={observed.campaigns.map((row) => ({
-            label: row.campaignLabel,
-            revenue: row.attributedRevenue,
-            attributedOrders: row.attributedOrders,
-          }))}
-          adsetBars={observed.adsets.map((row) => ({
-            label: row.adsetLabel,
-            revenue: row.attributedRevenue,
-            attributedOrders: row.attributedOrders,
-          }))}
-          adBars={observed.ads.map((row) => ({
-            label: row.adLabel,
-            revenue: row.attributedRevenue,
-            attributedOrders: row.attributedOrders,
-          }))}
+          platformDaily={platformDaily}
+          platformDailyByCampaign={platformDailyByCampaign}
         />
         <p className="text-xs text-muted">
           <Link prefetch={false} className="underline" href="/meta/creatives">
@@ -484,16 +472,19 @@ async function renderMetaPage() {
             description={ourAttributionError}
           />
         ) : (
-          <>
-            <UnmappedMetaBucket
-              currencyCode={currency}
-              channelRevenue={metaOur.channelCredit}
-              campaignMappedRevenue={metaOur.campaignMappedCredit}
-              adsetMappedRevenue={observed.adsets.reduce((sum, row) => sum + row.attributedRevenue, 0)}
-              adMappedRevenue={observed.ads.reduce((sum, row) => sum + row.attributedRevenue, 0)}
-            />
-            <OurCampaignTable rows={campaignRows} currencyCode={currency} />
-          </>
+          <details>
+            <summary className="cursor-pointer text-xs text-muted">Tracking health / mapping diagnostics</summary>
+            <div className="mt-4 space-y-4">
+              <MetaIdCoveragePanel coverage={idCoverage} />
+              <UnmappedMetaBucket
+                currencyCode={currency}
+                channelRevenue={metaOur.channelCredit}
+                campaignMappedRevenue={metaOur.campaignMappedCredit}
+                adsetMappedRevenue={observed.adsets.reduce((sum, row) => sum + row.attributedRevenue, 0)}
+                adMappedRevenue={observed.ads.reduce((sum, row) => sum + row.attributedRevenue, 0)}
+              />
+            </div>
+          </details>
         )}
         <AskAiPanel viewContext={viewContext} />
       </section>

@@ -230,6 +230,28 @@ function organic(touchpointId: string): MetaCreditOrder["touches"][number] {
   };
 }
 
+test("utm_content becomes the ad display name without changing credit weight", () => {
+  const credits = attachMetaIdsToCredits({
+    order: order([
+      touch({
+        touchpointId: "t1",
+        adsetId: "120001",
+        adId: "130001",
+        content: "UGC+Hook+3+-+Woman+Wall",
+      }),
+    ]),
+    model: "last_non_direct",
+    windowDays: 7,
+    indexes: emptyFlyweelIndexes,
+  });
+  assert.equal(credits[0]?.weight, 1);
+  assert.equal(credits[0]?.observedAdId, "130001");
+  assert.equal(credits[0]?.observedAdName, "UGC Hook 3 - Woman Wall");
+  const hierarchy = rollupObservedMetaChildren(credits);
+  assert.equal(hierarchy.ads[0]?.adLabel, "UGC Hook 3 - Woman Wall");
+  assert.equal(hierarchy.ads[0]?.attributedRevenue, 100);
+});
+
 test("daily attributed orders are sum of credit.weight, uniqueOrders stay separate", () => {
   const credits = [
     ...attachMetaIdsToCredits({
@@ -406,4 +428,15 @@ test("Meta analytics chart plots one metric and grain-specific Flyweel copy", ()
   assert.match(src, /FLYWEEL_AD_SPEND_UNAVAILABLE/);
   assert.match(src, /option value="attributedOrders"/);
   assert.doesNotMatch(src, /seriesB=\{\{\s*label: "Attributed orders"/);
+});
+
+test("performance workspace grain switcher and child metrics hide platform spend", () => {
+  const src = readFileSync("src/components/dashboard/MetaPerformanceWorkspace.tsx", "utf8");
+  assert.match(src, /Campaigns/);
+  assert.match(src, /Ad Sets/);
+  assert.match(src, /Ads/);
+  assert.match(src, /FLYWEEL_AD_SPEND_UNAVAILABLE/);
+  assert.match(src, /prefetch=\{false\}/);
+  assert.doesNotMatch(src, /router\.prefetch/);
+  assert.doesNotMatch(src, /Matched campaigns/);
 });
