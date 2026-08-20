@@ -2,7 +2,8 @@
 --   retention to 400 days. Canonical attribution does NOT use this view — it
 --   reads raw_events_full. This view is for funnel / legacy dashboard_events
 --   consumers only.
--- TYPE OF CHANGE: CREATE OR REPLACE VIEW; ALTER TABLE OPTIONS (retention up)
+-- TYPE OF CHANGE: CREATE OR REPLACE VIEW; ALTER VIEW OPTIONS (clear expiration);
+--   ALTER TABLE OPTIONS (retention up)
 -- PROJECT: stape-analytics-487802
 -- DATASET: stape_data
 -- OBJECTS AFFECTED: stape_data.dashboard_events; stape_data.raw_events_full OPTIONS
@@ -87,6 +88,9 @@ SELECT
   hashed_email,
   shopify_customer_id
 FROM grouped;
+
+ALTER VIEW `stape-analytics-487802.stape_data.dashboard_events`
+SET OPTIONS (expiration_timestamp = NULL);
 
 ALTER TABLE `stape-analytics-487802.stape_data.raw_events_full`
 SET OPTIONS (partition_expiration_days = 400);
