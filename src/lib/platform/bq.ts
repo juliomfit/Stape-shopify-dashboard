@@ -243,3 +243,21 @@ export async function insertRows(tableName: string, rows: Record<string, unknown
     await table.insert(rows.slice(i, i + chunkSize), { ignoreUnknownValues: true });
   }
 }
+
+/**
+ * Canonicalize one id to one row. DELETE may no-op while the streaming
+ * buffer is hot; then INSERT a terminal row and listSyncRuns collapses
+ * running+completed duplicates on read. Do not rewrite unrelated history.
+ */
+export async function replaceRowsById(tableName: string, rows: Record<string, unknown>[]) {
+  const fq = platformTable(tableName);
+  if (!fq) {
+    throw new Error("BigQuery is not configured.");
+  }
+  for (const row of rows) {
+    const id = String(row.id || "");
+    if (!id) continue;
+    await deleteIfPossible(`DELETE FROM ${fq} WHERE id = @id`, { id });
+  }
+  await insertRows(tableName, rows);
+}

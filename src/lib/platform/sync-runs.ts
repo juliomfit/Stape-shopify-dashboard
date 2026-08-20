@@ -1,7 +1,11 @@
 import { randomUUID } from "crypto";
 import { readDurableJson, writeDurableJson } from "@/lib/durable-json";
-import { insertRows, isPlatformBqReady, runPlatformQuery } from "@/lib/platform/bq";
+import { insertRows, isPlatformBqReady, replaceRowsById, runPlatformQuery } from "@/lib/platform/bq";
 import { platformTable } from "@/lib/platform/config";
+import {
+  collapseSyncRunsById,
+  pickActiveSyncWinner,
+} from "@/lib/platform/sync-run-state";
 
 export type SyncStatus = "queued" | "running" | "completed" | "partial" | "failed";
 
@@ -101,7 +105,7 @@ export async function finishSyncRun(
   await writeDurableJson(STORE, store);
   if (isPlatformBqReady()) {
     try {
-      await insertRows("sync_runs", [
+      await replaceRowsById("sync_runs", [
         {
           id: next.id,
           source: next.source,
@@ -120,7 +124,28 @@ export async function finishSyncRun(
         },
       ]);
     } catch {
-      // Local history still holds. BQ writer may lack CREATE/INSERT.
+      try {
+        await insertRows("sync_runs", [
+          {
+            id: next.id,
+            source: next.source,
+            sync_type: next.sync_type,
+            started_at: next.started_at,
+            completed_at: next.completed_at,
+            status: next.status,
+            records_requested: next.records_requested,
+            records_inserted: next.records_inserted,
+            records_updated: next.records_updated,
+            records_failed: next.records_failed,
+            lookback_start: next.lookback_start,
+            lookback_end: next.lookback_end,
+            error_message: next.error_message,
+            metadata: next.metadata,
+          },
+        ]);
+      } catch {
+        // Local history still holds. BQ writer may lack CREATE/INSERT.
+      }
     }
   }
   return next;
@@ -174,21 +199,24 @@ export async function listSyncRuns(source?: string): Promise<SyncRun[]> {
          FROM ${table}
          ${source ? "WHERE source = @source" : ""}
          ORDER BY started_at DESC
-         LIMIT 40`,
+         LIMIT 80`,
         source ? { source } : undefined,
       );
       if (rows.length) {
-        return rows.map(fromBq);
+        return collapseSyncRunsById(rows.map(fromBq));
       }
     } catch {
       // Fall through to the local cookie/file store.
     }
   }
   const store = await loadStore();
-  if (!source) {
-    return store.runs;
-  }
-  return store.runs.filter((run) => run.source === source);
+  const local = source ? store.runs.filter((run) => run.source === source) : store.runs;
+  return collapseSyncRunsById(local);
+}
+
+export async function findActiveSyncRun(source: string): Promise<SyncRun | null> {
+  const runs = await listSyncRuns(source);
+  return pickActiveSyncWinner(runs);
 }
 
 export async function latestSync(source: string): Promise<SyncRun | null> {
