@@ -9,8 +9,6 @@ import {
   googleAdsHealthStatus,
   googleAdsIsConfigured,
 } from "@/lib/platform/google-health";
-import { cachedLoad, periodCacheKey } from "@/lib/cache/server-data";
-import { CACHE_TAGS } from "@/lib/cache/tags";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { isStapeConfigured } from "@/lib/stape/config";
 import { isOpenAiConfigured } from "@/lib/platform/config";
@@ -73,13 +71,7 @@ function delayed(iso: string | null) {
 export async function getDataHealth(): Promise<SourceHealth[]> {
   try {
     const period = await getSelectedPeriod();
-    return cachedLoad({
-      key: ["data-health", ...periodCacheKey(period)],
-      tags: [CACHE_TAGS.health, CACHE_TAGS.dashboardCore, CACHE_TAGS.meta, CACHE_TAGS.paste],
-      loader: "health",
-      period: `${period.startDate}..${period.endDate}`,
-      fn: () => loadDataHealth(period),
-    });
+    return loadDataHealth(period);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Health check failed";

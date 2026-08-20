@@ -46,12 +46,10 @@ test("credential mutation expires core and health, not Shopify or Stape", () => 
   assert.equal(tags.includes(CACHE_TAGS.meta), false);
 });
 
-test("core dashboard cache is tagged with cogs and paste", () => {
+test("core dashboard is not wrapped in unstable_cache", () => {
   const core = readFileSync("src/lib/dashboard/core-metrics.ts", "utf8");
-  assert.match(core, /CACHE_TAGS\.cogs/);
-  assert.match(core, /CACHE_TAGS\.paste/);
-  assert.match(core, /CACHE_TAGS\.shopify/);
-  assert.match(core, /CACHE_TAGS\.meta/);
+  assert.doesNotMatch(core, /cachedLoad/);
+  assert.doesNotMatch(core, /unstable_cache/);
 });
 
 test("Route Handler invalidation uses revalidateTag profile, never updateTag", () => {

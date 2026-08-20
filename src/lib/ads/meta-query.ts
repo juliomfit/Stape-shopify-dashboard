@@ -142,43 +142,41 @@ async function queryFacts(
 }
 
 export async function getCampaignFacts(period: DashboardPeriod) {
-  return cachedLoad({
-    key: ["meta-campaign-facts", ...periodCacheKey(period)],
-    tags: [CACHE_TAGS.meta],
-    loader: "meta_facts",
-    period: `${period.startDate}..${period.endDate}`,
-    fn: () => loadCampaignFacts(period),
-  });
-}
-
-async function loadCampaignFacts(period: DashboardPeriod) {
+  let live: MetaInsightFact[] = [];
+  let queryError: unknown = null;
   try {
-    const live = await queryFacts("meta_campaign_insights_daily", period);
-    if (live.length > 0) {
-      return live;
-    }
+    live = await cachedLoad({
+      key: ["meta-campaign-facts", ...periodCacheKey(period)],
+      tags: [CACHE_TAGS.meta],
+      loader: "meta_facts",
+      period: `${period.startDate}..${period.endDate}`,
+      fn: () => queryFacts("meta_campaign_insights_daily", period),
+    });
   } catch (error) {
-    const cache = await loadMetaCache();
-    const fallback = normalizeFacts(
-      (cache.campaigns || []).filter((row) => inRange(asDate(row.date), period)),
-    ).filter(hasActivity);
-    if (fallback.length > 0) {
-      logLoader({
-        loader: "meta_facts",
-        elapsed_ms: 0,
-        source: "stale-fallback",
-        fallback_used: true,
-        period: `${period.startDate}..${period.endDate}`,
-        error,
-      });
-      return fallback;
-    }
-    throw error;
+    queryError = error;
+  }
+  if (live.length > 0) {
+    return live;
   }
   const cache = await loadMetaCache();
-  return normalizeFacts(
+  const fallback = normalizeFacts(
     (cache.campaigns || []).filter((row) => inRange(asDate(row.date), period)),
   ).filter(hasActivity);
+  if (fallback.length > 0) {
+    logLoader({
+      loader: "meta_facts",
+      elapsed_ms: 0,
+      source: "stale-fallback",
+      fallback_used: true,
+      period: `${period.startDate}..${period.endDate}`,
+      error: queryError,
+    });
+    return fallback;
+  }
+  if (queryError) {
+    throw queryError;
+  }
+  return [];
 }
 
 function skipChildGrain() {
