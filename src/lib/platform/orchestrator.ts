@@ -104,8 +104,12 @@ export async function runScheduledSync(source: string): Promise<ScheduledSyncRes
     const connected = warmed.status.state === "connected";
     const finished = await finishSyncRun(run, {
       status: connected ? "completed" : "partial",
-      records_inserted: warmed.orders,
-      error_message: connected ? null : warmed.status.state === "error" ? warmed.status.message : null,
+      records_inserted: warmed.orders ?? 0,
+      error_message: connected
+        ? undefined
+        : warmed.status.state === "error"
+          ? warmed.status.message
+          : undefined,
       metadata: JSON.stringify({
         note: "Invalidated Shopify cache and reloaded the current period from the Admin API.",
       }),

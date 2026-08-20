@@ -245,6 +245,7 @@ test("unsupported child grain does not make campaign integration a fatal error",
       started_at: "2026-08-20T00:00:00.000Z",
       completed_at: "2026-08-20T00:02:00.000Z",
     },
+    delayed: () => false,
   });
   assert.notEqual(presented.status, "error");
   assert.equal(presented.status, "partial");
