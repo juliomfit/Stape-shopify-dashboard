@@ -120,7 +120,7 @@ Warehouse SQL already extracts IDs from `page_location`. 006 is still required s
 # Vercel
 
 - [ ] Redeploy after merging this branch to `main`.
-- [ ] Set `FLYWEEL_INGEST_LEVELS=all` on Vercel Production for campaign + ad set + ad Flyweel ingest. Default is campaign-only (`meta_adset_insights_daily` / `meta_ad_insights_daily` stay empty). Then Refresh Meta. Do not invent rows.
+- [ ] Flyweel `query_metrics` is campaign-grain only. Do **not** expect `FLYWEEL_INGEST_LEVELS=all` to fill `meta_adset_insights_daily` / `meta_ad_insights_daily`. Campaign spend remains usable. Native ad set/ad deterministic facts need a source with Meta child IDs.
 - [ ] Verify the deployed Production runtime accepts `POST /api/meta/sync` `maxDuration=300`. Press **Refresh Meta once** and wait. Do not mash the button.
 
 # After you paste validation results

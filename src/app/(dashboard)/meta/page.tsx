@@ -39,7 +39,8 @@ import {
 } from "@/lib/warehouse/canonical-orders";
 import { getAdsetFacts, getAdFacts, getAdCreativeMap } from "@/lib/ads/meta-query";
 import { getMetaFactTableCounts } from "@/lib/ads/meta-fact-counts";
-import { FLYWEEL_CAMPAIGN_ONLY_WARNING, flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
+import { FLYWEEL_CAMPAIGN_ONLY_WARNING, FLYWEEL_PARTIAL_HEALTHY_MESSAGE, flyweelCampaignOnlyWarning } from "@/lib/ads/providers/config";
+import { warehouseFinishErrorFromMetadata } from "@/lib/platform/sync-run-state";
 import {
   buildMetaFactIndexes,
   metaCreditForOrders,
@@ -205,14 +206,22 @@ async function renderMetaPage() {
               ? `Local cache ${cache.syncedAt}`
               : "No Meta platform sync yet"}
         </p>
-        {lastAttempt?.error_message ? (
+        {lastAttempt?.status === "failed" && lastAttempt.error_message ? (
           <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">
             Last sync error: {lastAttempt.error_message}
           </p>
         ) : null}
+        {warehouseFinishErrorFromMetadata(lastAttempt?.metadata) ||
+        warehouseFinishErrorFromMetadata(lastSync?.metadata) ? (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
+            Warehouse sync history write failed:{" "}
+            {warehouseFinishErrorFromMetadata(lastAttempt?.metadata) ||
+              warehouseFinishErrorFromMetadata(lastSync?.metadata)}
+          </p>
+        ) : null}
         {flyweelCampaignOnlyWarning(connection.provider) ? (
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-950">
-            {FLYWEEL_CAMPAIGN_ONLY_WARNING}
+            {FLYWEEL_PARTIAL_HEALTHY_MESSAGE} {FLYWEEL_CAMPAIGN_ONLY_WARNING}
           </p>
         ) : null}
         {lastSync && totals.spend === 0 && weekTotals.spend > 0 ? (

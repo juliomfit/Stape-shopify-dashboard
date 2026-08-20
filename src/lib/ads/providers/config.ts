@@ -1,3 +1,5 @@
+import { flyweelChildGrainVerified } from "./flyweel-query.ts";
+
 export type ActiveMetaProviderId = "flyweel" | "meta_graph" | "none";
 
 export const FLYWEEL_DEFAULT_MCP_URL =
@@ -69,18 +71,27 @@ export function flyweelConfigured() {
 export const FLYWEEL_CAMPAIGN_ONLY_WARNING =
   "Campaign-only Meta ingest — ad set/ad deterministic attribution unavailable.";
 
+/** Health/UI copy when Flyweel campaign grain works but child grains do not. */
+export const FLYWEEL_PARTIAL_HEALTHY_MESSAGE =
+  "Flyweel campaign reporting active. Native ad set/ad deterministic facts are unavailable from this provider.";
+
 export type MetaInsightLevel = "campaign" | "adset" | "ad";
 
 /**
- * Flyweel defaults to campaign-only unless FLYWEEL_INGEST_LEVELS=all.
- * Graph always fetches campaign + adset + ad. Do not invent rows for skipped levels.
+ * Request flag only. It cannot enable adset/ad ingest unless Flyweel
+ * query_metrics actually exposes those dimensions.
  */
 export function flyweelDeepIngestEnabled() {
   return process.env.FLYWEEL_INGEST_LEVELS === "all";
 }
 
+export function flyweelVerifiedChildGrain() {
+  return flyweelChildGrainVerified();
+}
+
 export function shouldFetchDeepMetaInsights(providerId: string) {
-  return providerId !== "flyweel" || flyweelDeepIngestEnabled();
+  if (providerId !== "flyweel") return true;
+  return flyweelDeepIngestEnabled() && flyweelVerifiedChildGrain();
 }
 
 export function metaInsightLevelsToFetch(providerId: string): MetaInsightLevel[] {
@@ -91,7 +102,7 @@ export function metaInsightLevelsToFetch(providerId: string): MetaInsightLevel[]
 }
 
 export function flyweelCampaignOnlyWarning(providerId: string): string | null {
-  if (providerId === "flyweel" && !flyweelDeepIngestEnabled()) {
+  if (providerId === "flyweel" && !shouldFetchDeepMetaInsights(providerId)) {
     return FLYWEEL_CAMPAIGN_ONLY_WARNING;
   }
   return null;

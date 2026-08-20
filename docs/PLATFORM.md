@@ -43,7 +43,7 @@ Cursor's Flyweel MCP OAuth session is **not** production auth. Vercel must have 
    - `FLYWEEL_API_KEY`
    - `FLYWEEL_META_ACCOUNT_ID` (numeric act id, not the display name)
    - optional `FLYWEEL_MCP_URL` (default `https://api.flyweel.co/functions/v1/mcp-server/mcp`)
-   - `FLYWEEL_INGEST_LEVELS=all` for campaign + ad set + ad facts. **Default is campaign-only.** Without this, `meta_adset_insights_daily` and `meta_ad_insights_daily` stay empty and ad set/ad deterministic attribution is unavailable. Does not invent IDs.
+   - `FLYWEEL_INGEST_LEVELS=all` does **not** enable ad set/ad facts. Flyweel `query_metrics` ads dimensions are campaign-grain only (`channel`, `account`, `campaign`, `campaign_id`, `campaign_status`, `objective`, `currency`, `date`, `week`, `month`). Production `campaign_id` values are Flyweel UUIDs, not Meta `{{campaign.id}}`. Do not populate `meta_adset_insights_daily` / `meta_ad_insights_daily` from campaign rows.
 4. Run `bigquery/platform/00_schema.sql` and `01_flyweel.sql`.
 5. Press **Refresh Meta**. Dashboard reads BigQuery/cache only.
 
@@ -51,9 +51,9 @@ If `FLYWEEL_API_KEY` is missing, ingest falls back to Meta Graph OAuth/token whe
 
 Read-only: GoodsNova never calls `connect_ad_platform`. `select_ad_accounts` runs only when `FLYWEEL_SELECT_ON_REFRESH=1` (off by default). Meta is never paused, edited, or created from this app.
 
-Query limits: Flyweel `query_metrics` caps at 500 rows. Incremental Refresh Meta queries **today and yesterday as separate Flyweel days**, campaign grain unless `FLYWEEL_INGEST_LEVELS=all`, and keeps rows with spend. A 7-day date×campaign query hits the 500-row cap and fills with $0 campaigns — do not use that shape. `src/lib/ads/providers/chunk.ts` still splits long Graph ranges.
+Query limits: Flyweel `query_metrics` caps at 500 rows. Incremental Refresh Meta queries **today and yesterday as separate Flyweel days**, campaign grain, and keeps rows with spend. A 7-day date×campaign query hits the 500-row cap and fills with $0 campaigns — do not use that shape. `src/lib/ads/providers/chunk.ts` still splits long Graph ranges.
 
-Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. `POST /api/meta/sync` `maxDuration` is **300s** (needed for `FLYWEEL_INGEST_LEVELS=all`). Verify the deployed Production runtime accepts maxDuration=300. Skip BigQuery DELETE while the streaming buffer is hot. Vercel cookie `durable-json` is not a global lock; warehouse `sync_runs` is the concurrency guard.
+Hobby cron remains daily (`0 15 * * *` UTC). Use Refresh Meta for on-demand. `POST /api/meta/sync` `maxDuration` is **300s**. Verify the deployed Production runtime accepts maxDuration=300. Skip BigQuery DELETE while the streaming buffer is hot. Vercel cookie `durable-json` is not a global lock; warehouse `sync_runs` is the concurrency guard.
 
 ## Meta setup
 

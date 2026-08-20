@@ -8,6 +8,11 @@
 
 import { attribute, type AttributionModel, type Touchpoint } from "./engine.ts";
 import { sanitizeMetaId, SESSION_ID_CONFLICT, META_HIERARCHY_CONFLICT } from "./meta-ids.ts";
+import {
+  campaignIdExactMatchAllowed,
+  isFlyweelInternalUuid,
+  isNativeMetaNumericId,
+} from "./meta-id-namespace.ts";
 import { ratio } from "../metrics/formulas.ts";
 import type {
   CampaignMappingConfidence,
@@ -277,10 +282,16 @@ export function mapCampaignIdentity(
 } {
   const campaignId = sanitizeMetaId(touch.campaignId);
   if (campaignId) {
-    if (indexes.campaignById.has(campaignId)) {
+    const fact = indexes.campaignById.get(campaignId);
+    if (fact && campaignIdExactMatchAllowed(campaignId, fact.campaignId)) {
       return { campaignId, method: "campaign_id_exact", confidence: "HIGH" };
     }
-    return { campaignId, method: "unmapped", confidence: "NONE" };
+    const factIds = [...indexes.campaignById.keys()];
+    const factsAreFlyweelUuid = factIds.some((id) => isFlyweelInternalUuid(id));
+    const factsAreNativeMeta = factIds.some((id) => isNativeMetaNumericId(id));
+    if (!factsAreFlyweelUuid || factsAreNativeMeta) {
+      return { campaignId, method: "unmapped", confidence: "NONE" };
+    }
   }
   const nameKey = normalizeName(touch.campaign);
   if (!nameKey || nameKey === "(unmapped)") {

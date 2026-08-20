@@ -148,7 +148,7 @@ Never commit `.env.local` or `secrets/`.
 
 See `docs/PLATFORM.md`. New pages: `/meta`, `/integrations`, `/health`, `/ai`.
 
-Flyweel Meta ingest is campaign-only unless `FLYWEEL_INGEST_LEVELS=all` (required for ad set/ad fact tables and deterministic Meta attribution). See `.env.example`.
+Flyweel Meta ingest is campaign-grain only. `query_metrics` does not expose adset/ad dimensions, so `FLYWEEL_INGEST_LEVELS=all` cannot invent child-grain facts. See `.env.example` and `docs/PLATFORM.md`.
 
 Hourly cron: `/api/cron/sync` (set `CRON_SECRET`). Semantic metrics live in `src/lib/metrics/formulas.ts`. GPT is optional.
 

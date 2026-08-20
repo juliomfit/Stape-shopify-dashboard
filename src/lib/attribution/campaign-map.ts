@@ -4,6 +4,7 @@ import {
   mappingCoverageStatus,
   type MappingCoverageStatus,
 } from "./meta-ids.ts";
+import { campaignIdExactMatchAllowed } from "./meta-id-namespace.ts";
 
 export const CAMPAIGN_MAPPING_STATUS = "VALIDATION REQUIRED" as const;
 
@@ -119,7 +120,7 @@ export function resolveCampaignMapping(
   }
 
   const byId = meta.byId.get(raw);
-  if (byId) {
+  if (byId && campaignIdExactMatchAllowed(raw, byId.campaignId)) {
     return { meta: byId, method: "campaign_id_exact", confidence: "HIGH" };
   }
 

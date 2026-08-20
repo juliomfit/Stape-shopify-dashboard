@@ -7,6 +7,11 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { OurGrainTable } from "@/components/dashboard/OurGrainTable";
 import { OurAttributedOrders } from "@/components/dashboard/OurAttributedOrders";
 import { Header } from "@/components/layout/Header";
+import { getMetaConnectionPublic } from "@/lib/ads/meta-credentials";
+import {
+  FLYWEEL_PARTIAL_HEALTHY_MESSAGE,
+  flyweelCampaignOnlyWarning,
+} from "@/lib/ads/providers/config";
 import {
   getAdsetFacts,
   getCampaignFacts,
@@ -39,12 +44,14 @@ export default async function MetaCampaignPage({
 }) {
   const { campaignId } = await params;
   const period = await getSelectedPeriod();
-  const [campaignFacts, adsetFacts, adFacts, creativeByAdId] = await Promise.all([
+  const [campaignFacts, adsetFacts, adFacts, creativeByAdId, connection] = await Promise.all([
     getCampaignFacts(period).catch(() => []),
     getAdsetFacts(period, campaignId).catch(() => []),
     getAdFacts(period, { campaignId }).catch(() => []),
     getAdCreativeMap().catch(() => new Map<string, string>()),
+    getMetaConnectionPublic().catch(() => ({ provider: "none" as const })),
   ]);
+  const childGrainUnavailable = Boolean(flyweelCampaignOnlyWarning(connection.provider));
   const campaign = rollupCampaigns(campaignFacts).find((row) => row.id === campaignId);
   const adsets = rollupAdsets(adsetFacts);
   const totals = adsets.length
@@ -166,6 +173,11 @@ export default async function MetaCampaignPage({
         </article>
         {ourError ? (
           <EmptyPanel title="OUR ad-set attribution unavailable" description={ourError} />
+        ) : childGrainUnavailable ? (
+          <EmptyPanel
+            title="Ad set facts unavailable"
+            description={FLYWEEL_PARTIAL_HEALTHY_MESSAGE}
+          />
         ) : (
           <OurGrainTable
             title="Ad sets · OUR (exact adset_id only)"
