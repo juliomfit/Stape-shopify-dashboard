@@ -44,23 +44,24 @@ export default async function MetaOurOrdersPage({
   const { grain, id } = await params;
   const decodedId = decodeURIComponent(id);
   const period = await getSelectedPeriod();
-  const [campaignFacts, adsetFacts, adFacts, creativeByAdId] = await Promise.all([
+  const [campaignFacts, adsetFacts, adFacts, creativeByAdId, canonicalLoad] = await Promise.all([
     getCampaignFacts(period).catch(() => []),
     getAdsetFacts(period).catch(() => []),
     getAdFacts(period).catch(() => []),
     getAdCreativeMap().catch(() => new Map<string, string>()),
-  ]);
-
-  let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
-  let ourError: string | null = null;
-  try {
-    canonical = await getCanonicalAttributedOrders({
+    getCanonicalAttributedOrders({
       lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
-    });
-  } catch (error) {
-    ourError =
-      error instanceof Error ? error.message : "Canonical attribution is unavailable.";
-  }
+    }).then(
+      (rows) => ({ rows, error: null as string | null }),
+      (error) => ({
+        rows: [] as Awaited<ReturnType<typeof getCanonicalAttributedOrders>>,
+        error:
+          error instanceof Error ? error.message : "Canonical attribution is unavailable.",
+      }),
+    ),
+  ]);
+  const canonical = canonicalLoad.rows;
+  const ourError = canonicalLoad.error;
 
   const indexes = buildMetaFactIndexes({
     campaigns: campaignFacts.map((row) => ({

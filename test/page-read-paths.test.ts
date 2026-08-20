@@ -29,6 +29,19 @@ test("Meta page read path does not call Flyweel ingest", () => {
   assert.match(src, /getCampaignFacts/);
 });
 
+test("Attribution pages load platform spend in parallel with warehouse reads", () => {
+  const overview = readFileSync("src/app/(dashboard)/attribution/overview/page.tsx", "utf8");
+  assert.match(overview, /getPlatformReported\(period\)/);
+  assert.match(overview, /Promise\.all\(\[/);
+  const afterAll = overview.slice(overview.indexOf("Promise.all"));
+  assert.doesNotMatch(afterAll.slice(0, 400), /const platform = await getPlatformReported/);
+  const models = readFileSync("src/app/(dashboard)/attribution-models/page.tsx", "utf8");
+  assert.match(models, /getPlatformReported\(period\)/);
+  const campaign = readFileSync("src/app/(dashboard)/meta/[campaignId]/page.tsx", "utf8");
+  assert.match(campaign, /getCanonicalAttributedOrders/);
+  assert.match(campaign, /Promise\.all\(/);
+});
+
 test("Attribution normal page reads do not call provider ingestion", () => {
   assertNoProviderIngest(
     "attribution overview",

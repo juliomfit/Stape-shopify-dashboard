@@ -72,13 +72,13 @@ export default async function AttributionModelsPage({ searchParams }: PageProps)
 async function renderAttributionModels(searchParams?: Promise<{ lookback?: string }>) {
   const params = (await searchParams) ?? {};
   const lookbackDays = parseAttributionLookback(params.lookback);
-  const [canonical, warehouse, shopify, period] = await Promise.all([
+  const period = await getAlignedPeriod();
+  const [canonical, warehouse, shopify, platform] = await Promise.all([
     getCanonicalAttributedOrders({ lookbackDays }),
     getWarehouseMetrics({ lookbackDays }),
     getShopifyOverviewMetrics(),
-    getAlignedPeriod(),
+    getPlatformReported(period),
   ]);
-  const platform = await getPlatformReported(period);
   const currency = shopify.revenue?.currencyCode || "USD";
   if (warehouse.status.state === "error") {
     throw new Error(warehouse.status.message);

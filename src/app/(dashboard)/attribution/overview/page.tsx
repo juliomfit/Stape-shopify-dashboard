@@ -85,16 +85,16 @@ async function renderAttributionOverview(
     ? (warehouseModel as AttributionModel)
     : "last_non_direct";
 
-  const [warehouse, canonical, shopify, period] = await Promise.all([
+  const period = await getAlignedPeriod();
+  const [warehouse, canonical, shopify, platform] = await Promise.all([
     getWarehouseMetrics({
       model: warehouseModel,
       lookbackDays,
     }),
     getCanonicalAttributedOrders({ lookbackDays }),
     getShopifyOverviewMetrics(),
-    getAlignedPeriod(),
+    getPlatformReported(period),
   ]);
-  const platform = await getPlatformReported(period);
   const currency = shopify.revenue?.currencyCode || "USD";
   const coverage = attributionCoverage({
     shopifyOrders: shopify.orders ?? 0,

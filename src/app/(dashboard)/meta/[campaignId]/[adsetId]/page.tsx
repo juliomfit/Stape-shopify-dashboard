@@ -41,26 +41,28 @@ export default async function MetaAdsetPage({
 }) {
   const { campaignId, adsetId } = await params;
   const period = await getSelectedPeriod();
-  const [campaignFacts, adsetFacts, allAdFacts, creativeByAdId, connection] = await Promise.all([
-    getCampaignFacts(period).catch(() => []),
-    getAdsetFacts(period, campaignId).catch(() => []),
-    getAdFacts(period, { campaignId }).catch(() => []),
-    getAdCreativeMap().catch(() => new Map<string, string>()),
-    getMetaConnectionPublic().catch(() => ({ provider: "none" as const })),
-  ]);
+  const [campaignFacts, adsetFacts, allAdFacts, creativeByAdId, connection, canonicalLoad] =
+    await Promise.all([
+      getCampaignFacts(period).catch(() => []),
+      getAdsetFacts(period, campaignId).catch(() => []),
+      getAdFacts(period, { campaignId }).catch(() => []),
+      getAdCreativeMap().catch(() => new Map<string, string>()),
+      getMetaConnectionPublic().catch(() => ({ provider: "none" as const })),
+      getCanonicalAttributedOrders({
+        lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
+      }).then(
+        (rows) => ({ rows, error: null as string | null }),
+        (error) => ({
+          rows: [] as Awaited<ReturnType<typeof getCanonicalAttributedOrders>>,
+          error: error instanceof Error ? error.message : "OUR attribution unavailable.",
+        }),
+      ),
+    ]);
+  const canonical = canonicalLoad.rows;
+  const ourError = canonicalLoad.error;
   const platformChildUnavailable = Boolean(flyweelCampaignOnlyWarning(connection.provider));
   const campaign = rollupCampaigns(campaignFacts).find((row) => row.id === campaignId);
   const currency = "USD";
-
-  let canonical: Awaited<ReturnType<typeof getCanonicalAttributedOrders>> = [];
-  let ourError: string | null = null;
-  try {
-    canonical = await getCanonicalAttributedOrders({
-      lookbackDays: DEFAULT_ATTRIBUTION_WINDOW_DAYS,
-    });
-  } catch (error) {
-    ourError = error instanceof Error ? error.message : "OUR attribution unavailable.";
-  }
   const indexes = buildMetaFactIndexes({
     campaigns: campaignFacts.map((row) => ({
       campaign_id: row.campaign_id,
