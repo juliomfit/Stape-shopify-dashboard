@@ -6,8 +6,6 @@ import { META_SYNC_ALREADY_RUNNING } from "@/lib/platform/sync-run-state";
 
 export function RefreshControls() {
   const router = useRouter();
-  const routerRef = useRef(router);
-  routerRef.current = router;
   const inFlight = useRef(false);
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
@@ -47,7 +45,7 @@ export function RefreshControls() {
       }
       setMessage(result.ok ? `Meta updated. ${text}` : text);
       if (result.ok) {
-        routerRef.current.refresh();
+        router.refresh();
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Sync request failed.");

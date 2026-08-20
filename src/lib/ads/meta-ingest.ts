@@ -143,6 +143,7 @@ export async function ingestMetaRange(input: {
     };
   }
 
+  const resolvedProvider = provider;
   const already = await findActiveSyncRun("meta");
   if (already) {
     return { ok: false, message: META_SYNC_ALREADY_RUNNING, run: already };
@@ -189,7 +190,7 @@ export async function ingestMetaRange(input: {
     const elapsedMs = Math.max(0, Date.now() - (Date.parse(run.started_at) || Date.now()));
     const payload = {
       ...buildMetaSyncMetadata({
-        provider: provider.id,
+        provider: resolvedProvider.id,
         deep_ingest_enabled: deepIngest,
         campaign_row_count: campaignRowCount,
         adset_row_count: adsetRowCount,
