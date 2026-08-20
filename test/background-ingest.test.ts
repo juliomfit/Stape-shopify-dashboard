@@ -71,10 +71,27 @@ test("Shopify background job writes the prepared warehouse instead of only warmi
 test("freshness endpoint is a lightweight version check", () => {
   const src = readFileSync("src/app/api/freshness/route.ts", "utf8");
   assert.match(src, /getFreshnessSnapshot/);
+  assert.match(src, /firstFillSourcesFromSnapshot/);
+  assert.match(src, /after\(/);
   assert.doesNotMatch(src, /getInsights/);
   assert.doesNotMatch(src, /query_metrics/);
   assert.doesNotMatch(src, /getCanonicalAttributedOrders/);
+  assert.doesNotMatch(src, /ingestShopifyIncremental/);
   const badge = readFileSync("src/components/dashboard/FreshnessBadge.tsx", "utf8");
   assert.match(badge, /\/api\/freshness/);
   assert.match(badge, /router\.refresh\(\)/);
+});
+
+test("public build SHA is ungated and cron status stays behind CRON_SECRET", () => {
+  const proxy = readFileSync("src/proxy.ts", "utf8");
+  assert.match(proxy, /pathname === "\/api\/build"/);
+  const build = readFileSync("src/app/api/build/route.ts", "utf8");
+  assert.match(build, /publicBuildInfo/);
+  assert.doesNotMatch(build, /dashboardPassword/);
+  const status = readFileSync("src/app/api/cron/status/route.ts", "utf8");
+  assert.match(status, /cronAuthorized/);
+  assert.match(status, /getIngestStatus/);
+  const vercel = readFileSync("vercel.json", "utf8");
+  assert.doesNotMatch(vercel, /\/api\/cron\/status/);
+  assert.doesNotMatch(vercel, /\/api\/build/);
 });

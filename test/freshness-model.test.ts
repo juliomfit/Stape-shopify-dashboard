@@ -8,6 +8,7 @@ import {
   formatFreshnessAge,
   freshnessStatus,
 } from "../src/lib/freshness/model.ts";
+import { firstFillSourcesFromSnapshot, shouldKickFirstFill } from "../src/lib/freshness/first-fill.ts";
 import { SOURCE_SCHEDULES } from "../src/lib/freshness/schedules.ts";
 import { META_SYNC_MAX_DURATION_MS } from "../src/lib/platform/sync-run-state.ts";
 import { countableGrainRows, DEEP_GRAIN_MISSING_IDS } from "../src/lib/ads/insight-grain.ts";
@@ -179,6 +180,77 @@ test("campaign-shaped rows cannot masquerade as adset or ad data", () => {
   assert.equal(ad.skip, DEEP_GRAIN_MISSING_IDS);
   assert.equal(countableGrainRows("adset", [{ adsetId: "123" }]).count, 1);
   assert.equal(countableGrainRows("ad", [{ adId: "456" }]).count, 1);
+});
+
+test("first-fill kicks only never-succeeded sources with backoff", () => {
+  const now = Date.parse("2026-08-20T22:00:00.000Z");
+  assert.equal(
+    shouldKickFirstFill({
+      configured: true,
+      warehouseReady: true,
+      lastSuccessAt: null,
+      lastAttemptAt: null,
+      activelyRunning: false,
+      nowMs: now,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldKickFirstFill({
+      configured: true,
+      warehouseReady: true,
+      lastSuccessAt: new Date(now - 60_000).toISOString(),
+      lastAttemptAt: new Date(now - 60_000).toISOString(),
+      activelyRunning: false,
+      nowMs: now,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldKickFirstFill({
+      configured: true,
+      warehouseReady: true,
+      lastSuccessAt: null,
+      lastAttemptAt: new Date(now - 2 * 60 * 1000).toISOString(),
+      activelyRunning: false,
+      nowMs: now,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldKickFirstFill({
+      configured: true,
+      warehouseReady: false,
+      lastSuccessAt: null,
+      lastAttemptAt: null,
+      activelyRunning: false,
+      nowMs: now,
+    }),
+    false,
+  );
+  const snapshot = buildFreshnessSnapshot(
+    [
+      buildSourceFreshness({
+        source: "shopify",
+        configured: true,
+        latest: null,
+        lastSuccess: null,
+        nowMs: now,
+      }),
+      buildSourceFreshness({
+        source: "meta",
+        configured: true,
+        latest: null,
+        lastSuccess: null,
+        nowMs: now,
+      }),
+    ],
+    now,
+  );
+  assert.deepEqual(firstFillSourcesFromSnapshot(snapshot, { warehouseReady: true, nowMs: now }), [
+    "shopify",
+    "meta",
+  ]);
 });
 
 test("production freshness crons are independent and not sequential sync-all", () => {

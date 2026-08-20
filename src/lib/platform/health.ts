@@ -10,6 +10,8 @@ import {
   googleAdsIsConfigured,
 } from "@/lib/platform/google-health";
 import { isShopifyConfigured } from "@/lib/shopify/config";
+import { getShopifyOverviewForPeriod } from "@/lib/shopify/get-overview-metrics";
+import { shopifyHealthMessage, shopifyHealthStatus } from "@/lib/platform/shopify-health";
 import { isStapeConfigured } from "@/lib/stape/config";
 import { isOpenAiConfigured } from "@/lib/platform/config";
 import { latestSuccessfulSync, latestSync, type SyncRun } from "@/lib/platform/sync-runs";
@@ -98,6 +100,8 @@ async function loadDataHealth(
     metaRun,
     metaOk,
     shopifyRun,
+    shopifyOk,
+    shopifyOverview,
     stapeRun,
     ga4Run,
     googleRun,
@@ -108,6 +112,8 @@ async function loadDataHealth(
     latestSync("meta"),
     latestSuccessfulSync("meta"),
     latestSync("shopify"),
+    latestSuccessfulSync("shopify"),
+    getShopifyOverviewForPeriod(period),
     latestSync("stape"),
     latestSync("ga4"),
     latestSync("google_ads"),
@@ -144,15 +150,27 @@ async function loadDataHealth(
     metaMessage = `${metaMessage} Facts: ${factLine}`.trim();
   }
 
+  const shopifyFrom = fromRun(shopifyRun, shopifyOk);
+  const shopifyReadSource = shopifyOverview.readSource;
+  const shopifyError =
+    shopifyOverview.status.state === "error" ? shopifyOverview.status.message : null;
   const shopify: SourceHealth = {
     source: "shopify",
     label: "Shopify",
-    status: isShopifyConfigured() ? "healthy" : "disconnected",
-    lastSuccessAt: shopifyRun?.completed_at ?? null,
-    lastAttemptAt: shopifyRun?.started_at ?? null,
-    message: isShopifyConfigured()
-      ? "Live Admin API. Webhooks optional for faster order refresh."
-      : "SHOPIFY_STORE_DOMAIN / CLIENT_ID / CLIENT_SECRET missing.",
+    status: shopifyHealthStatus({
+      configured: isShopifyConfigured(),
+      syncing: shopifyFrom.runStatus === "syncing",
+      readSource: shopifyReadSource,
+      errorMessage: shopifyError,
+    }),
+    lastSuccessAt: shopifyFrom.lastSuccessAt,
+    lastAttemptAt: shopifyFrom.lastAttemptAt,
+    message: shopifyError
+      ? shopifyError
+      : shopifyHealthMessage({
+          configured: isShopifyConfigured(),
+          readSource: shopifyReadSource,
+        }),
     href: "/integrations",
   };
 

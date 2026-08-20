@@ -27,6 +27,7 @@ function emptyMetrics(periodLabel: string): ShopifyOverviewMetrics {
     newCustomerRevenue: 0,
     returningCustomerRevenue: 0,
     productChannelMix: [],
+    readSource: "none",
   };
 }
 
@@ -75,6 +76,7 @@ async function loadShopifyOverview(
       shopName: fetched.shopName,
       truncated: fetched.truncated,
       reportedOrderCount: fetched.reportedOrderCount,
+      readSource: "admin",
     });
   } catch (error) {
     const message =

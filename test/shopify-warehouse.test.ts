@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { overviewFromRecords, recordToOrderPoint } from "../src/lib/shopify/order-record.ts";
 import { mergeCoverageRange, warehouseCoversPeriod, warehouseReadDecision } from "../src/lib/shopify/coverage.ts";
+import { shopifyHealthMessage, shopifyHealthStatus } from "../src/lib/platform/shopify-health.ts";
 import { EMPTY_FIRST_TOUCH } from "../src/lib/shopify/first-touch.ts";
 import type { ShopifyOrderRecord } from "../src/lib/shopify/order-record.ts";
 
@@ -66,6 +67,16 @@ test("Shopify overview keeps currentTotalPriceSet as net revenue after refunds",
   assert.equal(overview.newCustomerRevenue, 80);
   assert.equal(overview.orderPoints[0].refunded, 20);
   assert.equal(overview.orderPoints[0].amount, 80);
+  assert.equal(overview.readSource, "admin");
+});
+
+test("warehouse overview loader tags prepared reads as warehouse", () => {
+  const warehouse = readFileSync("src/lib/shopify/warehouse.ts", "utf8");
+  assert.match(warehouse, /readSource: "warehouse"/);
+  assert.match(warehouse, /summarizeShopifyWarehouse/);
+  const overview = readFileSync("src/lib/shopify/get-overview-metrics.ts", "utf8");
+  assert.match(overview, /readSource: "admin"/);
+  assert.match(overview, /readSource: "none"/);
 });
 
 test("refunded net revenue is never fabricated as $0 when the paid total remains", () => {
@@ -116,6 +127,27 @@ test("warehouse rows for the period are served even without a coverage checkpoin
       rowCount: 0,
     }),
     "empty-covered",
+  );
+});
+
+test("Health distinguishes warehouse serving from Admin fallback", () => {
+  assert.equal(
+    shopifyHealthStatus({ configured: true, syncing: false, readSource: "warehouse" }),
+    "healthy",
+  );
+  assert.equal(
+    shopifyHealthStatus({ configured: true, syncing: false, readSource: "admin" }),
+    "partial",
+  );
+  assert.equal(
+    shopifyHealthStatus({ configured: true, syncing: true, readSource: "admin" }),
+    "syncing",
+  );
+  assert.match(shopifyHealthMessage({ configured: true, readSource: "warehouse" }), /fct_shopify_orders/);
+  assert.match(shopifyHealthMessage({ configured: true, readSource: "admin" }), /Admin API/);
+  assert.doesNotMatch(
+    shopifyHealthMessage({ configured: true, readSource: "warehouse" }),
+    /Live Admin API/,
   );
 });
 

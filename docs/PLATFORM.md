@@ -89,7 +89,7 @@ Refresh GA4 uses the **header date range** (max 93 Pacific days) and writes
 
 ## Shopify
 
-Prepared warehouse: `analytics.fct_shopify_orders`. Reads use it when coverage spans the header range; otherwise Admin API fallback.
+Prepared warehouse: `analytics.fct_shopify_orders`. Dashboard reads serve existing fact rows for the header range even before `shopify_ingest_coverage` is written. Admin API is fallback only when the table is missing, the query fails, or the range is empty **and** uncovered. Health shows `readSource` warehouse vs admin.
 
 Live Admin API remains the fallback. Webhook URL:
 

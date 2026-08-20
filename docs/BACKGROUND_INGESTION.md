@@ -82,7 +82,9 @@ Target enqueue time: **< 1 second**. The browser must not wait 90s for Flyweel.
 
 Keep inFlight UI, pending, HTTP 409, recent-running guard, stale-running detection.
 
-Header poller (`/api/freshness` every 45s) calls `router.refresh()` when `version` changes. It does not poll Flyweel or heavy BigQuery.
+Header poller (`/api/freshness` every 45s) calls `router.refresh()` when `version` changes. The JSON path does not query Flyweel or heavy analytics. If Meta or Shopify has never succeeded and BigQuery is ready, the handler may enqueue a first fill with `after()` so Hobby daily crons are not the only way to populate an empty warehouse after deploy.
+
+Public `GET /api/build` returns the deployed git SHA without login. Operator `GET /api/cron/status` (bearer `CRON_SECRET`) returns Shopify warehouse census + sync timestamps.
 
 ## Failure behavior
 

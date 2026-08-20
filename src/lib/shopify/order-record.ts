@@ -9,6 +9,7 @@ import type {
   TopProduct,
   CustomerPerformance,
   ShopifyCustomerMetrics,
+  ShopifyReadSource,
 } from "./types.ts";
 
 export type MoneySet = {
@@ -222,6 +223,7 @@ export function overviewFromRecords(input: {
   shopName: string;
   truncated: boolean;
   reportedOrderCount: number | null;
+  readSource?: ShopifyReadSource;
 }): ShopifyOverviewMetrics {
   const inRange = input.records.filter((record) => {
     const created = new Date(record.createdAt).getTime();
@@ -299,6 +301,7 @@ export function overviewFromRecords(input: {
     newCustomerRevenue,
     returningCustomerRevenue,
     productChannelMix,
+    readSource: input.readSource ?? "admin",
   };
 }
 

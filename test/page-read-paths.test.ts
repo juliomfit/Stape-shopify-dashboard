@@ -96,4 +96,7 @@ test("Overview stays product-focused; engineering health lives on /health", () =
   assert.match(health, /DataHealthStrip/);
   assert.match(health, /NeedsAttention/);
   assert.match(health, /RefreshControls/);
+  const healthLib = readFileSync("src/lib/platform/health.ts", "utf8");
+  assert.match(healthLib, /shopifyHealthMessage/);
+  assert.doesNotMatch(healthLib, /Live Admin API/);
 });

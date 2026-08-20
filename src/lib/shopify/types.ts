@@ -10,6 +10,9 @@ export type ShopifyConnectionStatus =
   | { state: "connected"; shopName: string }
   | { state: "error"; message: string };
 
+/** Where the current dashboard Shopify numbers came from. */
+export type ShopifyReadSource = "warehouse" | "admin" | "none";
+
 export type TopProduct = {
   id: string;
   title: string;
@@ -89,6 +92,7 @@ export type ShopifyOverviewMetrics = {
   newCustomerRevenue: number;
   returningCustomerRevenue: number;
   productChannelMix: ProductChannelMix[];
+  readSource: ShopifyReadSource;
 };
 
 export type ShopifyCustomerMetrics = {

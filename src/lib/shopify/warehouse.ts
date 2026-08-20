@@ -383,6 +383,9 @@ function asNumber(value: unknown): number {
 
 function asNumberOrNull(value: unknown): number | null {
   if (value == null || value === "") return null;
+  if (typeof value === "object" && value && "value" in value) {
+    return asNumberOrNull((value as { value?: unknown }).value);
+  }
   const amount = Number(value);
   return Number.isFinite(amount) ? amount : null;
 }
@@ -504,7 +507,75 @@ export async function loadShopifyOverviewFromWarehouse(
     shopName,
     truncated: false,
     reportedOrderCount: records.length,
+    readSource: "warehouse",
   });
+}
+
+export type ShopifyWarehouseSummary = {
+  available: boolean;
+  tableExists: boolean | null;
+  rowCount: number | null;
+  minDate: string | null;
+  maxDate: string | null;
+  coverage: ShopifyWarehouseCoverage;
+};
+
+/** Lightweight warehouse census for ops diagnostics. No order PII. */
+export async function summarizeShopifyWarehouse(): Promise<ShopifyWarehouseSummary> {
+  const coverage = await readShopifyWarehouseCoverage();
+  const table = shopifyOrdersTableFq();
+  if (!table) {
+    return {
+      available: false,
+      tableExists: null,
+      rowCount: null,
+      minDate: null,
+      maxDate: null,
+      coverage,
+    };
+  }
+  try {
+    const { client, config } = getBigQueryClient();
+    const [rows] = await client.query({
+      query: `
+        SELECT
+          COUNT(*) AS rowCount,
+          CAST(MIN(order_date) AS STRING) AS minDate,
+          CAST(MAX(order_date) AS STRING) AS maxDate
+        FROM ${table}
+      `,
+      location: config.location,
+    });
+    const row = (rows as WarehouseRow[])[0];
+    return {
+      available: true,
+      tableExists: true,
+      rowCount: asNumberOrNull(row?.rowCount),
+      minDate: asString(row?.minDate) || null,
+      maxDate: asString(row?.maxDate) || null,
+      coverage,
+    };
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      return {
+        available: false,
+        tableExists: false,
+        rowCount: null,
+        minDate: null,
+        maxDate: null,
+        coverage,
+      };
+    }
+    console.warn("[shopify-warehouse] summarize failed", error);
+    return {
+      available: false,
+      tableExists: null,
+      rowCount: null,
+      minDate: null,
+      maxDate: null,
+      coverage,
+    };
+  }
 }
 
 export async function loadShopifyCustomersFromWarehouse(
