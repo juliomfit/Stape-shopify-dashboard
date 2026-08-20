@@ -6,8 +6,7 @@ import { getSelectedPeriod } from "@/lib/period-server";
 import { fetchShopifyOrderRecords } from "@/lib/shopify/admin-orders";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { overviewFromRecords } from "@/lib/shopify/order-record";
-import { loadShopifyOverviewFromWarehouse } from "@/lib/shopify/warehouse";
-import { readShopifyWarehouseCoverage } from "@/lib/shopify/coverage";
+import { loadShopifyOverviewFromWarehouse, readShopifyWarehouseCoverage } from "@/lib/shopify/warehouse";
 import type { ShopifyOverviewMetrics } from "@/lib/shopify/types";
 
 function emptyMetrics(periodLabel: string): ShopifyOverviewMetrics {

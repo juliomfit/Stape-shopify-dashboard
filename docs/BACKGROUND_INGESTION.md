@@ -51,7 +51,7 @@ Canonical mirror: **`analytics.fct_shopify_orders`** (migration 004 + additive 0
 
 1. Webhook `POST /api/shopify/webhooks` HMAC-verifies, GraphQL-fetches that order, MERGE, invalidates Shopify cache
 2. Incremental cron: created_at window + updated_at overlap (refunds on older orders)
-3. Coverage checkpoint (`shopify-warehouse-coverage` durable JSON) advances only after a non-truncated created_at window
+3. Coverage checkpoint (`analytics.shopify_ingest_coverage`) advances only after a non-truncated created_at window. Cookie durable-json is **not** used for this checkpoint — Vercel cron cookies never reach dashboard readers.
 4. Reads use the warehouse when coverage spans the header range
 5. Otherwise Admin GraphQL pagination remains the fallback — Production must not crash if the table is missing
 
@@ -112,6 +112,7 @@ Provider health (Flyweel connected, campaign facts present) is **not** the same 
 | `goodsnova_platform.meta_campaign_insights_daily` | Meta campaign spend / platform purchases |
 | `goodsnova_platform.sync_runs` | Sync state |
 | `analytics.fct_shopify_orders` | Prepared Shopify orders |
+| `analytics.shopify_ingest_coverage` | Shopify warehouse date-coverage checkpoint (cron → dashboard) |
 | `stape_data.raw_events_full` | Tracking evidence (continuous) |
 | Canonical attribution | Computed in app from events + Shopify money |
 

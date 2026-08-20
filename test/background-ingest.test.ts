@@ -64,6 +64,8 @@ test("Shopify background job writes the prepared warehouse instead of only warmi
   assert.match(warehouse, /MERGE /);
   assert.match(warehouse, /fct_shopify_orders/);
   assert.match(warehouse, /CREATE TABLE IF NOT EXISTS/);
+  assert.match(warehouse, /shopify_ingest_coverage/);
+  assert.doesNotMatch(warehouse, /writeDurableJson/);
 });
 
 test("freshness endpoint is a lightweight version check", () => {

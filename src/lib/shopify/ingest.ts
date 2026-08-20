@@ -1,8 +1,7 @@
 import { addDaysYmd } from "@/lib/ads/providers/chunk";
 import { getDashboardPeriod } from "@/lib/period";
 import { fetchShopifyOrderByGid, fetchShopifyOrderRecords } from "@/lib/shopify/admin-orders";
-import { expandShopifyWarehouseCoverage } from "@/lib/shopify/coverage";
-import { mergeShopifyOrderRecords } from "@/lib/shopify/warehouse";
+import { expandShopifyWarehouseCoverage, mergeShopifyOrderRecords } from "@/lib/shopify/warehouse";
 import { isShopifyConfigured } from "@/lib/shopify/config";
 import { SHOPIFY_INCREMENTAL_LOOKBACK_DAYS } from "@/lib/freshness/schedules";
 

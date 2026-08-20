@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { overviewFromRecords, recordToOrderPoint } from "../src/lib/shopify/order-record.ts";
+import { mergeCoverageRange, warehouseCoversPeriod } from "../src/lib/shopify/coverage.ts";
 import { EMPTY_FIRST_TOUCH } from "../src/lib/shopify/first-touch.ts";
 import type { ShopifyOrderRecord } from "../src/lib/shopify/order-record.ts";
 
@@ -71,4 +73,27 @@ test("refunded net revenue is never fabricated as $0 when the paid total remains
   assert.equal(point.amount, 12.34);
   assert.equal(point.refunded, 87.66);
   assert.notEqual(point.amount, 0);
+});
+
+test("coverage range merge is inclusive and does not use cookies", () => {
+  const merged = mergeCoverageRange(
+    { minDate: "2026-08-10", maxDate: "2026-08-18", populatedAt: "old" },
+    "2026-08-16",
+    "2026-08-20",
+    "2026-08-20T12:00:00.000Z",
+  );
+  assert.equal(merged.minDate, "2026-08-10");
+  assert.equal(merged.maxDate, "2026-08-20");
+  assert.equal(warehouseCoversPeriod(merged, "2026-08-10", "2026-08-20"), true);
+  assert.equal(warehouseCoversPeriod(merged, "2026-08-01", "2026-08-20"), false);
+});
+
+test("Shopify coverage checkpoint is BigQuery, not cookie durable-json", () => {
+  const coverage = readFileSync("src/lib/shopify/coverage.ts", "utf8");
+  assert.doesNotMatch(coverage, /cookies\(/);
+  assert.doesNotMatch(coverage, /durable-json/);
+  const warehouse = readFileSync("src/lib/shopify/warehouse.ts", "utf8");
+  assert.match(warehouse, /shopify_ingest_coverage/);
+  assert.match(warehouse, /readShopifyWarehouseCoverage/);
+  assert.match(warehouse, /expandShopifyWarehouseCoverage/);
 });

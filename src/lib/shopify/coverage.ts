@@ -1,6 +1,7 @@
-import { readDurableJson, writeDurableJson } from "../durable-json.ts";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import path from "path";
 
-const STORE = "shopify-warehouse-coverage";
+const DISK_FILE = path.join(process.cwd(), "secrets", "shopify-warehouse-coverage.json");
 
 export type ShopifyWarehouseCoverage = {
   minDate: string | null;
@@ -12,15 +13,21 @@ export function emptyShopifyCoverage(): ShopifyWarehouseCoverage {
   return { minDate: null, maxDate: null, populatedAt: null };
 }
 
-export async function readShopifyWarehouseCoverage(): Promise<ShopifyWarehouseCoverage> {
-  return (await readDurableJson<ShopifyWarehouseCoverage>(STORE)) ?? emptyShopifyCoverage();
-}
-
-export async function expandShopifyWarehouseCoverage(
+export function warehouseCoversPeriod(
+  coverage: ShopifyWarehouseCoverage,
   startDate: string,
   endDate: string,
-): Promise<ShopifyWarehouseCoverage> {
-  const current = await readShopifyWarehouseCoverage();
+): boolean {
+  if (!coverage.minDate || !coverage.maxDate) return false;
+  return coverage.minDate <= startDate && coverage.maxDate >= endDate;
+}
+
+export function mergeCoverageRange(
+  current: ShopifyWarehouseCoverage,
+  startDate: string,
+  endDate: string,
+  populatedAt: string,
+): ShopifyWarehouseCoverage {
   const minDate = current.minDate
     ? current.minDate < startDate
       ? current.minDate
@@ -31,20 +38,36 @@ export async function expandShopifyWarehouseCoverage(
       ? current.maxDate
       : endDate
     : endDate;
-  const next: ShopifyWarehouseCoverage = {
-    minDate,
-    maxDate,
-    populatedAt: new Date().toISOString(),
-  };
-  await writeDurableJson(STORE, next);
-  return next;
+  return { minDate, maxDate, populatedAt };
 }
 
-export function warehouseCoversPeriod(
-  coverage: ShopifyWarehouseCoverage,
-  startDate: string,
-  endDate: string,
-): boolean {
-  if (!coverage.minDate || !coverage.maxDate) return false;
-  return coverage.minDate <= startDate && coverage.maxDate >= endDate;
+function parseCoverage(raw: string): ShopifyWarehouseCoverage | null {
+  try {
+    const parsed = JSON.parse(raw) as ShopifyWarehouseCoverage;
+    if (!parsed || typeof parsed !== "object") return null;
+    return {
+      minDate: parsed.minDate ?? null,
+      maxDate: parsed.maxDate ?? null,
+      populatedAt: parsed.populatedAt ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Local/dev fallback only. Production coverage lives in BigQuery. Never cookies. */
+export async function readCoverageFromDisk(): Promise<ShopifyWarehouseCoverage> {
+  try {
+    return parseCoverage(await readFile(DISK_FILE, "utf8")) ?? emptyShopifyCoverage();
+  } catch {
+    return emptyShopifyCoverage();
+  }
+}
+
+export async function writeCoverageToDisk(coverage: ShopifyWarehouseCoverage): Promise<void> {
+  await mkdir(path.dirname(DISK_FILE), { recursive: true });
+  await writeFile(DISK_FILE, `${JSON.stringify(coverage)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
 }

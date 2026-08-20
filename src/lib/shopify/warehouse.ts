@@ -5,8 +5,13 @@ import type { ShopifyLineItemRecord, ShopifyOrderRecord } from "@/lib/shopify/or
 import { overviewFromRecords, customersFromRecords } from "@/lib/shopify/order-record";
 import type { DashboardPeriod } from "@/lib/period";
 import type { ShopifyCustomerMetrics, ShopifyOverviewMetrics } from "@/lib/shopify/types";
-import { readShopifyWarehouseCoverage, warehouseCoversPeriod } from "@/lib/shopify/coverage";
-import type { ShopifyWarehouseCoverage } from "@/lib/shopify/coverage";
+import {
+  mergeCoverageRange,
+  readCoverageFromDisk,
+  warehouseCoversPeriod,
+  writeCoverageToDisk,
+  type ShopifyWarehouseCoverage,
+} from "@/lib/shopify/coverage";
 
 export function shopifyOrdersTableFq(): string | null {
   const config = getBigQueryConfig();
@@ -14,6 +19,15 @@ export function shopifyOrdersTableFq(): string | null {
   const dataset = process.env.BIGQUERY_SHOPIFY_DATASET?.trim() || "analytics";
   return `\`${config.projectId}.${dataset}.fct_shopify_orders\``;
 }
+
+export function shopifyCoverageTableFq(): string | null {
+  const config = getBigQueryConfig();
+  if (!config) return null;
+  const dataset = process.env.BIGQUERY_SHOPIFY_DATASET?.trim() || "analytics";
+  return `\`${config.projectId}.${dataset}.shopify_ingest_coverage\``;
+}
+
+const COVERAGE_CHECKPOINT_ID = "shopify_orders";
 
 export function isMissingTableError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -95,6 +109,122 @@ export async function ensureShopifyOrdersTable(): Promise<boolean> {
     console.warn("[shopify-warehouse] ensure table failed", error);
     return false;
   }
+}
+
+export async function ensureShopifyCoverageTable(): Promise<boolean> {
+  const table = shopifyCoverageTableFq();
+  if (!table) return false;
+  const { client, config } = getBigQueryClient();
+  try {
+    await client.query({
+      query: `
+        CREATE TABLE IF NOT EXISTS ${table} (
+          checkpoint_id STRING NOT NULL,
+          min_date DATE,
+          max_date DATE,
+          populated_at TIMESTAMP
+        )
+      `,
+      location: config.location,
+    });
+    return true;
+  } catch (error) {
+    if (isMissingTableError(error)) return false;
+    console.warn("[shopify-warehouse] ensure coverage table failed", error);
+    return false;
+  }
+}
+
+/**
+ * Production coverage checkpoint. Cron on Vercel cannot share cookie
+ * durable-json with dashboard readers, so this lives in BigQuery.
+ * Disk is a local/dev fallback only.
+ */
+export async function readShopifyWarehouseCoverage(): Promise<ShopifyWarehouseCoverage> {
+  const table = shopifyCoverageTableFq();
+  if (table) {
+    try {
+      const { client, config } = getBigQueryClient();
+      const [rows] = await client.query({
+        query: `
+          SELECT
+            CAST(min_date AS STRING) AS minDate,
+            CAST(max_date AS STRING) AS maxDate,
+            CAST(populated_at AS STRING) AS populatedAt
+          FROM ${table}
+          WHERE checkpoint_id = @checkpointId
+          LIMIT 1
+        `,
+        params: { checkpointId: COVERAGE_CHECKPOINT_ID },
+        location: config.location,
+      });
+      const row = (rows as Array<Record<string, unknown>>)[0];
+      if (row) {
+        return {
+          minDate: typeof row.minDate === "string" && row.minDate ? row.minDate : null,
+          maxDate: typeof row.maxDate === "string" && row.maxDate ? row.maxDate : null,
+          populatedAt:
+            typeof row.populatedAt === "string" && row.populatedAt ? row.populatedAt : null,
+        };
+      }
+    } catch (error) {
+      if (!isMissingTableError(error)) {
+        console.warn("[shopify-warehouse] coverage read failed", error);
+      }
+    }
+  }
+  return readCoverageFromDisk();
+}
+
+export async function expandShopifyWarehouseCoverage(
+  startDate: string,
+  endDate: string,
+): Promise<ShopifyWarehouseCoverage> {
+  const current = await readShopifyWarehouseCoverage();
+  const next = mergeCoverageRange(current, startDate, endDate, new Date().toISOString());
+  const table = shopifyCoverageTableFq();
+  let persisted = false;
+  if (table) {
+    try {
+      const ready = await ensureShopifyCoverageTable();
+      if (ready) {
+        const { client, config } = getBigQueryClient();
+        await client.query({
+          query: `
+            MERGE ${table} T
+            USING (
+              SELECT
+                @checkpointId AS checkpoint_id,
+                DATE(@minDate) AS min_date,
+                DATE(@maxDate) AS max_date,
+                TIMESTAMP(@populatedAt) AS populated_at
+            ) S
+            ON T.checkpoint_id = S.checkpoint_id
+            WHEN MATCHED THEN UPDATE SET
+              min_date = S.min_date,
+              max_date = S.max_date,
+              populated_at = S.populated_at
+            WHEN NOT MATCHED THEN INSERT (checkpoint_id, min_date, max_date, populated_at)
+            VALUES (S.checkpoint_id, S.min_date, S.max_date, S.populated_at)
+          `,
+          params: {
+            checkpointId: COVERAGE_CHECKPOINT_ID,
+            minDate: next.minDate,
+            maxDate: next.maxDate,
+            populatedAt: next.populatedAt,
+          },
+          location: config.location,
+        });
+        persisted = true;
+      }
+    } catch (error) {
+      console.warn("[shopify-warehouse] coverage write failed", error);
+    }
+  }
+  if (!persisted) {
+    await writeCoverageToDisk(next);
+  }
+  return next;
 }
 
 export function recordToWarehousePayload(record: ShopifyOrderRecord) {
