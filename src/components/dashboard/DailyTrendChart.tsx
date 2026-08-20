@@ -3,6 +3,7 @@
 type DailyTrendChartProps = {
   title: string;
   description: string;
+  source?: string;
   days: string[];
   seriesA: { label: string; values: number[] };
   seriesB?: { label: string; values: number[] };
@@ -26,6 +27,7 @@ function pathFor(values: number[], width: number, height: number, max: number) {
 export function DailyTrendChart({
   title,
   description,
+  source,
   days,
   seriesA,
   seriesB,
@@ -46,6 +48,7 @@ export function DailyTrendChart({
   return (
     <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      {source ? <p className="mt-1 text-xs text-muted">Source: {source}</p> : null}
       <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
       <svg
         viewBox={`0 0 ${width} ${height}`}

@@ -2,21 +2,48 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { joinMetaAndOurCampaigns } from "../src/lib/attribution/campaign-map.ts";
+import { ALL_CAMPAIGNS_KEY } from "../src/lib/attribution/observed-meta-grain.ts";
 import {
   CHILD_UNSUPPORTED_PLATFORM_METRICS,
   COLUMN_PRESETS,
   DEFAULT_CAMPAIGN_COLUMNS,
+  MISSING_CAMPAIGN_PLATFORM_SERIES,
+  OUR_CHART_DESCRIPTION,
+  OUR_CHART_SOURCE,
+  PLATFORM_CHART_DESCRIPTION,
+  PLATFORM_CHART_SOURCE,
+  chartMetricCopy,
   chartMetricsForGrain,
   filterCampaignsByMapping,
+  formatCountCell,
+  formatFrequencyCell,
   formatMoneyCell,
   formatOrdersCell,
   isChildPlatformMetric,
+  isPlatformChartMetric,
+  resolvePlatformDailySeries,
   searchCampaignRows,
   sortCampaignRows,
   totalCampaignPerformance,
   visibleCampaignColumns,
+  type PlatformDailySeries,
 } from "../src/lib/attribution/meta-performance-grid.ts";
+import { isMetaStoryAllowed } from "../src/lib/attribution/meta-story-guard.ts";
 import { META_STORY_CAMPAIGNS } from "../src/lib/attribution/meta-performance-demo.ts";
+
+function platformSeries(spend: number[]): PlatformDailySeries {
+  return {
+    spend,
+    purchase_value: spend.map(() => 1),
+    purchases: spend.map(() => 1),
+    roas: spend.map(() => 1),
+    cpa: spend.map(() => 1),
+    cpm: spend.map(() => 1),
+    ctr: spend.map(() => 1),
+    cpc: spend.map(() => 1),
+    frequency: spend.map(() => 1),
+  };
+}
 
 test("performance preset is the default campaign column set", () => {
   assert.deepEqual(DEFAULT_CAMPAIGN_COLUMNS, COLUMN_PRESETS.performance);
@@ -147,6 +174,105 @@ test("demo fixture is not imported by production loaders", () => {
   for (const file of loaders) {
     const src = readFileSync(file, "utf8");
     assert.doesNotMatch(src, /meta-performance-demo/);
+    assert.doesNotMatch(src, /META_STORY_/);
   }
   assert.match(readFileSync("src/app/(dashboard)/meta/story/page.tsx", "utf8"), /meta-performance-demo/);
+});
+
+test("platform chart copy is Flyweel date, OUR copy is purchase-day attribution", () => {
+  for (const id of ["spend", "metaRevenue", "metaRoas", "purchases", "cpa"] as const) {
+    assert.equal(isPlatformChartMetric(id), true);
+    const copy = chartMetricCopy(id);
+    assert.equal(copy.source, PLATFORM_CHART_SOURCE);
+    assert.equal(copy.description, PLATFORM_CHART_DESCRIPTION);
+    assert.doesNotMatch(copy.source, /GoodsNova/);
+    assert.doesNotMatch(copy.description, /purchase day/);
+    assert.doesNotMatch(copy.description, /attribution/i);
+  }
+  for (const id of [
+    "ourRevenue",
+    "ourRoas",
+    "attributedOrders",
+    "newCustomerRevenue",
+    "newCustomerCredit",
+  ] as const) {
+    assert.equal(isPlatformChartMetric(id), false);
+    const copy = chartMetricCopy(id);
+    assert.equal(copy.source, OUR_CHART_SOURCE);
+    assert.equal(copy.description, OUR_CHART_DESCRIPTION);
+  }
+});
+
+test("missing per-campaign platform series never falls back to account totals", () => {
+  const account = platformSeries([999, 888, 777]);
+  const campaignA = platformSeries([10, 20, 30]);
+  const byCampaign = { "camp-a": campaignA };
+  const all = resolvePlatformDailySeries({
+    entityKey: ALL_CAMPAIGNS_KEY,
+    allCampaignsKey: ALL_CAMPAIGNS_KEY,
+    platformDaily: account,
+    platformDailyByCampaign: byCampaign,
+  });
+  assert.equal(all, account);
+  assert.deepEqual(all?.spend, [999, 888, 777]);
+
+  const matched = resolvePlatformDailySeries({
+    entityKey: "camp-a",
+    allCampaignsKey: ALL_CAMPAIGNS_KEY,
+    platformDaily: account,
+    platformDailyByCampaign: byCampaign,
+  });
+  assert.equal(matched, campaignA);
+  assert.deepEqual(matched?.spend, [10, 20, 30]);
+
+  const missing = resolvePlatformDailySeries({
+    entityKey: "our-only-campaign",
+    allCampaignsKey: ALL_CAMPAIGNS_KEY,
+    platformDaily: account,
+    platformDailyByCampaign: byCampaign,
+  });
+  assert.equal(missing, null);
+  assert.notEqual(missing, account);
+  assert.notDeepEqual(missing?.spend, account.spend);
+
+  const workspace = readFileSync("src/components/dashboard/MetaPerformanceWorkspace.tsx", "utf8");
+  assert.equal(MISSING_CAMPAIGN_PLATFORM_SERIES, "No platform series available for this campaign");
+  assert.match(workspace, /resolvePlatformDailySeries/);
+  assert.match(workspace, /MISSING_CAMPAIGN_PLATFORM_SERIES/);
+  assert.doesNotMatch(workspace, /\?\? platformDaily/);
+  assert.doesNotMatch(
+    workspace,
+    /GoodsNova first-party attribution\. Same existing credit grouped by purchase day/,
+  );
+});
+
+test("total row Reach and Frequency are unavailable, not summed campaign reach", () => {
+  const totals = totalCampaignPerformance(META_STORY_CAMPAIGNS);
+  const summedReach = META_STORY_CAMPAIGNS.reduce((sum, row) => sum + row.reach, 0);
+  assert.ok(summedReach > 0);
+  assert.ok((META_STORY_CAMPAIGNS[0]?.reach ?? 0) > 0);
+  assert.equal(totals.reach, null);
+  assert.equal(totals.frequency, null);
+  assert.notEqual(totals.reach, summedReach);
+  assert.equal(formatCountCell(totals.reach, false), "—");
+  assert.equal(formatFrequencyCell(totals.frequency, false), "—");
+  assert.equal(totals.spend, META_STORY_CAMPAIGNS.reduce((sum, row) => sum + row.spend, 0));
+  assert.equal(
+    totals.impressions,
+    META_STORY_CAMPAIGNS.reduce((sum, row) => sum + row.impressions, 0),
+  );
+});
+
+test("story fixtures are blocked in Vercel Production and allowed in Preview", () => {
+  assert.equal(isMetaStoryAllowed("production"), false);
+  assert.equal(isMetaStoryAllowed("preview"), true);
+  assert.equal(isMetaStoryAllowed("development"), true);
+  assert.equal(isMetaStoryAllowed(undefined), true);
+  const story = readFileSync("src/app/(dashboard)/meta/story/page.tsx", "utf8");
+  const campaignStory = readFileSync("src/app/(dashboard)/meta/story/campaign/page.tsx", "utf8");
+  for (const src of [story, campaignStory]) {
+    assert.match(src, /isMetaStoryAllowed/);
+    assert.match(src, /VERCEL_ENV/);
+    assert.match(src, /notFound/);
+  }
 });

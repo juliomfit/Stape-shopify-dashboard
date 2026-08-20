@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ObservedAdsetTable } from "@/components/dashboard/ObservedChildTable";
+import { isMetaStoryAllowed } from "@/lib/attribution/meta-story-guard";
 import { META_STORY_ADSETS, META_STORY_CAMPAIGNS } from "@/lib/attribution/meta-performance-demo";
 import { formatMoney, formatNumber } from "@/lib/format";
 
@@ -12,6 +14,9 @@ export const metadata: Metadata = {
 };
 
 export default function MetaStoryCampaignPage() {
+  if (!isMetaStoryAllowed(process.env.VERCEL_ENV)) {
+    notFound();
+  }
   const campaign = META_STORY_CAMPAIGNS[0];
   const currency = "USD";
   const adsets = META_STORY_ADSETS.filter((row) => row.campaignLabel === campaign.campaignName);

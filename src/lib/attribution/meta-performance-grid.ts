@@ -11,7 +11,6 @@ import {
   cpc,
   cpm,
   ctr,
-  metaFrequency,
   platformCpa,
   platformRoas,
   ratio,
@@ -198,6 +197,78 @@ export const CHILD_CHART_METRICS: { id: ChartMetricId; label: string }[] = [
   { id: "newCustomerRevenue", label: "New customer revenue" },
   { id: "newCustomerCredit", label: "New customer credit" },
 ];
+
+export const PLATFORM_CHART_METRICS: readonly ChartMetricId[] = [
+  "spend",
+  "metaRevenue",
+  "metaRoas",
+  "purchases",
+  "cpa",
+];
+
+export const OUR_CHART_METRICS: readonly ChartMetricId[] = [
+  "ourRevenue",
+  "ourRoas",
+  "attributedOrders",
+  "newCustomerRevenue",
+  "newCustomerCredit",
+];
+
+export const PLATFORM_CHART_SOURCE = "Meta platform · Flyweel · campaign level";
+export const PLATFORM_CHART_DESCRIPTION = "Reported by platform date.";
+export const OUR_CHART_SOURCE = "GoodsNova first-party attribution";
+export const OUR_CHART_DESCRIPTION =
+  "Existing attribution credit grouped by order purchase day in America/Los_Angeles.";
+export const MISSING_CAMPAIGN_PLATFORM_SERIES =
+  "No platform series available for this campaign";
+
+export type PlatformDailySeries = {
+  spend: number[];
+  purchase_value: number[];
+  purchases: number[];
+  roas: number[];
+  cpa: number[];
+  cpm: number[];
+  ctr: number[];
+  cpc: number[];
+  frequency: number[];
+};
+
+export function isPlatformChartMetric(id: ChartMetricId) {
+  return (PLATFORM_CHART_METRICS as readonly string[]).includes(id);
+}
+
+export function chartMetricCopy(id: ChartMetricId) {
+  if (isPlatformChartMetric(id)) {
+    return {
+      source: PLATFORM_CHART_SOURCE,
+      description: PLATFORM_CHART_DESCRIPTION,
+    };
+  }
+  return {
+    source: OUR_CHART_SOURCE,
+    description: OUR_CHART_DESCRIPTION,
+  };
+}
+
+/**
+ * Account-wide platformDaily is only for "All campaigns".
+ * A selected campaign with no own series is unavailable — never the account totals.
+ */
+export function resolvePlatformDailySeries(args: {
+  entityKey: string;
+  allCampaignsKey: string;
+  platformDaily: PlatformDailySeries;
+  platformDailyByCampaign: Record<string, PlatformDailySeries | undefined>;
+}): PlatformDailySeries | null {
+  if (!args.entityKey || args.entityKey === args.allCampaignsKey) {
+    return args.platformDaily;
+  }
+  if (!Object.prototype.hasOwnProperty.call(args.platformDailyByCampaign, args.entityKey)) {
+    return null;
+  }
+  return args.platformDailyByCampaign[args.entityKey] ?? null;
+}
 
 export type ColumnPreset = "performance" | "delivery" | "conversion" | "attribution" | "all";
 
@@ -438,8 +509,10 @@ export function sortAdRows(rows: ObservedMetaAdRollup[], column: AdColumnId, dir
 export type CampaignTotals = {
   spend: number;
   impressions: number;
-  reach: number;
-  frequency: number;
+  /** Account unique reach is not available from summed campaign rows. */
+  reach: number | null;
+  /** Frequency from summed reach is not a true account frequency. */
+  frequency: number | null;
   clicks: number;
   linkClicks: number;
   ctr: number | null;
@@ -461,7 +534,6 @@ export function totalCampaignPerformance(rows: OurCampaignRow[]): CampaignTotals
   const platform = rows.filter((row) => row.platformPresent);
   const spend = platform.reduce((sum, row) => sum + row.spend, 0);
   const impressions = platform.reduce((sum, row) => sum + row.impressions, 0);
-  const reach = platform.reduce((sum, row) => sum + row.reach, 0);
   const clicks = platform.reduce((sum, row) => sum + row.clicks, 0);
   const linkClicks = platform.reduce((sum, row) => sum + row.linkClicks, 0);
   const purchases = platform.reduce((sum, row) => sum + row.metaPurchases, 0);
@@ -473,8 +545,9 @@ export function totalCampaignPerformance(rows: OurCampaignRow[]): CampaignTotals
   return {
     spend,
     impressions,
-    reach,
-    frequency: metaFrequency(impressions, reach),
+    // People can appear in multiple campaigns. Do not sum row-level reach.
+    reach: null,
+    frequency: null,
     clicks,
     linkClicks,
     ctr: ctr(clicks, impressions),

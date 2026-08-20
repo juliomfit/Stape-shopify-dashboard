@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { MetaPerformanceWorkspace } from "@/components/dashboard/MetaPerformanceWorkspace";
+import { isMetaStoryAllowed } from "@/lib/attribution/meta-story-guard";
 import {
   META_STORY_ADS,
   META_STORY_ADSET_SERIES,
@@ -20,6 +22,9 @@ export const metadata: Metadata = {
 };
 
 export default function MetaStoryPage() {
+  if (!isMetaStoryAllowed(process.env.VERCEL_ENV)) {
+    notFound();
+  }
   return (
     <>
       <Header

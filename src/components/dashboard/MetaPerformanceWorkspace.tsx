@@ -28,9 +28,11 @@ import {
   DEFAULT_CAMPAIGN_COLUMNS,
   FLYWEEL_CAMPAIGN_ONLY_TOOLTIP,
   META_GRID_STORAGE_KEY,
+  MISSING_CAMPAIGN_PLATFORM_SERIES,
   adHref,
   adsetHref,
   campaignHref,
+  chartMetricCopy,
   chartMetricsForGrain,
   csvEscape,
   filterCampaignsByMapping,
@@ -41,7 +43,9 @@ import {
   formatPercentCell,
   formatRoasCell,
   groupedHeader,
+  isPlatformChartMetric,
   parseStoredColumns,
+  resolvePlatformDailySeries,
   searchCampaignRows,
   searchText,
   sortAdRows,
@@ -56,20 +60,11 @@ import {
   type ColumnPreset,
   type MappingFilter,
   type MetaGrain,
+  type PlatformDailySeries,
   type SortDir,
 } from "@/lib/attribution/meta-performance-grid";
 
-export type PlatformDailySeries = {
-  spend: number[];
-  purchase_value: number[];
-  purchases: number[];
-  roas: number[];
-  cpa: number[];
-  cpm: number[];
-  ctr: number[];
-  cpc: number[];
-  frequency: number[];
-};
+export type { PlatformDailySeries };
 
 type MetaPerformanceWorkspaceProps = {
   currencyCode: string;
@@ -214,9 +209,22 @@ export function MetaPerformanceWorkspace({
   const totals = totalCampaignPerformance(campaignRows);
 
   const platformForEntity =
-    grain === "campaigns" && entityKey && entityKey !== ALL_CAMPAIGNS_KEY
-      ? platformDailyByCampaign[entityKey] ?? platformDaily
-      : platformDaily;
+    grain === "campaigns"
+      ? resolvePlatformDailySeries({
+          entityKey,
+          allCampaignsKey: ALL_CAMPAIGNS_KEY,
+          platformDaily,
+          platformDailyByCampaign,
+        })
+      : null;
+  const platformSeriesMissing =
+    grain === "campaigns" &&
+    entityKey !== ALL_CAMPAIGNS_KEY &&
+    platformForEntity == null;
+  const chartCopy = chartMetricCopy(activeChartMetric);
+  const needsPlatformSeries =
+    isPlatformChartMetric(activeChartMetric) || activeChartMetric === "ourRoas";
+  const showMissingPlatformSeries = platformSeriesMissing && needsPlatformSeries;
 
   const timeSeriesValues = useMemo(() => {
     const our = selectedEntity?.points ?? [];
@@ -224,19 +232,21 @@ export function MetaPerformanceWorkspace({
     const orders = our.map((point) => point.attributedOrders);
     switch (activeChartMetric) {
       case "spend":
-        return platformForEntity.spend;
+        return platformForEntity?.spend ?? null;
       case "metaRevenue":
-        return platformForEntity.purchase_value;
+        return platformForEntity?.purchase_value ?? null;
       case "metaRoas":
-        return platformForEntity.roas;
+        return platformForEntity?.roas ?? null;
       case "purchases":
-        return platformForEntity.purchases;
+        return platformForEntity?.purchases ?? null;
       case "cpa":
-        return platformForEntity.cpa;
+        return platformForEntity?.cpa ?? null;
       case "ourRevenue":
         return revenue;
       case "ourRoas":
-        return ourRoasSeries(revenue, platformForEntity.spend);
+        return platformForEntity
+          ? ourRoasSeries(revenue, platformForEntity.spend)
+          : null;
       case "attributedOrders":
         return orders;
       case "newCustomerRevenue":
@@ -408,15 +418,31 @@ export function MetaPerformanceWorkspace({
         ) : null}
       </div>
 
-      <DailyTrendChart
-        title={chartOptions.find((row) => row.id === activeChartMetric)?.label ?? "Trend"}
-        description={`${selectedEntity?.label ? `${selectedEntity.label}. ` : ""}GoodsNova first-party attribution. Same existing credit grouped by purchase day in America/Los_Angeles.${extra ? ` ${extra}` : ""}`}
-        days={days}
-        seriesA={{
-          label: chartOptions.find((row) => row.id === activeChartMetric)?.label ?? "Metric",
-          values: timeSeriesValues,
-        }}
-      />
+      {showMissingPlatformSeries || timeSeriesValues == null ? (
+        <article className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-sm font-semibold text-foreground">
+            {chartOptions.find((row) => row.id === activeChartMetric)?.label ?? "Trend"}
+          </h2>
+          {selectedEntity?.label ? (
+            <p className="mt-1 text-xs text-muted">{selectedEntity.label}</p>
+          ) : null}
+          <p className="mt-1 text-xs text-muted">Source: {chartCopy.source}</p>
+          <p className="mt-6 text-sm text-muted">{MISSING_CAMPAIGN_PLATFORM_SERIES}</p>
+        </article>
+      ) : (
+        <DailyTrendChart
+          title={chartOptions.find((row) => row.id === activeChartMetric)?.label ?? "Trend"}
+          source={chartCopy.source}
+          description={`${selectedEntity?.label ? `${selectedEntity.label}. ` : ""}${chartCopy.description}${
+            isPlatformChartMetric(activeChartMetric) ? "" : extra ? ` ${extra}` : ""
+          }`}
+          days={days}
+          seriesA={{
+            label: chartOptions.find((row) => row.id === activeChartMetric)?.label ?? "Metric",
+            values: timeSeriesValues,
+          }}
+        />
+      )}
 
       <HorizontalBarList
         title={grain === "campaigns" ? "Campaign breakdown" : grain === "adsets" ? "Ad set breakdown" : "Ad breakdown"}
@@ -805,9 +831,9 @@ function totalsCell(
     case "impressions":
       return formatCountCell(totals.impressions);
     case "reach":
-      return formatCountCell(totals.reach);
+      return formatCountCell(totals.reach, false);
     case "frequency":
-      return formatFrequencyCell(totals.frequency);
+      return formatFrequencyCell(totals.frequency, false);
     case "clicks":
       return formatCountCell(totals.clicks);
     case "linkClicks":
