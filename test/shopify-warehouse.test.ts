@@ -173,20 +173,20 @@ test("public prepared flags never require order counts", () => {
       shopify: { available: true, tableExists: true, rowCount: 12 },
       meta: { available: true, campaigns: 3 },
     }),
-    { shopify: true, meta: true },
+    { shopify: true, shopifyState: "populated", meta: true },
   );
   assert.deepEqual(
     preparedFlags({
       shopify: { available: true, tableExists: true, rowCount: 0 },
       meta: { available: true, campaigns: 0 },
     }),
-    { shopify: false, meta: false },
+    { shopify: false, shopifyState: "empty", meta: false },
   );
   assert.deepEqual(
     preparedFlags({
       shopify: { available: false, tableExists: false, rowCount: null },
       meta: { available: false, campaigns: null },
     }),
-    { shopify: false, meta: null },
+    { shopify: false, shopifyState: "missing", meta: null },
   );
 });

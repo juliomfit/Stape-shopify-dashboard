@@ -7,7 +7,7 @@ const PREPARED_TIMEOUT_MS = 4_000;
 
 async function loadPreparedServing(): Promise<PreparedServing> {
   if (!isPlatformBqReady()) {
-    return { shopify: null, meta: null };
+    return { shopify: null, shopifyState: "unavailable", meta: null };
   }
   try {
     const [shopify, meta] = await Promise.all([
@@ -19,7 +19,7 @@ async function loadPreparedServing(): Promise<PreparedServing> {
       meta: { available: meta.available, campaigns: meta.campaigns },
     });
   } catch {
-    return { shopify: null, meta: null };
+    return { shopify: null, shopifyState: "unavailable", meta: null };
   }
 }
 
@@ -28,7 +28,7 @@ function withTimeout(
   ms: number,
 ): Promise<PreparedServing> {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve({ shopify: null, meta: null }), ms);
+    const timer = setTimeout(() => resolve({ shopify: null, shopifyState: "unavailable", meta: null }), ms);
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -36,7 +36,7 @@ function withTimeout(
       },
       () => {
         clearTimeout(timer);
-        resolve({ shopify: null, meta: null });
+        resolve({ shopify: null, shopifyState: "unavailable", meta: null });
       },
     );
   });

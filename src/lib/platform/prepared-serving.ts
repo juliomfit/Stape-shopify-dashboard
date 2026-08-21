@@ -1,5 +1,8 @@
+export type PreparedShopifyState = "populated" | "empty" | "missing" | "unavailable";
+
 export type PreparedServing = {
   shopify: boolean | null;
+  shopifyState: PreparedShopifyState | null;
   meta: boolean | null;
 };
 
@@ -16,10 +19,13 @@ export function preparedFlags(input: {
   };
 }): PreparedServing {
   let shopify: boolean | null = null;
+  let shopifyState: PreparedShopifyState | null = "unavailable";
   if (input.shopify.tableExists === false) {
     shopify = false;
+    shopifyState = "missing";
   } else if (input.shopify.available && input.shopify.rowCount != null) {
     shopify = input.shopify.rowCount > 0;
+    shopifyState = shopify ? "populated" : "empty";
   }
 
   let meta: boolean | null = null;
@@ -27,5 +33,5 @@ export function preparedFlags(input: {
     meta = input.meta.campaigns > 0;
   }
 
-  return { shopify, meta };
+  return { shopify, shopifyState, meta };
 }
